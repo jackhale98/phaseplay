@@ -314,7 +314,7 @@ export function setCaption(play: Play, fi: number, caption: string): Play {
   return withFrame(play, fi, (f) => {
     const c = caption.slice(0, 280);
     if ((f.caption ?? '') === c) return f;
-    const next = { ...f, caption: c };
+    const next: Frame = { ...f, caption: c };
     if (!c) delete next.caption;
     return next;
   });
