@@ -193,14 +193,14 @@ insert('recurrences', {
     startsOn: addDays(monday, -28),
     until: addDays(monday, 56),
   }),
-  template: JSON.stringify({ title: 'Training', locationName: 'Riverside Park, Pitch 2' }),
+  template: JSON.stringify({ title: 'Practice', locationName: 'Riverside Park, Pitch 2' }),
   created_at: now,
 });
 for (let w = -4; w <= 8; w++) {
   for (const d of [1, 3]) {
     const date = addDays(monday, w * 7 + d);
     const startsAt = zonedToUtc(date, '19:00', TZ);
-    const e = { id: id('e'), type: 'training', startsAt, title: 'Training' };
+    const e = { id: id('e'), type: 'training', startsAt, title: 'Practice' };
     evs.push(e);
     insert('events', {
       id: e.id,

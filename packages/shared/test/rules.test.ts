@@ -13,6 +13,10 @@ import {
   fillAccent,
   accessibleAccent,
   ROUTES,
+  EVENT_TYPES,
+  EVENT_CATEGORIES,
+  eventCategory,
+  typesInCategory,
 } from '../src';
 
 describe('permissions', () => {
@@ -87,6 +91,15 @@ describe('time', () => {
       '2026-11-24',
       '2026-11-26',
     ]);
+  });
+});
+
+describe('event categories', () => {
+  it('splits every type into games, practices or events', () => {
+    expect(typesInCategory('games')).toEqual(['match', 'tournament']);
+    expect(typesInCategory('practices')).toEqual(['training']);
+    expect(typesInCategory('events')).toEqual(['social', 'fundraiser', 'meeting', 'other']);
+    expect(EVENT_TYPES.every((t) => EVENT_CATEGORIES.includes(eventCategory(t)))).toBe(true);
   });
 });
 

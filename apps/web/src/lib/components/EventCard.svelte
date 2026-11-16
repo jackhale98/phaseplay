@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     EVENT_TYPE_LABELS,
+    eventCategory,
     type TeamEvent,
     type RsvpCounts,
     type RsvpStatus,
@@ -31,7 +32,7 @@
   const total = $derived(counts ? counts.yes + counts.maybe + counts.no : 0);
 </script>
 
-<article class="ev {variant} {e.type}" class:cancelled={!!e.cancelledAt}>
+<article class="ev {variant} {e.type} {eventCategory(e.type)}" class:cancelled={!!e.cancelledAt}>
   <a
     class="hit"
     href="/events/{e.id}"
@@ -140,14 +141,13 @@
     font-weight: 700;
     color: var(--accent-text);
   }
-  .match .badge,
-  .tournament .badge {
+  .games .badge {
     color: #b45309;
   }
-  :global(:root[data-theme='dark']) .match .badge {
+  :global(:root[data-theme='dark']) .games .badge {
     color: #f6b25e;
   }
-  .social .badge {
+  .events .badge {
     color: var(--info);
   }
   .badge.cx {

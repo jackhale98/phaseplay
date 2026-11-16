@@ -353,7 +353,7 @@ describe('writes', () => {
     const ics = await call('GET', f.body.path);
     expect(ics.status).toBe(200);
     expect(ics.headers.get('content-type')).toContain('text/calendar');
-    expect(String(ics.body)).toContain('SUMMARY:PRFC Match: v Rivals');
+    expect(String(ics.body)).toContain('SUMMARY:PRFC Game: v Rivals');
     await call('DELETE', `/api/v1/me/calendar-feeds/${f.body.id}`, { cookie: a.player.cookie });
     expect((await call('GET', f.body.path)).status).toBe(404);
   });

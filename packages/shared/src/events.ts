@@ -2,14 +2,51 @@ import * as v from 'valibot';
 import { HHMM, Id, IsoDate, Millis, OptionalText, Url, text } from './common';
 import { FORMATS } from './rugby';
 
-export const EVENT_TYPES = ['training', 'match', 'tournament', 'social'] as const;
+export const EVENT_TYPES = [
+  'training',
+  'match',
+  'tournament',
+  'social',
+  'fundraiser',
+  'meeting',
+  'other',
+] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  training: 'Training',
-  match: 'Match',
-  tournament: '7s tournament',
+  training: 'Practice',
+  match: 'Game',
+  tournament: 'Tournament',
   social: 'Social',
+  fundraiser: 'Fundraiser',
+  meeting: 'Meeting',
+  other: 'Event',
 };
+
+/**
+ * Every event type belongs to one of three schedule categories, so the schedule can be filtered
+ * by Games / Practices / Events (gatherings, fundraisers, meetings and anything else).
+ */
+export const EVENT_CATEGORIES = ['games', 'practices', 'events'] as const;
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
+  games: 'Games',
+  practices: 'Practices',
+  events: 'Events',
+};
+const CATEGORY_OF: Record<EventType, EventCategory> = {
+  match: 'games',
+  tournament: 'games',
+  training: 'practices',
+  social: 'events',
+  fundraiser: 'events',
+  meeting: 'events',
+  other: 'events',
+};
+export const eventCategory = (type: EventType): EventCategory => CATEGORY_OF[type];
+export const typesInCategory = (c: EventCategory): EventType[] =>
+  EVENT_TYPES.filter((t) => CATEGORY_OF[t] === c);
+/** Games get opponents, formats, team sheets and match mode. */
+export const isGame = (type: EventType) => CATEGORY_OF[type] === 'games';
 
 export const MatchSettings = v.object({
   halfMinutes: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(60))),
