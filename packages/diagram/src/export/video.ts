@@ -1,3 +1,4 @@
+/// <reference path="../types/gifenc.d.ts" />
 /**
  * Video export (docs/diagrams.md §Exports — Video). Feature-detected at runtime, encoders lazy:
  *   (a) MP4 H.264 via WebCodecs VideoEncoder + mp4-muxer, rendered frame by frame (worker-safe);
