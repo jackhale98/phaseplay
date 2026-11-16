@@ -57,6 +57,13 @@ function normaliseDrill(d: DrillFull): DrillFull {
   }
 }
 
+/** Resolve once a team is selected (deep links select it just after boot). */
+export async function whenTeam(timeoutMs = 10_000): Promise<string | null> {
+  const t0 = Date.now();
+  while (!app.teamId && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 50));
+  return app.teamId;
+}
+
 export type Loaded<T> = { value: T | null; cached: boolean; error?: 'offline' | 'not_found' };
 
 async function load<T extends { version: number }>(
@@ -66,6 +73,7 @@ async function load<T extends { version: number }>(
   normalise: (t: T) => T,
   version?: number,
 ): Promise<Loaded<T>> {
+  if (!app.teamId) return { value: null, cached: false, error: 'offline' };
   const hit = mem.get(key);
   if (hit && version !== undefined && hit.version >= version)
     return { value: hit.value as T, cached: true };

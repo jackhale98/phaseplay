@@ -43,6 +43,7 @@
 
   $effect(() => {
     const did = id;
+    if (!app.teamId) return;
     void loadDrill(did, meta?.version).then((r) => {
       if (did !== id) return;
       if (r.value) {

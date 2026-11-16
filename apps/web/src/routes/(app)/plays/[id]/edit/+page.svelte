@@ -13,6 +13,7 @@
   import MetaSheet, { type MetaValues } from '#lib/features/plays/MetaSheet.svelte';
   import { Autosave } from '#lib/features/plays/autosave.svelte';
   import {
+    whenTeam,
     docGet,
     docPut,
     loadPlay,
@@ -64,6 +65,7 @@
       return;
     }
     void (async () => {
+      await whenTeam();
       const [draft, loaded] = await Promise.all([
         docGet<{ data: Play; updatedAt: number }>(playDraftKey(id)),
         loadPlay(id, app.snap?.rows.plays[id]?.version),

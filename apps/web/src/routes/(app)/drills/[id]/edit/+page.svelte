@@ -14,6 +14,7 @@
   import DrillForm, { type DrillDetails } from '#lib/features/drills/DrillForm.svelte';
   import { Autosave } from '#lib/features/plays/autosave.svelte';
   import {
+    whenTeam,
     docGet,
     docPut,
     drillDraftKey,
@@ -76,6 +77,7 @@
       return;
     }
     void (async () => {
+      await whenTeam();
       const [draft, loaded] = await Promise.all([
         docGet<{ diagram: Play; updatedAt: number }>(drillDraftKey(id)),
         loadDrill(id, app.snap?.rows.drills[id]?.version),

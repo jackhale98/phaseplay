@@ -46,7 +46,7 @@
   let { open = $bindable(false), value, diagram, onsave }: Props = $props();
 
   let f = $state<DrillDetails & { points: string; vars: string }>({
-    ...value,
+    ...untrack(() => value),
     points: '',
     vars: '',
   });

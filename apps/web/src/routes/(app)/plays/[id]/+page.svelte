@@ -41,6 +41,7 @@
   $effect(() => {
     const pid = id;
     const version = meta?.version;
+    if (!app.teamId) return;
     void loadPlay(pid, version).then((r) => {
       if (pid !== id) return;
       if (r.value) {

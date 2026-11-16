@@ -108,6 +108,8 @@
   let scrubT = $state<number | null>(null);
   let zoomed = $state(false);
   let desktop = $state(false);
+  /** Bumped when the pitch ↔ screen transform changes (resize, zoom). */
+  let viewRev = $state(0);
 
   let tokenSheet = $state(false);
   let frameSheet = $state(false);
@@ -381,6 +383,7 @@
       center = null;
       stage.viewport = null;
       zoomed = false;
+      viewRev++;
       return;
     }
     const w = base.w / zoom;
@@ -390,6 +393,7 @@
     center = { x: cx, y: cy };
     stage.viewport = { x: cx - w / 2, y: cy - h / 2, w, h };
     zoomed = true;
+    viewRev++;
   }
   /** Zoom so pitch point P stays under client point m. */
   function zoomAround(P: Vec2, m: { x: number; y: number }, z: number) {
@@ -1032,6 +1036,7 @@
     const ro = new ResizeObserver(([en]) => {
       if (!en || !stage) return;
       stage.resize(en.contentRect.width, en.contentRect.height);
+      viewRev++;
       stage.orientation = bestOrientation(
         stage.baseViewport(play),
         stage.canvas.width,
@@ -1080,6 +1085,13 @@
   const canvasLabel = $derived(
     `${title || 'Diagram'} pitch, frame ${fi + 1} of ${play.frames.length}. ${tools.find((b) => sameTool(b.tool ?? { id: 'select' }, tool))?.label ?? 'Select'} tool. Use the token list to edit with the keyboard.`,
   );
+  /** CSS px of a pitch point relative to the canvas (exposed on the token list for tools/tests). */
+  function screenOf(p: Vec2 | undefined) {
+    void viewRev;
+    if (!p || !stage || !stage.cssW) return undefined;
+    const s = stage.toCss(play, p);
+    return { x: Math.round(s.x), y: Math.round(s.y) };
+  }
   const holderNow = $derived(resolvedBall(play, fi)?.holder);
   const positions = $derived(resolvedPositions(play, fi));
 </script>
@@ -1157,11 +1169,16 @@
   </nav>
 
   <div class="canvas-wrap" bind:this={wrap}>
+    <div
+      class="surface"
+      role="application"
+      aria-roledescription="pitch editor"
+      aria-label={canvasLabel}
+      aria-describedby="ed-frame-desc"
+    >
     <canvas
       bind:this={canvas}
       tabindex="-1"
-      aria-label={canvasLabel}
-      aria-describedby="ed-frame-desc"
       onpointerdown={onDown}
       onpointermove={onMove}
       onpointerup={onUp}
@@ -1172,13 +1189,17 @@
       }}
       oncontextmenu={onContext}
     ></canvas>
+    </div>
     <p id="ed-frame-desc" class="sr-only">{frameDesc}</p>
     <ul class="sr-only" aria-label="Tokens on the pitch">
       {#each play.entities as e (e.id)}
         {@const p = positions[e.id]}
+        {@const c = screenOf(e.id === play.entities.find((x) => x.kind === 'ball')?.id ? undefined : p)}
         <li>
           <button
             data-token={e.id}
+            data-x={c?.x}
+            data-y={c?.y}
             aria-pressed={selected.includes(e.id)}
             onfocus={() => {
               if (!selected.includes(e.id)) selected = [e.id];
@@ -1560,6 +1581,10 @@
     background: #2f6b3a;
     min-height: 0;
   }
+  .surface {
+    position: absolute;
+    inset: 0;
+  }
   canvas {
     position: absolute;
     inset: 0;
@@ -1717,6 +1742,7 @@
     flex: 1 1 auto;
     display: flex;
     overflow-x: auto;
+    mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
     scrollbar-width: none;
     padding: 2px var(--s-1);
   }
@@ -1850,6 +1876,7 @@
     border-right: 1px solid var(--border);
   }
   .desktop .tscroll {
+    mask-image: none;
     flex-direction: column;
     overflow-y: auto;
     padding: var(--s-2) var(--s-1);
