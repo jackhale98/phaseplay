@@ -11,7 +11,7 @@
     "db:migrate:test": "wrangler d1 migrations apply phaseplay --local --env test",
     "db:seed": "mkdir -p .wrangler && tsx scripts/seed.ts > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --file .wrangler/seed.sql",
     "db:seed:test": "mkdir -p .wrangler && tsx scripts/seed.ts > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --env test --file .wrangler/seed.sql",
-    "e2e:serve": "rm -rf .wrangler/state/v3/d1 && wrangler d1 migrations apply phaseplay --local --env test && pnpm db:seed:test && wrangler dev --env test --port 8787 --local"
+    "e2e:serve": "rm -rf .wrangler/state/v3/d1 && wrangler d1 migrations apply phaseplay --local --env test && pnpm db:seed:test && wrangler dev --env test --port ${E2E_PORT:-8787} --local"
   },
   "dependencies": {
     "@phaseplay/diagram": "workspace:*",

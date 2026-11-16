@@ -42,7 +42,7 @@ __TEST_AUTH__ = "true"
 [env.test.vars]
 ENV = "test"
 RP_ID = "localhost"
-ORIGINS = "http://localhost:8787,http://localhost:5173,http://localhost:4173"
+ORIGINS = "http://localhost:8787,http://localhost:8788,http://localhost:8789,http://localhost:8790,http://localhost:8791,http://localhost:8792,http://localhost:8793,http://localhost:8794,http://localhost:8795,http://localhost:8796,http://localhost:5173,http://localhost:4173"
 VERSION = "test"
 [[env.test.d1_databases]]
 binding = "DB"

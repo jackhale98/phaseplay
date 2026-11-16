@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * E2E runs against the real production build served by the Worker in `--env test`
  * (same origin, local D1, test-only login). See docs/testing-ci.md.
  */
-const PORT = 8787;
+const PORT = Number(process.env.E2E_PORT ?? 8787);
 export default defineConfig({
   testDir: './e2e/specs',
   fullyParallel: true,

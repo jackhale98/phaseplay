@@ -6,7 +6,7 @@
 import { test as base, expect, type APIRequestContext, type Page, type BrowserContext } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const ORIGIN = 'http://localhost:8787';
+const ORIGIN = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 export const uuid = () => {
   const b = crypto.getRandomValues(new Uint8Array(16));
   const t = Date.now();
