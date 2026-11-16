@@ -22,7 +22,7 @@ Use Grep on headings (`^## `) to jump to the section you need.
 
 ```
 pnpm i                    # install
-pnpm dev                  # web (vite :5173) + api (wrangler dev :8787, local D1, seeded); /signin shows dev logins
+pnpm dev                  # web (vite :5173) + api (wrangler dev :8787, local D1, seeded); /signin shows dev logins (Alex = coach, Jess = player; Sam = the read-only public demo account)
 pnpm check                # lint + format check + typecheck (svelte-check, tsc -b)
 pnpm test                 # unit + worker integration (vitest)
 pnpm test <path|pattern>  # narrow run, always try this first

@@ -121,6 +121,14 @@ class AppState {
   private syncing: Promise<void> | null = null;
   private flushing = false;
   private conflictListeners = new Set<ConflictListener>();
+  /** Demo mode: optimistic changes kept in memory only (the server refuses demo writes). */
+  private demoOps: Optimistic[] = [];
+  private demoToastShown = false;
+
+  /** Signed in to the public demo team. */
+  get demo(): boolean {
+    return !!this.me?.demo;
+  }
 
   get team(): Team | null {
     return this.snap?.team ?? null;
@@ -218,6 +226,7 @@ class AppState {
   }
 
   async signedOut() {
+    this.demoOps = [];
     this.me = null;
     this.snap = null;
     this.teamId = null;
@@ -229,6 +238,14 @@ class AppState {
   }
 
   async signedIn() {
+    // Never let the demo's cached data or on-device edits leak into a real account (or vice versa).
+    const wasDemo = this.demo;
+    this.demoOps = [];
+    if (wasDemo || this.me) {
+      await clearAll().catch(() => {});
+      this.snap = null;
+      this.teamId = null;
+    }
     try {
       localStorage.setItem('pp:session', '1');
     } catch {}
@@ -239,7 +256,8 @@ class AppState {
   /** Re-apply queued optimistic changes on top of a server snapshot. */
   private async withPending(s: TeamSnapshot): Promise<TeamSnapshot> {
     const entries = await this.outbox(s.teamId);
-    return entries.reduce((acc, e) => applyOps(acc, e.optimistic ?? []), s);
+    const pending = entries.reduce((acc, e) => applyOps(acc, e.optimistic ?? []), s);
+    return this.demo ? applyOps(pending, this.demoOps) : pending;
   }
 
   private async outbox(teamId?: string): Promise<OutboxEntry[]> {
@@ -273,6 +291,17 @@ class AppState {
   ) {
     const teamId = entry.teamId ?? this.teamId;
     if (!teamId) throw new Error('No team selected');
+    if (this.demo) {
+      // Demo: show the change straight away, keep it on this device, never send it.
+      const ops = entry.optimistic ?? [];
+      this.demoOps.push(...ops);
+      if (this.snap && this.snap.teamId === teamId) this.snap = applyOps(this.snap, ops);
+      if (!this.demoToastShown) {
+        this.demoToastShown = true;
+        toasts.show("Demo team: your changes stay on this device and aren't saved.", { timeout: 5000 });
+      }
+      return;
+    }
     const full: OutboxEntry = {
       ...entry,
       id: entry.id ?? crypto.randomUUID(),

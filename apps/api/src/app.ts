@@ -16,6 +16,8 @@ import { matchRoutes } from './routes/match';
 import { calendarRoutes } from './routes/calendar';
 import { syncRoutes } from './routes/sync';
 import { testRoutes } from './routes/test';
+import { demoRoutes } from './routes/demo';
+import { DEMO_USER_ID } from './seed/demo';
 
 export function origins(env: AppEnv['Bindings']) {
   return env.ORIGINS.split(',')
@@ -24,6 +26,7 @@ export function origins(env: AppEnv['Bindings']) {
 }
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
+const DEMO_ALLOWED = new Set(['/api/v1/auth/logout', '/api/v1/demo']);
 
 export function createApp() {
   const app = new Hono<AppEnv>();
@@ -43,6 +46,17 @@ export function createApp() {
         throw new HttpError(403, 'forbidden', 'Cross-origin request blocked');
     }
     if (c.req.path.startsWith('/api/')) c.set('user', await loadSession(c));
+    // The public demo account is read-only on the server; the app keeps demo edits on-device.
+    if (
+      c.var.user?.id === DEMO_USER_ID &&
+      !SAFE.has(c.req.method) &&
+      !DEMO_ALLOWED.has(c.req.path)
+    )
+      throw new HttpError(
+        403,
+        'demo',
+        "This is the demo team, so changes aren't saved. Create your own team to keep your work.",
+      );
 
     await next();
 
@@ -55,6 +69,7 @@ export function createApp() {
   app.get('/api/health', (c) => c.json({ ok: true, version: c.env.VERSION, env: c.env.ENV }));
 
   authRoutes(app);
+  demoRoutes(app);
   meRoutes(app);
   teamRoutes(app);
   memberRoutes(app);

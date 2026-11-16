@@ -21,6 +21,7 @@ import {
   verifyRegistration,
 } from '../auth/webauthn';
 import { bool } from '../lib/db';
+import { DEMO_USER_ID } from '../seed/demo';
 
 const prefixed = (cols: string, p: string) =>
   cols
@@ -52,6 +53,7 @@ export function meRoutes(app: Hono<AppEnv>) {
         team: teamFromRow(strip(r, 't')),
       })),
       env: c.env.ENV,
+      demo: u.id === DEMO_USER_ID,
     };
     return c.json(res);
   });

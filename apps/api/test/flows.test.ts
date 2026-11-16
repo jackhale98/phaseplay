@@ -364,3 +364,42 @@ describe('writes', () => {
     expect(drills.filter((d) => d.source === 'starter').length).toBeGreaterThanOrEqual(15);
   });
 });
+
+describe('public demo', () => {
+  it('signs anyone in to a fresh, read-only demo team', async () => {
+    const start = await call('POST', '/api/v1/demo', { body: {} });
+    expect(start.status).toBe(200);
+    const cookie = start.headers.get('set-cookie')!.split(';')[0]!;
+    const me = await call('GET', '/api/v1/me', { cookie });
+    expect(me.body.demo).toBe(true);
+    const team = me.body.memberships[0].team;
+    expect(team.name).toBe('Phaseplay RFC');
+
+    const s = await sync(team.id, cookie);
+    expect(s.status).toBe(200);
+    expect(s.body.members.length).toBeGreaterThan(30);
+    expect(s.body.events.some((e) => e.type === 'fundraiser')).toBe(true);
+    expect(s.body.events.some((e) => e.startsAt > Date.now())).toBe(true);
+
+    // Every write is refused, including adding a passkey (so nobody can take the account over).
+    const ev = s.body.events[0]!;
+    const rsvp = await call('PUT', `/api/v1/teams/${team.id}/events/${ev.id}/rsvps/${s.body.me.id}`, { cookie, body: { status: 'yes' } });
+    expect(rsvp.status).toBe(403);
+    expect(rsvp.body.error.code).toBe('demo');
+    expect((await call('POST', '/api/v1/me/passkeys/options', { cookie, body: {} })).status).toBe(403);
+    expect((await call('DELETE', '/api/v1/me', { cookie })).status).toBe(403);
+
+    // A second visitor gets the same team; it's only re-seeded when stale.
+    const again = await call('POST', '/api/v1/demo', { body: {} });
+    expect(again.queries).toBeLessThanOrEqual(4);
+    expect((await call('POST', '/api/v1/auth/logout', { cookie, body: {} })).status).toBe(200);
+  });
+
+  it('is invisible to other teams', async () => {
+    await call('POST', '/api/v1/demo', { body: {} });
+    const a = await fixtureTeam();
+    const s = await sync(a.teamId, a.owner.cookie);
+    expect(s.body.members.some((m) => m.displayName === 'Jess Taylor')).toBe(false);
+    expect((await sync('a0000000-0000-7000-8000-000000000001', a.owner.cookie)).status).toBe(404);
+  });
+});
