@@ -7,12 +7,12 @@ import { body } from '../lib/http';
 import { newSession } from '../auth/session';
 
 /**
- * Test-only login (ENV=test builds only; `__TEST_AUTH__` is false in production so esbuild strips
+ * Dev/test-only login (`__TEST_AUTH__` is false in production builds, so esbuild strips
  * this module). CI greps the production bundle to prove it is absent.
  */
 export function testRoutes(app: Hono<AppEnv>) {
   route(app, 'auth.test.login', async (c) => {
-    if (c.env.ENV !== 'test') return c.json({ error: { code: 'not_found', message: 'Not found' } }, 404);
+    if (c.env.ENV === 'production') return c.json({ error: { code: 'not_found', message: 'Not found' } }, 404);
     const input = await body(c, v.object({ userId: v.optional(v.string()), displayName: v.optional(text(40, 1)) }));
     const id = input.userId ?? uuidv7();
     const name = input.displayName ?? 'Test Player';
