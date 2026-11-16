@@ -14,6 +14,14 @@ import {
   type ScoringValues,
 } from './rugby';
 
+/**
+ * Periods per match log. A normal match uses 2; a 7s tournament event records consecutive games
+ * as period pairs (1–2, 3–4, …), so 12 periods allow a 6-game tournament day.
+ */
+export const MAX_PERIODS = 12;
+/** Red cards in the 20-minute replacement law trial: a replacement may come on after this long. */
+export const RED_REPLACE_MS = 20 * 60e3;
+
 export const SCORE_TYPES = [
   'try',
   'conversion',
@@ -70,11 +78,11 @@ const Zone = v.optional(
 export const MatchPayload = v.variant('kind', [
   v.object({
     kind: v.literal('period_start'),
-    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)),
+    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_PERIODS)),
   }),
   v.object({
     kind: v.literal('period_end'),
-    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)),
+    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_PERIODS)),
   }),
   v.object({ kind: v.literal('time_off'), reason: v.picklist(STOPPAGE_REASONS) }),
   v.object({ kind: v.literal('time_on') }),
@@ -368,9 +376,11 @@ export function reduceMatch(events: MatchEvent[], cfg: MatchConfig, now: number)
   const played: Record<string, number> = {};
   for (const id of cfg.starters) onSince.set(id, 0);
   const subs = new Map<string, { offId: string; onId: string; type: string }>();
+  /** Players sent off with a replaceable (20-minute) red card: id → card and game time. */
+  const sentOff = new Map<string, { cardId: string; at: number }>();
   let replacementsUsed = 0;
 
-  const periodOf = (gameMs: number) => Math.min(4, Math.floor(gameMs / cfg.halfMs) + 1);
+  const periodOf = (gameMs: number) => Math.min(MAX_PERIODS, Math.floor(gameMs / cfg.halfMs) + 1);
   const goOff = (id: string, at: number) => {
     const since = onSince.get(id);
     if (since !== undefined) played[id] = (played[id] ?? 0) + Math.max(0, at - since);
@@ -404,7 +414,7 @@ export function reduceMatch(events: MatchEvent[], cfg: MatchConfig, now: number)
         break;
       case 'card': {
         const permanent = p.colour === 'red' && (p.mode ?? cfg.redCardMode) === 'permanent';
-        const dur = p.colour === 'yellow' ? cfg.sinBinMs : 20 * 60e3;
+        const dur = p.colour === 'yellow' ? cfg.sinBinMs : RED_REPLACE_MS;
         cards.set(e.id, {
           cardId: e.id,
           team: p.team,
@@ -418,6 +428,8 @@ export function reduceMatch(events: MatchEvent[], cfg: MatchConfig, now: number)
         if (p.team === 'us' && p.playerId && playing.has(p.playerId)) {
           goOff(p.playerId, e.gameMs);
           playing.delete(p.playerId);
+          if (p.colour === 'red' && !permanent)
+            sentOff.set(p.playerId, { cardId: e.id, at: e.gameMs });
         }
         break;
       }
@@ -433,9 +445,19 @@ export function reduceMatch(events: MatchEvent[], cfg: MatchConfig, now: number)
         break;
       }
       case 'sub': {
-        if (!playing.has(p.offId) || playing.has(p.onId)) break;
-        playing.delete(p.offId);
-        goOff(p.offId, e.gameMs);
+        if (playing.has(p.onId)) break;
+        // 20-minute red card (law trial): once served, a replacement comes on for the sent-off player.
+        const red = playing.has(p.offId) ? undefined : sentOff.get(p.offId);
+        if (red) {
+          if (e.gameMs < red.at + RED_REPLACE_MS) break;
+          const c = cards.get(red.cardId);
+          if (c) c.returned = true;
+          sentOff.delete(p.offId);
+        } else if (!playing.has(p.offId)) break;
+        else {
+          playing.delete(p.offId);
+          goOff(p.offId, e.gameMs);
+        }
         bench.delete(p.onId);
         bench.add(p.offId);
         playing.add(p.onId);

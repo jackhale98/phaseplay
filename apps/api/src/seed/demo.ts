@@ -395,11 +395,13 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     }
     return slots;
   };
+  const sheetSlotsByEvent: Record<string, Record<string, string | null>> = {};
   for (const [ev, published] of [
     [lastMatch, true],
     [nextMatch, false],
   ] as const) {
     const slots = pickSheet();
+    sheetSlotsByEvent[ev.id] = slots;
     const captain = slots['8'];
     const snap = JSON.stringify({
       format: '15s',
@@ -721,7 +723,9 @@ export function buildDemo(now: number = Date.now()): DemoTables {
   {
     const ko = lastMatch.startsAt;
     let seq = 0;
-    const xv = Array.from({ length: 23 }, (_, i) => members[3 + i]!.id);
+    // Slot order from the published sheet: xv[0..14] starters, xv[15..22] bench.
+    const lastSlots = sheetSlotsByEvent[lastMatch.id]!;
+    const xv = Array.from({ length: 23 }, (_, i) => lastSlots[String(i + 1)]!);
     const add = (minute: number, payload: MatchPayload, wallOffset = 0) =>
       insert('match_events', {
         id: id('3e'),

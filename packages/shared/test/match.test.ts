@@ -113,6 +113,44 @@ describe('reduceMatch', () => {
     expect(s.replacementsUsed).toBe(1);
   });
 
+  it('a 20-minute red card can be replaced once served, restoring 15 players', () => {
+    const a = uuidv7();
+    const b = uuidv7();
+    const c15 = matchConfig(
+      '15s',
+      { redCardMode: 'replace_after_20' },
+      { starters: [a], bench: [b] },
+    );
+    const card = ev(
+      T0 + 10 * 60e3,
+      { kind: 'card', team: 'us', colour: 'red', playerId: a },
+      10 * 60e3,
+    );
+    const early = ev(
+      T0 + 20 * 60e3,
+      { kind: 'sub', team: 'us', offId: a, onId: b, type: 'tactical' },
+      20 * 60e3,
+    );
+    const onTime = ev(
+      T0 + 31 * 60e3,
+      { kind: 'sub', team: 'us', offId: a, onId: b, type: 'tactical' },
+      31 * 60e3,
+    );
+    const base = [ev(T0, { kind: 'period_start', period: 1 }), card];
+    expect(reduceMatch([...base, early], c15, T0 + 21 * 60e3).playing).toEqual([]);
+    const s = reduceMatch([...base, onTime], c15, T0 + 35 * 60e3);
+    expect(s.playing).toEqual([b]);
+    expect(s.onField.us).toBe(15);
+    expect(s.minutesPlayed[a]).toBe(10 * 60e3);
+    expect(s.minutesPlayed[b]).toBe(4 * 60e3);
+  });
+
+  it('accepts a 6-game tournament day (12 periods)', () => {
+    expect(() =>
+      reduceMatch([ev(T0, { kind: 'period_start', period: 12 })], cfg, T0 + 1),
+    ).not.toThrow();
+  });
+
   it('property: score always equals the sum of effective scoring events', () => {
     const scoreArb = fc.record({
       team: fc.constantFrom('us' as const, 'them' as const),

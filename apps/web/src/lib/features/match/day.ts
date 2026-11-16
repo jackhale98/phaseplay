@@ -3,12 +3,13 @@
  *
  * Choice: a tournament event keeps ONE append-only match log, and each game on the day is a pair
  * of consecutive periods: periods 1–2 are game 1, periods 3–4 are game 2 (the shared reducer and
- * the API accept periods 1–4, so one tournament event holds up to two recorded games). Every
+ * the API accept periods 1–12, so one tournament event holds up to six recorded games). Every
  * event belongs to the game whose kick-off (`period_start` of an odd period) most recently
  * preceded it on the wall clock; corrections follow their target. Each game is then reduced on
  * its own (so the lineup resets to the team sheet at every kick-off), and minutes played are
  * summed across games. Nothing is stored outside the synced log, so every device agrees.
  */
+import { MAX_PERIODS } from '@phaseplay/shared';
 import {
   effectiveLog,
   reduceMatch,
@@ -17,7 +18,7 @@ import {
   type MatchState,
 } from '@phaseplay/shared';
 
-export const MAX_GAMES = 2;
+export const MAX_GAMES = MAX_PERIODS / 2;
 
 /** Wall times of each game's kick-off, in order (only kick-offs still in effect). */
 export function kickoffs(events: MatchEvent[]): number[] {

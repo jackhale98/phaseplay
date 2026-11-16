@@ -60,6 +60,8 @@ test('Home opens offline from the on-device cache', async ({ page, context, team
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline quiz night').first()).toBeVisible();
-  await expect(page.getByText('Offline', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(
+    page.getByText('Offline', { exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
   await context.setOffline(false);
 });
