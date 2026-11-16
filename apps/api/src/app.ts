@@ -47,11 +47,7 @@ export function createApp() {
     }
     if (c.req.path.startsWith('/api/')) c.set('user', await loadSession(c));
     // The public demo account is read-only on the server; the app keeps demo edits on-device.
-    if (
-      c.var.user?.id === DEMO_USER_ID &&
-      !SAFE.has(c.req.method) &&
-      !DEMO_ALLOWED.has(c.req.path)
-    )
+    if (c.var.user?.id === DEMO_USER_ID && !SAFE.has(c.req.method) && !DEMO_ALLOWED.has(c.req.path))
       throw new HttpError(
         403,
         'demo',

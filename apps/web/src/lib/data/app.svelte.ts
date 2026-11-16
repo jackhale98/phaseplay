@@ -298,7 +298,9 @@ class AppState {
       if (this.snap && this.snap.teamId === teamId) this.snap = applyOps(this.snap, ops);
       if (!this.demoToastShown) {
         this.demoToastShown = true;
-        toasts.show("Demo team: your changes stay on this device and aren't saved.", { timeout: 5000 });
+        toasts.show("Demo team: your changes stay on this device and aren't saved.", {
+          timeout: 5000,
+        });
       }
       return;
     }

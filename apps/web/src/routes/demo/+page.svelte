@@ -33,7 +33,9 @@
   {#if failed}
     <h1>Couldn't open the demo</h1>
     <p class="muted">Check your connection and try again.</p>
-    <div class="row"><Button variant="primary" onclick={open}>Try again</Button><Button href="/">Back</Button></div>
+    <div class="row">
+      <Button variant="primary" onclick={open}>Try again</Button><Button href="/">Back</Button>
+    </div>
   {:else}
     <h1>Opening Phaseplay RFC…</h1>
     <p class="muted">A demo squad with a full season. Nothing you do is saved.</p>

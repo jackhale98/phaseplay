@@ -82,8 +82,8 @@
           <a class="ghost" href="/demo">Explore the demo</a>
         </div>
         <p class="fine">
-          Try the demo with no account. When you're ready, sign up with just your name and a passkey:
-          no email, no password.
+          Try the demo with no account. When you're ready, sign up with just your name and a
+          passkey: no email, no password.
         </p>
       </div>
       <div class="visual">
@@ -145,8 +145,8 @@
         <p class="eyebrow">Live demo</p>
         <h2 id="demo-h">Spend a week with Phaseplay RFC.</h2>
         <p class="muted">
-          A demo squad of 30 with practices, games, a 7s tournament, a fundraiser, team sheets, plays
-          and a recorded match. Look around as their coach. Nothing you do is saved.
+          A demo squad of 30 with practices, games, a 7s tournament, a fundraiser, team sheets,
+          plays and a recorded match. Look around as their coach. Nothing you do is saved.
         </p>
       </div>
       <a class="cta" href="/demo">Explore the demo</a>
@@ -442,7 +442,11 @@
   .soon {
     flex-wrap: wrap;
     border-style: solid;
-    background: linear-gradient(135deg, color-mix(in srgb, #1f6f43 8%, var(--surface)), var(--surface));
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, #1f6f43 8%, var(--surface)),
+      var(--surface)
+    );
   }
   .soon .grow {
     flex: 1 1 280px;

@@ -383,10 +383,16 @@ describe('public demo', () => {
 
     // Every write is refused, including adding a passkey (so nobody can take the account over).
     const ev = s.body.events[0]!;
-    const rsvp = await call('PUT', `/api/v1/teams/${team.id}/events/${ev.id}/rsvps/${s.body.me.id}`, { cookie, body: { status: 'yes' } });
+    const rsvp = await call(
+      'PUT',
+      `/api/v1/teams/${team.id}/events/${ev.id}/rsvps/${s.body.me.id}`,
+      { cookie, body: { status: 'yes' } },
+    );
     expect(rsvp.status).toBe(403);
     expect(rsvp.body.error.code).toBe('demo');
-    expect((await call('POST', '/api/v1/me/passkeys/options', { cookie, body: {} })).status).toBe(403);
+    expect((await call('POST', '/api/v1/me/passkeys/options', { cookie, body: {} })).status).toBe(
+      403,
+    );
     expect((await call('DELETE', '/api/v1/me', { cookie })).status).toBe(403);
 
     // A second visitor gets the same team; it's only re-seeded when stale.

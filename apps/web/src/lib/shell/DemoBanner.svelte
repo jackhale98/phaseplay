@@ -19,7 +19,9 @@
     <span>Tap around freely: changes stay on this device and aren't saved.</span>
   </p>
   <div class="acts">
-    <button class="go" type="button" disabled={busy} onclick={() => leave('/signup')}>Create your team</button>
+    <button class="go" type="button" disabled={busy} onclick={() => leave('/signup')}
+      >Create your team</button
+    >
     <button class="quit" type="button" disabled={busy} onclick={() => leave('/')}>Leave</button>
   </div>
 </aside>

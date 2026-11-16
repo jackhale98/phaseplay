@@ -9,7 +9,11 @@ const MAX_AGE_MS = 20 * 3600e3;
  * stays far below the 50-queries-per-invocation limit. Ids are deterministic, so open demo tabs
  * simply delta-sync to the new dates. Demo sessions survive (users are never deleted).
  */
-export async function ensureDemo(db: D1Database, now = Date.now(), force = false): Promise<boolean> {
+export async function ensureDemo(
+  db: D1Database,
+  now = Date.now(),
+  force = false,
+): Promise<boolean> {
   if (!force) {
     const row = await db
       .prepare('SELECT updated_at FROM teams WHERE id = ? AND deleted_at IS NULL')
