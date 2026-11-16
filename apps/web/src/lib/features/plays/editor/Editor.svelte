@@ -434,6 +434,8 @@
     | { kind: 'pan'; last: { x: number; y: number } }
     | { kind: 'tap'; at: Vec2; hit: string | null; client: { x: number; y: number } };
   let gesture: Gesture | null = null;
+  // Plain Map on purpose: pointer bookkeeping is not rendered, so it must not be reactive.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
   const pointers = new Map<number, { x: number; y: number }>();
   let longPress: ReturnType<typeof setTimeout> | null = null;
 
@@ -853,7 +855,7 @@
     const d = land ? { x: dy, y: -dx } : { x: dx, y: dy };
     const targets: Record<string, Vec2> = {};
     for (const id of selected) {
-      const p = posOf(id);
+      const p = positions[id] ?? posOf(id);
       if (p) targets[id] = clampToBounds(play, { x: p.x + d.x, y: p.y + d.y });
     }
     apply((p) => setPositions(p, fi, targets), 'Nudge');
@@ -1176,25 +1178,27 @@
       aria-label={canvasLabel}
       aria-describedby="ed-frame-desc"
     >
-    <canvas
-      bind:this={canvas}
-      tabindex="-1"
-      onpointerdown={onDown}
-      onpointermove={onMove}
-      onpointerup={onUp}
-      onpointercancel={() => {
-        pointers.clear();
-        cancelGesture();
-        repaint();
-      }}
-      oncontextmenu={onContext}
-    ></canvas>
+      <canvas
+        bind:this={canvas}
+        tabindex="-1"
+        onpointerdown={onDown}
+        onpointermove={onMove}
+        onpointerup={onUp}
+        onpointercancel={() => {
+          pointers.clear();
+          cancelGesture();
+          repaint();
+        }}
+        oncontextmenu={onContext}
+      ></canvas>
     </div>
     <p id="ed-frame-desc" class="sr-only">{frameDesc}</p>
     <ul class="sr-only" aria-label="Tokens on the pitch">
       {#each play.entities as e (e.id)}
         {@const p = positions[e.id]}
-        {@const c = screenOf(e.id === play.entities.find((x) => x.kind === 'ball')?.id ? undefined : p)}
+        {@const c = screenOf(
+          e.id === play.entities.find((x) => x.kind === 'ball')?.id ? undefined : p,
+        )}
         <li>
           <button
             data-token={e.id}

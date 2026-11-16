@@ -1,7 +1,10 @@
 <!-- Play details: title, category, tags, format, visibility, description. -->
 <script lang="ts" module>
   import type { PlayMeta } from '@phaseplay/shared';
-  export type MetaValues = Pick<PlayMeta, 'title' | 'category' | 'tags' | 'format' | 'visibility' | 'description'>;
+  export type MetaValues = Pick<
+    PlayMeta,
+    'title' | 'category' | 'tags' | 'format' | 'visibility' | 'description'
+  >;
 </script>
 
 <script lang="ts">

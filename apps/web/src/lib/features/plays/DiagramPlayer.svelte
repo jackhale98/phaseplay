@@ -8,7 +8,7 @@
   import { onMount } from 'svelte';
   import type { Play } from '@phaseplay/shared';
   import { frameTimes, totalDuration } from '@phaseplay/diagram/sample';
-    import { app } from '#lib/data/app.svelte';
+  import { app } from '#lib/data/app.svelte';
   import { IconPlay, IconPause, IconRepeat, IconChevronLeft, IconChevronRight } from '#lib/icons';
   import { Stage, fitViewport, prefersReducedMotion, type StageTheme } from './stage';
 

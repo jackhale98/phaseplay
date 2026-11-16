@@ -145,6 +145,15 @@ async function newLineoutPlay(page: Page, team: TeamFixture, name: string) {
   await dialog.getByRole('button', { name: 'Create and edit' }).click();
   await expect(page).toHaveURL(/\/plays\/[^/]+\/edit/);
   await expect(page.locator('[data-token="a10"]')).toHaveAttribute('data-x', /\d/);
+  // Wait for the route's view transition to finish so pointer input reaches the canvas.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const r = document.querySelector('.canvas-wrap canvas')!.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.tagName;
+      }),
+    )
+    .toBe('CANVAS');
   return page.url().match(/plays\/([^/]+)\/edit/)![1]!;
 }
 
@@ -240,7 +249,8 @@ test.describe('play designer', () => {
     );
     const a4 = await tokenAt(page, 'a4');
     await page.mouse.click(a4.x, a4.y);
-    for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowUp');
+    // Desktop draws the pitch landscape: screen-right is upfield.
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowRight');
     await page.keyboard.press('p');
     const a9 = await tokenAt(page, 'a9');
     await page.mouse.click(a9.x, a9.y);
@@ -413,7 +423,9 @@ test.describe('play designer', () => {
 
     await openTeam(page, team.teamId, `/plays/${secret}`);
     await page.getByRole('button', { name: 'Share with team' }).click();
-    await expect(page.getByText('Shared with the team', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('main').getByText('Shared with the team', { exact: true }),
+    ).toBeVisible();
     await expect
       .poll(async () => (await getPlay(team, secret)).play.visibility, { timeout: 10_000 })
       .toBe('team');

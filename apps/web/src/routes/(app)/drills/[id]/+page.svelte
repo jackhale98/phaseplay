@@ -62,6 +62,8 @@
         }
       : null,
   );
+  /** The diagram titled like the drill, for the player's accessible name. */
+  const diagram = $derived(d?.diagram ? { ...d.diagram, title: d.title } : null);
   const equipment = $derived(d ? equipmentLines(mergedEquipment(d.diagram, d.equipment)) : []);
   const steps = $derived(
     d?.diagram
@@ -153,7 +155,7 @@
     <div class="layout">
       <div class="main">
         {#if d.diagram}
-          <DiagramPlayer play={d.diagram} autoplay loop />
+          <DiagramPlayer play={diagram ?? d.diagram} autoplay loop />
         {:else}
           <div class="nodiagram card">
             <p class="subtle">No diagram yet.{coach ? ' Add one in the editor.' : ''}</p>

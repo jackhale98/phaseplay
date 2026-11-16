@@ -59,7 +59,13 @@
 
   // Snapshot meta is fresher than the cached full row for title/visibility.
   const view = $derived(
-    full ? { ...full, ...(meta ?? {}), data: (meta as Partial<PlayFull> | undefined)?.data ?? full.data } : null,
+    full
+      ? {
+          ...full,
+          ...(meta ?? {}),
+          data: (meta as Partial<PlayFull> | undefined)?.data ?? full.data,
+        }
+      : null,
   );
   const myId = $derived(app.member?.id);
   const mine = $derived(!!view && !!myId && view.data.entities.some((e) => e.memberId === myId));
