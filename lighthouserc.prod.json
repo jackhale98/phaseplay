@@ -3,7 +3,11 @@
     "collect": {
       "url": ["https://phaseplay.app/", "https://phaseplay.app/privacy"],
       "numberOfRuns": 3,
-      "settings": { "preset": "perf", "formFactor": "mobile", "screenEmulation": { "mobile": true } }
+      "settings": {
+        "preset": "perf",
+        "formFactor": "mobile",
+        "screenEmulation": { "mobile": true }
+      }
     },
     "assert": {
       "assertions": {

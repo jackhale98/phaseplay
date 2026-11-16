@@ -240,8 +240,8 @@ See `docs/runbook.md` §First deploy for the exact steps.
 
 - [x] Buy `phaseplay.app` and add it to a Cloudflare account, which will manage its DNS.
 - [ ] Remove any existing apex/`www` DNS records for `phaseplay.app` (the Worker custom domain creates them).
-- [ ] Create a D1 database `phaseplay` (`wrangler d1 create phaseplay`) and put its ID in `apps/api/wrangler.toml` under `[env.production]`.
-- [ ] Create a Cloudflare API token scoped to Workers Scripts edit, D1 edit and Workers Routes on the zone. Add it as the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets of a GitHub `production` environment.
+- [x] Connect GitHub to Cloudflare.
+- [ ] Import the repo in Workers & Pages with the build settings in `docs/runbook.md` (the D1 database is created automatically on first deploy).
 - [ ] Turn on branch protection for `main` and require the CI checks.
 - [ ] Switch to the Workers Paid plan ($5/month) once a second team joins, so daily limits can't take the app down on match day.
 

@@ -1,4 +1,5 @@
 import type { Env } from './env';
+import { ensureDemo } from './seed/load-demo';
 
 /** Nightly housekeeping: expire RSVP notes, purge tombstones after 30 days, drop dead sessions. */
 export async function scheduled(env: Env) {
@@ -29,4 +30,6 @@ export async function scheduled(env: Env) {
     ),
     env.DB.prepare('DELETE FROM play_views WHERE first_viewed_at < ?').bind(t - 400 * 86400e3),
   ]);
+  // Keep the public demo's dates current (weekly practices, upcoming games).
+  await ensureDemo(env.DB, t, true);
 }

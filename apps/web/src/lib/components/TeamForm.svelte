@@ -32,6 +32,8 @@
     { primary: '#00843d', secondary: '#000000' },
   ];
 
+  // Initial values only: the parent re-keys this form when the team changes.
+  // svelte-ignore state_referenced_locally
   let name = $state(value.name ?? '');
   let short = $state(value.shortName ?? '');
   let shortTouched = $state(!!value.shortName);

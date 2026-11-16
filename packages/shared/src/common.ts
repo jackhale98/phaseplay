@@ -47,6 +47,7 @@ export type ApiErrorCode =
   | 'gone'
   | 'too_large'
   | 'rate_limited'
+  | 'demo'
   | 'internal';
 
 export type ApiError = { error: { code: ApiErrorCode; message: string; issues?: string[] } };

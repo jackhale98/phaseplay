@@ -29,3 +29,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npx -y @lhci/cli@0.15.1 autorun --config=lighthouserc.prod.json
+  prod-smoke:
+    # Deploys are done by Cloudflare Workers Builds; this checks production every night.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm i --frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test -c e2e/prod.config.ts

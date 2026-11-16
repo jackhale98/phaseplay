@@ -33,6 +33,8 @@ export const ROUTES = {
   'auth.recover': { method: 'POST', path: '/api/v1/auth/recover', auth: 'public' },
   'auth.relink.options': { method: 'POST', path: '/api/v1/auth/relink/options', auth: 'public' },
   'auth.relink.verify': { method: 'POST', path: '/api/v1/auth/relink/verify', auth: 'public' },
+  /** Public demo: signs the visitor in as the read-only demo coach of "Phaseplay RFC". */
+  'demo.start': { method: 'POST', path: '/api/v1/demo', auth: 'public' },
   'auth.logout': { method: 'POST', path: '/api/v1/auth/logout', auth: 'user' },
   'auth.test.login': { method: 'POST', path: '/api/v1/test/login', auth: 'public', testOnly: true },
 

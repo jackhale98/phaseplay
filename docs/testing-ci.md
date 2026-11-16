@@ -52,18 +52,16 @@ Runs on `pull_request` and `push` to `main`. A concurrency group cancels superse
 
 All jobs are required checks for `main`.
 
-## Deploy — `.github/workflows/deploy.yml`
+## Deploy — Cloudflare Workers Builds
 
-Runs on push to `main`, after CI succeeds. Steps run in this order:
+Cloudflare's Git integration builds every push to the production branch (`pnpm cf:build`) and runs `pnpm deploy` (`scripts/cf-deploy.sh`):
 
-1. **Migrate:** `wrangler d1 migrations apply phaseplay --remote --env production`. Migrations must be **expand/contract**: add first, then backfill, and drop only in a later release. The code being deployed must work with both the old and the new schema.
-2. **Build and deploy:** build the web app (`PUBLIC_VERSION=<sha>`), then `wrangler deploy --env production --var VERSION:<sha>`. Web and API ship together in one Worker version.
-3. **Smoke test:** `/api/health` returns the new SHA. `e2e/specs-prod` checks the landing page renders without console errors, the API is reachable, deep links get the shell with headers, and test auth is absent.
-4. **On failure:** `wrangler rollback` (restores web and API together) and an issue is opened with the run link.
+1. **Migrate:** `wrangler d1 migrations apply DB --remote --env production`. Migrations must be **expand/contract**: add first, then backfill, and drop only in a later release. The code being deployed must work with both the old and the new schema.
+2. **Deploy:** `wrangler deploy --env production --var VERSION:$WORKERS_CI_COMMIT_SHA`. Web and API ship together in one Worker version. On the very first deploy this also creates the D1 database (automatic provisioning), and migrations then run straight after.
+3. **Smoke test:** the nightly workflow runs `e2e/specs-prod` against production (landing renders without console errors, API reachable, deep links get the shell with headers, test auth absent).
+4. **Rollback:** Workers & Pages → phaseplay → Deployments, or `wrangler rollback --env production` (restores web and API together).
 
-Installed PWAs may run the previous web build until the user taps "Refresh", so the API stays backward-compatible with the previous web build.
-
-**Secrets:** `CLOUDFLARE_API_TOKEN` (least privilege: Workers Scripts edit, D1 edit, Workers Routes/Custom Domains on the zone) and `CLOUDFLARE_ACCOUNT_ID`, in a GitHub `production` environment.
+Installed PWAs may run the previous web build until the user taps "Refresh", so the API stays backward-compatible with the previous web build. No Cloudflare secrets are stored in GitHub.
 
 ## Nightly — `.github/workflows/nightly.yml`
 

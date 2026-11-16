@@ -20,7 +20,8 @@
   // Local dev and e2e only: the API refuses this in production and the route is stripped from prod builds.
   let devEnv = $state(false);
   const DEV_USERS = [
-    { id: 'b0000000-0000-7000-8000-000000000002', name: 'Sam Carter', role: 'owner' },
+    // Sam Carter (…0002) is the read-only public demo coach; Alex Morgan is a writable coach.
+    { id: 'b0000000-0000-7000-8000-000000000004', name: 'Alex Morgan', role: 'coach' },
     { id: 'b0000000-0000-7000-8000-000000000008', name: 'Jess Taylor', role: 'player' },
   ];
   async function devLogin(u: (typeof DEV_USERS)[number]) {
@@ -96,6 +97,7 @@
     ></span
   >
   <span>Lost your device? <a href="/recover">Use a recovery code</a></span>
+  <span>Just looking? <a href="/demo">Explore the demo team</a></span>
 </div>
 
 <style>

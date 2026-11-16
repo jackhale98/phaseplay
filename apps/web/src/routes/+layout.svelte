@@ -25,8 +25,10 @@
   onMount(() => {
     if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
     let refreshing = false;
+    // The first install also fires controllerchange (clients.claim); only reload for real updates.
+    const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
+      if (refreshing || !hadController) return;
       refreshing = true;
       location.reload();
     });

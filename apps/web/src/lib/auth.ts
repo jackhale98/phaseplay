@@ -98,6 +98,12 @@ export async function recover(code: string) {
   await app.signedIn();
 }
 
+/** Look around the public demo team ("Phaseplay RFC") without an account. */
+export async function startDemo() {
+  await api(v1('/demo'), { method: 'POST', body: {} });
+  await app.signedIn();
+}
+
 export async function signOut() {
   try {
     await api(v1('/auth/logout'), { method: 'POST', body: {} });
