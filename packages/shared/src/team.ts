@@ -43,7 +43,12 @@ export const PendingMemberCreate = v.object({
 });
 export type PendingMemberCreate = v.InferOutput<typeof PendingMemberCreate>;
 
-export const INVITE_EXPIRIES = { '1h': 3600e3, '1d': 86400e3, '7d': 7 * 86400e3, '30d': 30 * 86400e3 };
+export const INVITE_EXPIRIES = {
+  '1h': 3600e3,
+  '1d': 86400e3,
+  '7d': 7 * 86400e3,
+  '30d': 30 * 86400e3,
+};
 export const InviteCreate = v.object({
   id: Id,
   role: v.picklist(['coach', 'manager', 'player']),
@@ -54,7 +59,9 @@ export type InviteCreate = v.InferOutput<typeof InviteCreate>;
 
 export const RelinkCreate = v.object({ id: Id, memberId: Id });
 
-export const InviteToken = v.object({ token: v.pipe(v.string(), v.minLength(16), v.maxLength(64)) });
+export const InviteToken = v.object({
+  token: v.pipe(v.string(), v.minLength(16), v.maxLength(64)),
+});
 export const InviteAccept = v.object({
   token: v.pipe(v.string(), v.minLength(16), v.maxLength(64)),
   claimMemberId: v.optional(v.nullable(Id)),

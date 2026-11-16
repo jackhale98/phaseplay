@@ -18,29 +18,66 @@ export function practiceRoutes(app: Hono<AppEnv>) {
         `INSERT INTO practice_plans (id, team_id, event_id, title, is_template, visibility, blocks, planned_total_min, version, created_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?) ON CONFLICT DO NOTHING`,
       )
-      .bind(p.id, me.teamId, p.eventId, p.title, p.isTemplate ? 1 : 0, p.visibility, JSON.stringify(p.data), total(p.data), me.userId, t, t)
+      .bind(
+        p.id,
+        me.teamId,
+        p.eventId,
+        p.title,
+        p.isTemplate ? 1 : 0,
+        p.visibility,
+        JSON.stringify(p.data),
+        total(p.data),
+        me.userId,
+        t,
+        t,
+      )
       .run();
     if (!r.meta.changes) {
-      const owner = await c.var.db.prepare('SELECT team_id FROM practice_plans WHERE id = ?').bind(p.id).first<{ team_id: string }>();
-      if (owner?.team_id !== me.teamId) throw new HttpError(409, 'conflict', 'Plan id already used');
+      const owner = await c.var.db
+        .prepare('SELECT team_id FROM practice_plans WHERE id = ?')
+        .bind(p.id)
+        .first<{ team_id: string }>();
+      if (owner?.team_id !== me.teamId)
+        throw new HttpError(409, 'conflict', 'Plan id already used');
     }
     return c.json({ ok: true, id: p.id }, 201);
   });
 
   route(app, 'plans.update', async (c) => {
     const input = await body(c, PlanUpdate);
-    const { sets, vals } = setsFrom(input as Record<string, unknown>, {
-      eventId: 'event_id', title: 'title', isTemplate: 'is_template', visibility: 'visibility', data: 'blocks',
-    }, ['data']);
-    if (input.data) (sets.push('planned_total_min = ?'), vals.push(total(input.data)));
-    const plan = await versionedUpdate(c, { table: 'practice_plans', cols: PLAN_COLS, id: c.req.param('planId')!, sets, vals, map: planFromRow, what: 'Plan' });
+    const { sets, vals } = setsFrom(
+      input as Record<string, unknown>,
+      {
+        eventId: 'event_id',
+        title: 'title',
+        isTemplate: 'is_template',
+        visibility: 'visibility',
+        data: 'blocks',
+      },
+      ['data'],
+    );
+    if (input.data) {
+      sets.push('planned_total_min = ?');
+      vals.push(total(input.data));
+    }
+    const plan = await versionedUpdate(c, {
+      table: 'practice_plans',
+      cols: PLAN_COLS,
+      id: c.req.param('planId')!,
+      sets,
+      vals,
+      map: planFromRow,
+      what: 'Plan',
+    });
     return c.json({ plan });
   });
 
   route(app, 'plans.delete', async (c) => {
     const t = now();
     const r = await c.var.db
-      .prepare('UPDATE practice_plans SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL')
+      .prepare(
+        'UPDATE practice_plans SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+      )
       .bind(t, t, c.req.param('planId'), c.var.member.teamId)
       .run();
     if (!r.meta.changes) throw notFound('Plan not found');
@@ -51,14 +88,27 @@ export function practiceRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const vis = isCoach(me.role) ? '' : `AND visibility = 'team'`;
     const [plan, rows] = await c.var.db.batch([
-      c.var.db.prepare(`SELECT id FROM practice_plans WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${vis}`).bind(c.req.param('planId'), me.teamId),
       c.var.db
-        .prepare(`SELECT r.id, r.kind, r.payload, r.at FROM practice_runs r WHERE r.plan_id = ? AND r.team_id = ? ORDER BY r.at LIMIT 1000`)
+        .prepare(
+          `SELECT id FROM practice_plans WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${vis}`,
+        )
+        .bind(c.req.param('planId'), me.teamId),
+      c.var.db
+        .prepare(
+          `SELECT r.id, r.kind, r.payload, r.at FROM practice_runs r WHERE r.plan_id = ? AND r.team_id = ? ORDER BY r.at LIMIT 1000`,
+        )
         .bind(c.req.param('planId'), me.teamId),
     ]);
     if (!plan?.results.length) throw notFound('Plan not found');
     const results = rows!.results as { id: string; kind: string; payload: string; at: number }[];
-    return c.json({ events: results.map((r) => ({ id: r.id, kind: r.kind, at: r.at, payload: parseJson(r.payload, {}) })) });
+    return c.json({
+      events: results.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        at: r.at,
+        payload: parseJson(r.payload, {}),
+      })),
+    });
   });
 
   route(app, 'runs.append', async (c) => {
@@ -74,7 +124,10 @@ export function practiceRoutes(app: Hono<AppEnv>) {
       .bind(me.userId, JSON.stringify(events), c.req.param('planId'), me.teamId)
       .run();
     if (r.meta.changes === 0) {
-      const exists = await c.var.db.prepare('SELECT 1 FROM practice_plans WHERE id = ? AND team_id = ? AND deleted_at IS NULL').bind(c.req.param('planId'), me.teamId).first();
+      const exists = await c.var.db
+        .prepare('SELECT 1 FROM practice_plans WHERE id = ? AND team_id = ? AND deleted_at IS NULL')
+        .bind(c.req.param('planId'), me.teamId)
+        .first();
       if (!exists) throw notFound('Plan not found');
     }
     return c.json({ ok: true, inserted: r.meta.changes });

@@ -36,7 +36,10 @@
   async function create() {
     busy = true;
     try {
-      const r = await api<{ path: string }>(teamPath('/invites'), { method: 'POST', body: { id: uuidv7(), role, expiresIn, maxUses } });
+      const r = await api<{ path: string }>(teamPath('/invites'), {
+        method: 'POST',
+        body: { id: uuidv7(), role, expiresIn, maxUses },
+      });
       link = `${location.origin}${r.path}`;
       void load();
     } catch (e) {
@@ -54,21 +57,39 @@
       toasts.error(e instanceof ApiError ? e.message : 'Could not revoke');
     }
   }
-  const active = $derived(invites.filter((i) => !i.revokedAt && i.expiresAt > Date.now() && i.uses < i.maxUses));
+  const active = $derived(
+    invites.filter((i) => !i.revokedAt && i.expiresAt > Date.now() && i.uses < i.maxUses),
+  );
   const canRevoke = $derived(app.role === 'owner' || app.role === 'coach');
 </script>
 
-<Sheet bind:open title="Invite to {app.team?.shortName ?? 'the team'}" description="Anyone with the link can join until it expires or is used up." size="md">
+<Sheet
+  bind:open
+  title="Invite to {app.team?.shortName ?? 'the team'}"
+  description="Anyone with the link can join until it expires or is used up."
+  size="md"
+>
   {#if link}
     <div class="made">
       <QrCode text={link} label="QR code for the invite link" />
       <p class="url">{link.replace(/#.*/, '#…')}</p>
       <div class="row wrap center">
-        <Button variant="primary" onclick={async () => {
-          const r = await shareLink(link!, `Join ${app.team?.name} on Phaseplay`, `Join ${app.team?.name} on Phaseplay`);
-          if (r === 'copied') toasts.show('Link copied. Paste it in the group chat');
-        }}>{#snippet icon()}<IconShare />{/snippet}Share link</Button>
-        <Button onclick={async () => toasts.show((await copyText(link!)) ? 'Link copied' : "Couldn't copy")}>{#snippet icon()}<IconCopy />{/snippet}Copy</Button>
+        <Button
+          variant="primary"
+          onclick={async () => {
+            const r = await shareLink(
+              link!,
+              `Join ${app.team?.name} on Phaseplay`,
+              `Join ${app.team?.name} on Phaseplay`,
+            );
+            if (r === 'copied') toasts.show('Link copied. Paste it in the group chat');
+          }}>{#snippet icon()}<IconShare />{/snippet}Share link</Button
+        >
+        <Button
+          onclick={async () =>
+            toasts.show((await copyText(link!)) ? 'Link copied' : "Couldn't copy")}
+          >{#snippet icon()}<IconCopy />{/snippet}Copy</Button
+        >
       </div>
       <Button variant="ghost" onclick={() => (link = null)}>Make another</Button>
     </div>
@@ -76,17 +97,35 @@
     <div class="stack">
       <div class="opt">
         <span class="lbl">Joins as</span>
-        <Segmented label="Role" bind:value={role} options={roles.map((r) => ({ value: r, label: r[0]!.toUpperCase() + r.slice(1) }))} />
+        <Segmented
+          label="Role"
+          bind:value={role}
+          options={roles.map((r) => ({ value: r, label: r[0]!.toUpperCase() + r.slice(1) }))}
+        />
       </div>
       <div class="opt">
         <span class="lbl">Expires after</span>
-        <Segmented label="Expiry" bind:value={expiresIn} options={[{ value: '1h', label: '1 hour' }, { value: '1d', label: '1 day' }, { value: '7d', label: '7 days' }, { value: '30d', label: '30 days' }]} size="sm" />
+        <Segmented
+          label="Expiry"
+          bind:value={expiresIn}
+          options={[
+            { value: '1h', label: '1 hour' },
+            { value: '1d', label: '1 day' },
+            { value: '7d', label: '7 days' },
+            { value: '30d', label: '30 days' },
+          ]}
+          size="sm"
+        />
       </div>
       <label class="opt">
         <span class="lbl">Up to</span>
-        <span class="row"><input type="number" min="1" max="100" bind:value={maxUses} class="num" /> people</span>
+        <span class="row"
+          ><input type="number" min="1" max="100" bind:value={maxUses} class="num" /> people</span
+        >
       </label>
-      <Button variant="primary" size="lg" block loading={busy} onclick={create}>Create invite link</Button>
+      <Button variant="primary" size="lg" block loading={busy} onclick={create}
+        >Create invite link</Button
+      >
     </div>
   {/if}
 
@@ -95,8 +134,16 @@
     <ul class="list inv">
       {#each active as i (i.id)}
         <li>
-          <span class="grow"><strong class="cap">{i.role}</strong> · {plural(i.uses, 'use')} of {i.maxUses}<small class="muted"> · made {ago(i.createdAt)}</small></span>
-          {#if canRevoke}<Button size="sm" variant="ghost" onclick={() => revoke(i.id)}>{#snippet icon()}<IconTrash />{/snippet}Revoke</Button>{/if}
+          <span class="grow"
+            ><strong class="cap">{i.role}</strong> · {plural(i.uses, 'use')} of {i.maxUses}<small
+              class="muted"
+            >
+              · made {ago(i.createdAt)}</small
+            ></span
+          >
+          {#if canRevoke}<Button size="sm" variant="ghost" onclick={() => revoke(i.id)}
+              >{#snippet icon()}<IconTrash />{/snippet}Revoke</Button
+            >{/if}
         </li>
       {/each}
     </ul>

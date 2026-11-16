@@ -18,7 +18,9 @@ import { syncRoutes } from './routes/sync';
 import { testRoutes } from './routes/test';
 
 export function origins(env: AppEnv['Bindings']) {
-  return env.ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+  return env.ORIGINS.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -74,7 +76,14 @@ export function createApp() {
         err.status,
       );
     }
-    console.error(JSON.stringify({ requestId: c.var.requestId, path: c.req.path, err: String(err), stack: (err as Error).stack }));
+    console.error(
+      JSON.stringify({
+        requestId: c.var.requestId,
+        path: c.req.path,
+        err: String(err),
+        stack: (err as Error).stack,
+      }),
+    );
     return c.json(
       { error: { code: 'internal', message: 'Something went wrong', requestId: c.var.requestId } },
       500,

@@ -37,7 +37,11 @@ export const Slot = v.object({
 export type Slot = v.InferOutput<typeof Slot>;
 
 export const PlanData = v.object({
-  lanes: v.pipe(v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(24))), v.minLength(1), v.maxLength(4)),
+  lanes: v.pipe(
+    v.array(v.pipe(v.string(), v.minLength(1), v.maxLength(24))),
+    v.minLength(1),
+    v.maxLength(4),
+  ),
   slots: v.pipe(v.array(Slot), v.maxLength(60)),
   waterEveryMin: v.optional(v.pipe(v.number(), v.integer(), v.minValue(10), v.maxValue(60)), 22),
 });
@@ -57,7 +61,11 @@ export type PlanUpdate = v.InferOutput<typeof PlanUpdate>;
 
 export const ALL_LANE = 'all';
 
-export const LANE_LABELS: Record<string, string> = { all: 'Everyone', forwards: 'Forwards', backs: 'Backs' };
+export const LANE_LABELS: Record<string, string> = {
+  all: 'Everyone',
+  forwards: 'Forwards',
+  backs: 'Backs',
+};
 export const laneLabel = (lane: string) => LANE_LABELS[lane] ?? lane;
 
 export function blockMinutes(b: Block): number {
@@ -171,7 +179,12 @@ export function runSteps(plan: PlanData): RunStep[] {
     const rot = slot.blocks.find((b) => b.rotation)?.rotation;
     if (rot && slot.blocks.length === 1) {
       for (let sub = 0; sub < rot.stations.length; sub++)
-        out.push({ slotIndex, sub, subCount: rot.stations.length, plannedMs: rot.intervalMin * 60e3 });
+        out.push({
+          slotIndex,
+          sub,
+          subCount: rot.stations.length,
+          plannedMs: rot.intervalMin * 60e3,
+        });
     } else out.push({ slotIndex, sub: 0, subCount: 1, plannedMs: slotMinutes(slot) * 60e3 });
   });
   return out;
@@ -192,7 +205,9 @@ export const RunEventInput = v.object({
   at: Millis,
 });
 export type RunEvent = v.InferOutput<typeof RunEventInput>;
-export const RunAppend = v.object({ events: v.pipe(v.array(RunEventInput), v.minLength(1), v.maxLength(200)) });
+export const RunAppend = v.object({
+  events: v.pipe(v.array(RunEventInput), v.minLength(1), v.maxLength(200)),
+});
 
 export type RunState = {
   status: 'idle' | 'running' | 'paused' | 'ended';
@@ -236,7 +251,11 @@ export function runState(steps: RunStep[], events: RunEvent[], now: number): Run
     return i;
   };
   const finishStep = (at: number, wasSkipped = false) => {
-    s.actuals.push({ index: s.index, ms: Math.max(0, at - s.stepStartedAt - pausedInStep), skipped: wasSkipped });
+    s.actuals.push({
+      index: s.index,
+      ms: Math.max(0, at - s.stepStartedAt - pausedInStep),
+      skipped: wasSkipped,
+    });
     s.index = nextIndex(s.index);
     s.stepStartedAt = at;
     pausedInStep = 0;

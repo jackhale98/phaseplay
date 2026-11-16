@@ -46,7 +46,15 @@
   <form class="stack" onsubmit={submit}>
     <Field label="Recovery code" {error}>
       {#snippet children({ id, describedby })}
-        <input {id} aria-describedby={describedby} bind:value={code} autocomplete="one-time-code" autocapitalize="none" spellcheck="false" placeholder="xxxx-xxxx-xxxx" />
+        <input
+          {id}
+          aria-describedby={describedby}
+          bind:value={code}
+          autocomplete="one-time-code"
+          autocapitalize="none"
+          spellcheck="false"
+          placeholder="xxxx-xxxx-xxxx"
+        />
       {/snippet}
     </Field>
     <Button type="submit" variant="primary" size="lg" block loading={busy}>Continue</Button>
@@ -56,7 +64,9 @@
   <h1>You're in. Add a passkey</h1>
   <p class="lede">Create a passkey on this device so you don't need a recovery code next time.</p>
   <div class="stack">
-    <Button variant="primary" size="lg" block loading={busy} onclick={add}>{#snippet icon()}<IconKey />{/snippet}Create passkey</Button>
+    <Button variant="primary" size="lg" block loading={busy} onclick={add}
+      >{#snippet icon()}<IconKey />{/snippet}Create passkey</Button
+    >
     {#if error}<p class="err" role="alert">{error}</p>{/if}
     <Button variant="ghost" href="/home">Skip for now</Button>
   </div>

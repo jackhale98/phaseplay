@@ -11,7 +11,15 @@
   import RecoveryCodes from '#lib/components/RecoveryCodes.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { ago } from '#lib/format';
-  import { IconBack, IconKey, IconPlus, IconTrash, IconEdit, IconDownload, IconLogOut } from '#lib/icons';
+  import {
+    IconBack,
+    IconKey,
+    IconPlus,
+    IconTrash,
+    IconEdit,
+    IconDownload,
+    IconLogOut,
+  } from '#lib/icons';
 
   let passkeys = $state<Passkey[]>([]);
   let name = $state(app.me?.user.displayName ?? '');
@@ -27,7 +35,8 @@
   };
   onMount(load);
 
-  const err = (e: unknown, fallback: string) => toasts.error(e instanceof ApiError ? e.message : fallback);
+  const err = (e: unknown, fallback: string) =>
+    toasts.error(e instanceof ApiError ? e.message : fallback);
 
   async function saveName() {
     try {
@@ -59,7 +68,10 @@
   async function rename() {
     if (!renaming) return;
     try {
-      await api(v1(`/me/passkeys/${encodeURIComponent(renaming.id)}`), { method: 'PATCH', body: { nickname: nick } });
+      await api(v1(`/me/passkeys/${encodeURIComponent(renaming.id)}`), {
+        method: 'PATCH',
+        body: { nickname: nick },
+      });
       renaming = null;
       await load();
     } catch (e) {
@@ -68,7 +80,12 @@
   }
   async function regen() {
     try {
-      codes = (await api<{ recoveryCodes: string[] }>(v1('/me/recovery-codes'), { method: 'POST', body: {} })).recoveryCodes;
+      codes = (
+        await api<{ recoveryCodes: string[] }>(v1('/me/recovery-codes'), {
+          method: 'POST',
+          body: {},
+        })
+      ).recoveryCodes;
     } catch (e) {
       err(e, 'Could not create codes');
     }
@@ -81,7 +98,10 @@
   async function exportData() {
     const res = await fetch(v1('/me/export'), { credentials: 'same-origin' });
     const url = URL.createObjectURL(await res.blob());
-    Object.assign(document.createElement('a'), { href: url, download: 'phaseplay-export.json' }).click();
+    Object.assign(document.createElement('a'), {
+      href: url,
+      download: 'phaseplay-export.json',
+    }).click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
   async function deleteAccount() {
@@ -104,20 +124,47 @@
 
   <section class="card pad">
     <Field label="Your name" hint="Shown to your teams">
-      {#snippet children({ id, describedby })}<input {id} aria-describedby={describedby} bind:value={name} maxlength="40" />{/snippet}
+      {#snippet children({ id, describedby })}<input
+          {id}
+          aria-describedby={describedby}
+          bind:value={name}
+          maxlength="40"
+        />{/snippet}
     </Field>
-    <div class="end"><Button disabled={!name.trim() || name === app.me?.user.displayName} onclick={saveName}>Save</Button></div>
+    <div class="end">
+      <Button disabled={!name.trim() || name === app.me?.user.displayName} onclick={saveName}
+        >Save</Button
+      >
+    </div>
   </section>
 
   <section class="card pad">
-    <div class="hd"><h2 class="h">Passkeys</h2><Button size="sm" onclick={add}>{#snippet icon()}<IconPlus />{/snippet}Add</Button></div>
+    <div class="hd">
+      <h2 class="h">Passkeys</h2>
+      <Button size="sm" onclick={add}>{#snippet icon()}<IconPlus />{/snippet}Add</Button>
+    </div>
     <ul class="list">
       {#each passkeys as p (p.id)}
         <li class="pk">
           <IconKey />
-          <span class="grow"><strong>{p.nickname ?? 'Passkey'}</strong><small class="muted">Added {ago(p.createdAt)}{p.lastUsedAt ? ` · used ${ago(p.lastUsedAt)}` : ''}{p.backedUp ? ' · synced' : ''}</small></span>
-          <button class="ib" aria-label="Rename {p.nickname ?? 'passkey'}" onclick={() => ((renaming = p), (nick = p.nickname ?? ''))}><IconEdit /></button>
-          <button class="ib" aria-label="Remove {p.nickname ?? 'passkey'}" disabled={passkeys.length < 2} onclick={() => remove(p)}><IconTrash /></button>
+          <span class="grow"
+            ><strong>{p.nickname ?? 'Passkey'}</strong><small class="muted"
+              >Added {ago(p.createdAt)}{p.lastUsedAt
+                ? ` · used ${ago(p.lastUsedAt)}`
+                : ''}{p.backedUp ? ' · synced' : ''}</small
+            ></span
+          >
+          <button
+            class="ib"
+            aria-label="Rename {p.nickname ?? 'passkey'}"
+            onclick={() => ((renaming = p), (nick = p.nickname ?? ''))}><IconEdit /></button
+          >
+          <button
+            class="ib"
+            aria-label="Remove {p.nickname ?? 'passkey'}"
+            disabled={passkeys.length < 2}
+            onclick={() => remove(p)}><IconTrash /></button
+          >
         </li>
       {/each}
     </ul>
@@ -128,7 +175,10 @@
     {#if codes}
       <RecoveryCodes {codes} ondone={() => (codes = null)} />
     {:else}
-      <p class="muted">Lost all your devices? A recovery code gets you back in. Making new codes cancels the old ones.</p>
+      <p class="muted">
+        Lost all your devices? A recovery code gets you back in. Making new codes cancels the old
+        ones.
+      </p>
       <div><Button onclick={regen}>Make new recovery codes</Button></div>
     {/if}
   </section>
@@ -136,16 +186,28 @@
   <section class="card pad">
     <h2 class="h">Your data</h2>
     <div class="row wrap">
-      <Button onclick={exportData}>{#snippet icon()}<IconDownload />{/snippet}Export my data</Button>
-      <Button onclick={async () => (await signOut(), goto('/'))}>{#snippet icon()}<IconLogOut />{/snippet}Sign out</Button>
+      <Button onclick={exportData}>{#snippet icon()}<IconDownload />{/snippet}Export my data</Button
+      >
+      <Button onclick={async () => (await signOut(), goto('/'))}
+        >{#snippet icon()}<IconLogOut />{/snippet}Sign out</Button
+      >
       <Button variant="ghost" onclick={everywhere}>Sign out everywhere</Button>
     </div>
-    <div><Button variant="ghost" class="dz" onclick={() => (confirmDelete = true)}>{#snippet icon()}<IconTrash />{/snippet}Delete account</Button></div>
+    <div>
+      <Button variant="ghost" class="dz" onclick={() => (confirmDelete = true)}
+        >{#snippet icon()}<IconTrash />{/snippet}Delete account</Button
+      >
+    </div>
   </section>
 </div>
 
-<Sheet bind:open={confirmDelete} title="Delete your account?" description="This can't be undone. You'll be removed from every team and your passkeys will stop working." size="sm">
-  {#snippet children()}<p class="muted">If you own a team, transfer it to another coach first.</p>{/snippet}
+<Sheet
+  bind:open={confirmDelete}
+  title="Delete your account?"
+  description="This can't be undone. You'll be removed from every team and your passkeys will stop working."
+  size="sm"
+>
+  <p class="muted">If you own a team, transfer it to another coach first.</p>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (confirmDelete = false)}>Cancel</Button>
     <Button variant="danger" onclick={deleteAccount}>Delete account</Button>
@@ -153,7 +215,9 @@
 </Sheet>
 <Sheet open={!!renaming} onclose={() => (renaming = null)} title="Rename passkey" size="sm">
   <form class="stack" onsubmit={(e) => (e.preventDefault(), rename())}>
-    <Field label="Name">{#snippet children({ id })}<input {id} bind:value={nick} maxlength="40" />{/snippet}</Field>
+    <Field label="Name"
+      >{#snippet children({ id })}<input {id} bind:value={nick} maxlength="40" />{/snippet}</Field
+    >
     <Button type="submit" variant="primary" block>Save</Button>
   </form>
 </Sheet>

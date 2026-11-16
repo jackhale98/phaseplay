@@ -1,0 +1,31 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browsers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop-chromium, mobile-chromium, mobile-webkit, desktop-webkit, desktop-firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm i --frozen-lockfile
+      - run: npx playwright install --with-deps
+      - run: pnpm --filter @phaseplay/web build
+      - run: npx playwright test --project=${{ matrix.project }}
+        env: { NIGHTLY: '1' }
+  lighthouse-prod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx -y @lhci/cli@0.15.1 autorun --config=lighthouserc.prod.json

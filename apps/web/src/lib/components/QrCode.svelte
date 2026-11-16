@@ -9,7 +9,14 @@
   });
 </script>
 
-<svg width={size} height={size} viewBox="0 0 {qr.size} {qr.size}" role="img" aria-label={label} shape-rendering="crispEdges">
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 {qr.size} {qr.size}"
+  role="img"
+  aria-label={label}
+  shape-rendering="crispEdges"
+>
   <rect width={qr.size} height={qr.size} fill="#fff" />
   <path d={path} fill="#0b0f0c" />
 </svg>

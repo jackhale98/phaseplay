@@ -100,7 +100,11 @@ describe('reduceMatch', () => {
     const c15 = matchConfig('15s', null, { starters: [a], bench: [b] });
     const log = [
       ev(T0, { kind: 'period_start', period: 1 }),
-      ev(T0 + 20 * 60e3, { kind: 'sub', team: 'us', offId: a, onId: b, type: 'tactical' }, 20 * 60e3),
+      ev(
+        T0 + 20 * 60e3,
+        { kind: 'sub', team: 'us', offId: a, onId: b, type: 'tactical' },
+        20 * 60e3,
+      ),
     ];
     const s = reduceMatch(log, c15, T0 + 30 * 60e3);
     expect(s.minutesPlayed[a]).toBe(20 * 60e3);

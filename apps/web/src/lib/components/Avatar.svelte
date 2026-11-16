@@ -6,13 +6,7 @@
   const hue = $derived([...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7));
 </script>
 
-<span
-  class="av"
-  class:muted
-  style:--size="{size}px"
-  style:--hue={hue}
-  aria-hidden="true"
->
+<span class="av" class:muted style:--size="{size}px" style:--hue={hue} aria-hidden="true">
   {jersey !== null && jersey !== undefined ? jersey : initials(name, 2)}
 </span>
 

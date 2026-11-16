@@ -47,24 +47,46 @@ describe('rugby', () => {
   it('warns about duplicates, availability and front-row cover', () => {
     const a = uuidv7();
     const b = uuidv7();
-    const w = sheetWarnings('15s', 8, { '1': a, '2': a, '10': b }, { [a]: { positions: [1], rsvp: 'yes' }, [b]: { positions: [1], rsvp: 'no' } });
+    const w = sheetWarnings(
+      '15s',
+      8,
+      { '1': a, '2': a, '10': b },
+      { [a]: { positions: [1], rsvp: 'yes' }, [b]: { positions: [1], rsvp: 'no' } },
+    );
     const kinds = w.map((x) => x.kind);
     expect(kinds).toContain('duplicate');
     expect(kinds).toContain('unavailable');
     expect(kinds).toContain('out_of_position');
-    expect(w.find((x) => x.kind === 'front_row_cover')).toEqual({ kind: 'front_row_cover', have: 2, need: 6 });
+    expect(w.find((x) => x.kind === 'front_row_cover')).toEqual({
+      kind: 'front_row_cover',
+      have: 2,
+      need: 6,
+    });
   });
 });
 
 describe('time', () => {
   it('converts local times across DST', () => {
-    expect(new Date(zonedToUtc('2026-07-01', '19:00', 'Europe/London')).toISOString()).toBe('2026-07-01T18:00:00.000Z');
-    expect(new Date(zonedToUtc('2026-12-01', '19:00', 'Europe/London')).toISOString()).toBe('2026-12-01T19:00:00.000Z');
-    expect(new Date(zonedToUtc('2026-03-29', '10:00', 'Europe/London')).toISOString()).toBe('2026-03-29T09:00:00.000Z');
-    expect(new Date(zonedToUtc('2026-11-01', '18:30', 'America/New_York')).toISOString()).toBe('2026-11-01T23:30:00.000Z');
+    expect(new Date(zonedToUtc('2026-07-01', '19:00', 'Europe/London')).toISOString()).toBe(
+      '2026-07-01T18:00:00.000Z',
+    );
+    expect(new Date(zonedToUtc('2026-12-01', '19:00', 'Europe/London')).toISOString()).toBe(
+      '2026-12-01T19:00:00.000Z',
+    );
+    expect(new Date(zonedToUtc('2026-03-29', '10:00', 'Europe/London')).toISOString()).toBe(
+      '2026-03-29T09:00:00.000Z',
+    );
+    expect(new Date(zonedToUtc('2026-11-01', '18:30', 'America/New_York')).toISOString()).toBe(
+      '2026-11-01T23:30:00.000Z',
+    );
   });
   it('expands weekly dates', () => {
-    expect(weeklyDates('2026-11-16', '2026-11-30', [2, 4])).toEqual(['2026-11-17', '2026-11-19', '2026-11-24', '2026-11-26']);
+    expect(weeklyDates('2026-11-16', '2026-11-30', [2, 4])).toEqual([
+      '2026-11-17',
+      '2026-11-19',
+      '2026-11-24',
+      '2026-11-26',
+    ]);
   });
 });
 

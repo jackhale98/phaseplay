@@ -12,7 +12,14 @@ const files = assets.map((x) => x.path as string);
 const prerendered = pre.map((x) => x.path as string);
 const CACHE = `pp-${version}`;
 const SHELL = '/200';
-const PRECACHE = [...new Set([...build, ...files.filter((f) => !/\.(txt|md)$/.test(f) && !f.startsWith('/icons/maskable')), ...prerendered, SHELL])];
+const PRECACHE = [
+  ...new Set([
+    ...build,
+    ...files.filter((f) => !/\.(txt|md)$/.test(f) && !f.startsWith('/icons/maskable')),
+    ...prerendered,
+    SHELL,
+  ]),
+];
 
 sw.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE)));
@@ -42,7 +49,9 @@ sw.addEventListener('fetch', (event) => {
     (async () => {
       const cache = await caches.open(CACHE);
       if (req.mode === 'navigate') {
-        const pre = prerendered.includes(url.pathname) ? await cache.match(url.pathname) : undefined;
+        const pre = prerendered.includes(url.pathname)
+          ? await cache.match(url.pathname)
+          : undefined;
         const hit = pre ?? (await cache.match(SHELL));
         if (hit) return hit;
         return fetch(req);

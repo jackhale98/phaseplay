@@ -18,7 +18,9 @@ const userRoutes = (Object.keys(ROUTES) as RouteId[]).filter((id) => ROUTES[id].
 
 describe('route table', () => {
   it('every route in the table has a handler and vice versa', () => {
-    expect([...registered].sort()).toEqual((Object.keys(ROUTES) as RouteId[]).filter((id) => id !== 'health').sort());
+    expect([...registered].sort()).toEqual(
+      (Object.keys(ROUTES) as RouteId[]).filter((id) => id !== 'health').sort(),
+    );
   });
 });
 
@@ -27,7 +29,11 @@ describe('user routes reject anonymous', () => {
     it(id, async () => {
       const r = ROUTES[id];
       const path = r.path.replace(/:(\w+)/g, () => uuidv7());
-      const res = await call(r.method, path, r.method === 'GET' || r.method === 'DELETE' ? {} : { body: {} });
+      const res = await call(
+        r.method,
+        path,
+        r.method === 'GET' || r.method === 'DELETE' ? {} : { body: {} },
+      );
       expect(res.status).toBe(401);
     });
   }
@@ -55,14 +61,23 @@ describe('tenancy matrix', () => {
       const opts = r.method === 'GET' ? {} : { body: {} };
 
       expect((await call(r.method, path, opts)).status, 'anonymous').toBe(401);
-      expect((await call(r.method, path, { ...opts, cookie: b.owner.cookie })).status, 'other team').toBe(404);
-      expect((await call(r.method, path, { ...opts, cookie: a.removed.cookie })).status, 'removed').toBe(404);
+      expect(
+        (await call(r.method, path, { ...opts, cookie: b.owner.cookie })).status,
+        'other team',
+      ).toBe(404);
+      expect(
+        (await call(r.method, path, { ...opts, cookie: a.removed.cookie })).status,
+        'removed',
+      ).toBe(404);
 
       // Team B's owner must not reach Team A's resources through their own team id either.
       const crossPath = routePath(id, { ...params, teamId: b.teamId });
       if (crossPath.split('/').length > 6) {
         const cross = await call(r.method, crossPath, { ...opts, cookie: b.owner.cookie });
-        expect([400, 404, 409, 415], `cross-team ${cross.status} ${JSON.stringify(cross.body)}`).toContain(cross.status);
+        expect(
+          [400, 404, 409, 415],
+          `cross-team ${cross.status} ${JSON.stringify(cross.body)}`,
+        ).toContain(cross.status);
       }
 
       const actors = { owner: a.owner, coach: a.coach, manager: a.manager, player: a.player };
@@ -72,9 +87,14 @@ describe('tenancy matrix', () => {
         if (can(role, r.action)) {
           // Allowed roles pass the guard; handlers may still refine (e.g. a player editing someone else).
           const refined = REFINED[id]?.includes(role) ?? false;
-          if (!refined) expect([401, 403], `${role} allowed: ${JSON.stringify(res.body)}`).not.toContain(res.status);
+          if (!refined)
+            expect([401, 403], `${role} allowed: ${JSON.stringify(res.body)}`).not.toContain(
+              res.status,
+            );
         } else expect(res.status, `${role} denied`).toBe(403);
-        expect(res.queries, `${role} query budget`).toBeLessThanOrEqual(id === 'teams.import' ? 45 : 6);
+        expect(res.queries, `${role} query budget`).toBeLessThanOrEqual(
+          id === 'teams.import' ? 45 : 6,
+        );
       }
     });
   }

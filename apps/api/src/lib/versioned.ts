@@ -35,7 +35,9 @@ export async function versionedUpdate<T>(
     .bind(opts.id, teamId)
     .first<Record<string, unknown>>();
   if (!current) throw notFound(`${opts.what} not found`);
-  throw new HttpError(409, 'conflict', `Someone else changed this ${opts.what.toLowerCase()}`, { latest: opts.map(current) });
+  throw new HttpError(409, 'conflict', `Someone else changed this ${opts.what.toLowerCase()}`, {
+    latest: opts.map(current),
+  });
 }
 
 /** Build `col = ?` pairs from a partial input using a field → column map. */
@@ -50,7 +52,17 @@ export function setsFrom(
     const val = input[k];
     if (val === undefined) continue;
     sets.push(`${col} = ?`);
-    vals.push(json.includes(k) ? (val === null ? null : JSON.stringify(val)) : typeof val === 'boolean' ? (val ? 1 : 0) : val);
+    vals.push(
+      json.includes(k)
+        ? val === null
+          ? null
+          : JSON.stringify(val)
+        : typeof val === 'boolean'
+          ? val
+            ? 1
+            : 0
+          : val,
+    );
   }
   return { sets, vals };
 }

@@ -50,9 +50,12 @@ export function sheetWarnings(
     if (m.rsvp !== 'yes')
       out.push({ kind: 'unavailable', memberId: id, slot: n, status: m.rsvp ?? 'none' });
   }
-  for (const [memberId, s] of where) if (s.length > 1) out.push({ kind: 'duplicate', memberId, slots: s });
+  for (const [memberId, s] of where)
+    if (s.length > 1) out.push({ kind: 'duplicate', memberId, slots: s });
   const need = opts.frontRowCover ?? scaledFrontRowCover(format, replacements);
-  const have = [...where.keys()].filter((id) => isFrontRowCapable(members[id]?.positions ?? [])).length;
+  const have = [...where.keys()].filter((id) =>
+    isFrontRowCapable(members[id]?.positions ?? []),
+  ).length;
   if (need > 0 && have < need) out.push({ kind: 'front_row_cover', have, need });
   if (opts.captainId !== undefined && !opts.captainId) out.push({ kind: 'captain_missing' });
   return out;

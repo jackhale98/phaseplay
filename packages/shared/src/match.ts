@@ -5,7 +5,14 @@
  */
 import * as v from 'valibot';
 import { Id, Millis } from './common';
-import { DEFAULT_POINTS, PENALTY_OFFENCES, PENALTY_OUTCOMES, RULES, type Format, type ScoringValues } from './rugby';
+import {
+  DEFAULT_POINTS,
+  PENALTY_OFFENCES,
+  PENALTY_OUTCOMES,
+  RULES,
+  type Format,
+  type ScoringValues,
+} from './rugby';
 
 export const SCORE_TYPES = [
   'try',
@@ -52,12 +59,23 @@ export type TallyKind = (typeof TALLY_KINDS)[number];
 const Side = v.picklist(['us', 'them']);
 const Pid = v.optional(v.nullable(Id));
 const Zone = v.optional(
-  v.nullable(v.object({ x: v.pipe(v.number(), v.minValue(0), v.maxValue(1)), y: v.pipe(v.number(), v.minValue(0), v.maxValue(1)) })),
+  v.nullable(
+    v.object({
+      x: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+      y: v.pipe(v.number(), v.minValue(0), v.maxValue(1)),
+    }),
+  ),
 );
 
 export const MatchPayload = v.variant('kind', [
-  v.object({ kind: v.literal('period_start'), period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)) }),
-  v.object({ kind: v.literal('period_end'), period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)) }),
+  v.object({
+    kind: v.literal('period_start'),
+    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)),
+  }),
+  v.object({
+    kind: v.literal('period_end'),
+    period: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(4)),
+  }),
   v.object({ kind: v.literal('time_off'), reason: v.picklist(STOPPAGE_REASONS) }),
   v.object({ kind: v.literal('time_on') }),
   v.object({ kind: v.literal('score'), team: Side, type: v.picklist(SCORE_TYPES), playerId: Pid }),
@@ -106,7 +124,9 @@ export const MatchEventInput = v.object({
 });
 export type MatchEventInput = v.InferOutput<typeof MatchEventInput>;
 
-export const MatchAppend = v.object({ events: v.pipe(v.array(MatchEventInput), v.minLength(1), v.maxLength(500)) });
+export const MatchAppend = v.object({
+  events: v.pipe(v.array(MatchEventInput), v.minLength(1), v.maxLength(500)),
+});
 
 export type MatchEvent = MatchEventInput & { createdBy?: string; createdAt?: number };
 
@@ -153,7 +173,8 @@ export function effectiveLog(events: MatchEvent[]): MatchEvent[] {
   const edits = new Map<string, MatchEvent[]>();
   for (const e of sorted) {
     if (e.payload.kind === 'void') voided.add(e.payload.supersedesId);
-    if (e.payload.kind === 'edit') edits.set(e.payload.supersedesId, [...(edits.get(e.payload.supersedesId) ?? []), e]);
+    if (e.payload.kind === 'edit')
+      edits.set(e.payload.supersedesId, [...(edits.get(e.payload.supersedesId) ?? []), e]);
   }
   const out: MatchEvent[] = [];
   for (const e of sorted) {
@@ -188,7 +209,13 @@ function byGameOrder(a: MatchEvent, b: MatchEvent) {
   return a.gameMs - b.gameMs || byOrder(a, b);
 }
 
-export type Stoppage = { reason: string; startWall: number; endWall: number | null; gameMs: number; period: number };
+export type Stoppage = {
+  reason: string;
+  startWall: number;
+  endWall: number | null;
+  gameMs: number;
+  period: number;
+};
 
 export type ClockState = {
   period: number;
@@ -207,7 +234,11 @@ export type ClockState = {
  * Derive the game clock at wall time `now` from clock events. Never uses interval ticks, so it
  * survives screen lock and restarts. Each period starts at (period-1) × halfMs on the game clock.
  */
-export function clockAt(log: MatchEvent[], cfg: Pick<MatchConfig, 'halfMs'>, now: number): ClockState {
+export function clockAt(
+  log: MatchEvent[],
+  cfg: Pick<MatchConfig, 'halfMs'>,
+  now: number,
+): ClockState {
   const clock = log.filter(isClock).sort(byOrder);
   let period = 0;
   let inPeriod = false;
@@ -289,7 +320,11 @@ export type MatchState = {
   progression: { gameMs: number; us: number; them: number; eventId: string }[];
   onField: { us: number; them: number };
   sinBins: SinBin[];
-  penalties: { for: number; against: number; byPeriod: Record<number, { for: number; against: number }> };
+  penalties: {
+    for: number;
+    against: number;
+    byPeriod: Record<number, { for: number; against: number }>;
+  };
   penaltiesByOffence: Record<string, number>;
   tallies: Partial<Record<TallyKind, number>>;
   /** member id → ms on field (game clock). */
@@ -430,7 +465,9 @@ export function reduceMatch(events: MatchEvent[], cfg: MatchConfig, now: number)
   const endAt = gameNow;
   for (const [id, since] of onSince) played[id] = (played[id] ?? 0) + Math.max(0, endAt - since);
 
-  const sinBins = [...cards.values()].filter((c) => !c.returned && (c.permanent || c.colour === 'yellow' || c.remainingMs > 0));
+  const sinBins = [...cards.values()].filter(
+    (c) => !c.returned && (c.permanent || c.colour === 'yellow' || c.remainingMs > 0),
+  );
   const down = (team: 'us' | 'them') => sinBins.filter((c) => c.team === team).length;
   return {
     clock,

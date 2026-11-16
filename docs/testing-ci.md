@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Unit | Vitest | `packages/shared` (rules, permissions, schemas), `packages/diagram`, web stores, outbox, sync merge |
 | Worker integration | Vitest + `@cloudflare/vitest-pool-workers` | Real local D1 with migrations applied, routes hit via `SELF.fetch`, auth flows, tenancy matrix, query budgets |
-| E2E | Playwright | User journeys on `desktop-chromium`, `mobile-chromium` (Pixel 7) and `mobile-webkit` (iPhone 15), against `vite preview` + `wrangler dev` with seeded D1 |
+| E2E | Playwright | User journeys on `desktop-chromium`, `mobile-chromium` (Pixel 7) and `mobile-webkit` (iPhone 15), against the production build served by `wrangler dev --env test` (same origin, seeded local D1) |
 | Visual | Playwright screenshots | Diagram renders, team-sheet and storyboard exports, key screens in light and dark |
 | Accessibility | `@axe-core/playwright` | Every key screen, with zero violations |
 | Offline | Playwright `context.setOffline` | RSVP queueing, match mode, outbox replay exactly once |
@@ -56,18 +56,14 @@ All jobs are required checks for `main`.
 
 Runs on push to `main`, after CI succeeds. Steps run in this order:
 
-1. **Migrate:** `wrangler d1 migrations apply phaseplay --remote`. Migrations must be **expand/contract**: add first, then backfill, and drop only in a later release. The code being deployed must work with both the old and the new schema.
-2. **Deploy the API:** `wrangler deploy`, with the commit SHA as `VERSION`.
-3. **Deploy the web app:**
-   - build with `PUBLIC_API_BASE=https://api.phaseplay.app`
-   - `actions/upload-pages-artifact`, then `actions/deploy-pages`
-   - keep the last 5 artifacts for rollback
-4. **Smoke test:** `/health` returns the new SHA. A Playwright smoke run against prod checks that the landing page renders, the console has no errors and the API is reachable.
-5. **On failure:** run `wrangler rollback`, redeploy the previous Pages artifact, and open an issue with the logs.
+1. **Migrate:** `wrangler d1 migrations apply phaseplay --remote --env production`. Migrations must be **expand/contract**: add first, then backfill, and drop only in a later release. The code being deployed must work with both the old and the new schema.
+2. **Build and deploy:** build the web app (`PUBLIC_VERSION=<sha>`), then `wrangler deploy --env production --var VERSION:<sha>`. Web and API ship together in one Worker version.
+3. **Smoke test:** `/api/health` returns the new SHA. `e2e/specs-prod` checks the landing page renders without console errors, the API is reachable, deep links get the shell with headers, and test auth is absent.
+4. **On failure:** `wrangler rollback` (restores web and API together) and an issue is opened with the run link.
 
-The API always deploys before the web app, and the API stays backward-compatible with the previous web build.
+Installed PWAs may run the previous web build until the user taps "Refresh", so the API stays backward-compatible with the previous web build.
 
-**Secrets:** `CLOUDFLARE_API_TOKEN` (least privilege) and `CLOUDFLARE_ACCOUNT_ID`.
+**Secrets:** `CLOUDFLARE_API_TOKEN` (least privilege: Workers Scripts edit, D1 edit, Workers Routes/Custom Domains on the zone) and `CLOUDFLARE_ACCOUNT_ID`, in a GitHub `production` environment.
 
 ## Nightly — `.github/workflows/nightly.yml`
 

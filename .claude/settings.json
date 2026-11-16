@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm i)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm dev)",
+      "Bash(pnpm check)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm test:e2e:*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm size)",
+      "Bash(pnpm db:migrate:local)",
+      "Bash(pnpm db:seed)",
+      "Bash(pnpm --filter:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(npx svelte-check:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.ts|*.js|*.svelte|*.json|*.css|*.md|*.yml|*.yaml) npx prettier --write --log-level silent \"$f\" 2>/dev/null || true;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}

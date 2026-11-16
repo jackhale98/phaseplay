@@ -7,7 +7,16 @@ export function hexToRgb(hex: string): [number, number, number] {
 }
 
 export function rgbToHex([r, g, b]: [number, number, number]): string {
-  return '#' + [r, g, b].map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('');
+  return (
+    '#' +
+    [r, g, b]
+      .map((x) =>
+        Math.round(Math.max(0, Math.min(255, x)))
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  );
 }
 
 export function luminance(hex: string): number {
@@ -57,7 +66,13 @@ export function fillAccent(accent: string): { bg: string; fg: string } {
 }
 
 export function initials(name: string, max = 3): string {
-  const words = name.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean);
+  const words = name
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
   if (words.length === 1) return words[0]!.slice(0, 2).toUpperCase();
-  return words.slice(0, max).map((w) => w[0]!.toUpperCase()).join('');
+  return words
+    .slice(0, max)
+    .map((w) => w[0]!.toUpperCase())
+    .join('');
 }

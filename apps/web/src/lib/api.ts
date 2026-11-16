@@ -15,7 +15,12 @@ export class ApiError extends Error {
   }
 }
 
-export type ReqInit = { method?: string; body?: unknown; ifMatch?: number | null; signal?: AbortSignal };
+export type ReqInit = {
+  method?: string;
+  body?: unknown;
+  ifMatch?: number | null;
+  signal?: AbortSignal;
+};
 
 export async function api<T = unknown>(path: string, init: ReqInit = {}): Promise<T> {
   const headers: Record<string, string> = { accept: 'application/json' };
@@ -35,7 +40,7 @@ export async function api<T = unknown>(path: string, init: ReqInit = {}): Promis
     throw new ApiError(0, 'network', "You're offline. We'll sync when you're back.");
   }
   const text = await res.text();
-  let data: unknown = null;
+  let data: unknown;
   try {
     data = text ? JSON.parse(text) : null;
   } catch {
@@ -44,7 +49,12 @@ export async function api<T = unknown>(path: string, init: ReqInit = {}): Promis
   if (!res.ok) {
     const err = (data as { error?: { code?: ApiErrorCode; message?: string } } | null)?.error;
     const { code: _c, message: _m, ...extra } = (err ?? {}) as Record<string, unknown>;
-    throw new ApiError(res.status, err?.code ?? 'internal', err?.message ?? `Request failed (${res.status})`, extra);
+    throw new ApiError(
+      res.status,
+      err?.code ?? 'internal',
+      err?.message ?? `Request failed (${res.status})`,
+      extra,
+    );
   }
   return data as T;
 }

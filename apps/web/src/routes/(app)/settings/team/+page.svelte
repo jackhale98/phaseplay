@@ -55,7 +55,11 @@
       <section class="danger card">
         <h2 class="h">Delete team</h2>
         <p class="muted">Removes the team for everyone. Members keep their accounts.</p>
-        <div><Button variant="ghost" onclick={() => (confirmDelete = true)}>{#snippet icon()}<IconTrash />{/snippet}Delete {team.shortName}</Button></div>
+        <div>
+          <Button variant="ghost" onclick={() => (confirmDelete = true)}
+            >{#snippet icon()}<IconTrash />{/snippet}Delete {team.shortName}</Button
+          >
+        </div>
       </section>
     {:else}
       <div class="card ro">
@@ -70,11 +74,26 @@
   {/if}
 </div>
 
-<Sheet bind:open={confirmDelete} title="Delete {team?.name}?" description="Type the team name to confirm. This can't be undone." size="sm">
-  <Field label="Team name">{#snippet children({ id })}<input {id} bind:value={confirmName} autocomplete="off" />{/snippet}</Field>
+<Sheet
+  bind:open={confirmDelete}
+  title="Delete {team?.name}?"
+  description="Type the team name to confirm. This can't be undone."
+  size="sm"
+>
+  <Field label="Team name"
+    >{#snippet children({ id })}<input
+        {id}
+        bind:value={confirmName}
+        autocomplete="off"
+      />{/snippet}</Field
+  >
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (confirmDelete = false)}>Cancel</Button>
-    <Button variant="danger" disabled={confirmName.trim().toLowerCase() !== team?.name.toLowerCase()} onclick={del}>Delete team</Button>
+    <Button
+      variant="danger"
+      disabled={confirmName.trim().toLowerCase() !== team?.name.toLowerCase()}
+      onclick={del}>Delete team</Button
+    >
   {/snippet}
 </Sheet>
 

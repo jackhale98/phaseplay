@@ -76,7 +76,8 @@ export function eventRoutes(app: Hono<AppEnv>) {
   route(app, 'seasons.put', async (c) => {
     const me = c.var.member;
     const input = await body(c, SeasonInput);
-    if (input.id !== c.req.param('seasonId')) throw new HttpError(400, 'bad_request', 'Mismatched id');
+    if (input.id !== c.req.param('seasonId'))
+      throw new HttpError(400, 'bad_request', 'Mismatched id');
     const r = await c.var.db
       .prepare(
         `INSERT INTO seasons (id, team_id, name, starts_on, ends_on, updated_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -95,8 +96,12 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const t = now();
     const r = await insertEventStmt(c.var.db, me.teamId, me.userId, input, null, t).run();
     if (!r.meta.changes) {
-      const owner = await c.var.db.prepare('SELECT team_id FROM events WHERE id = ?').bind(input.id).first<{ team_id: string }>();
-      if (owner?.team_id !== me.teamId) throw new HttpError(409, 'conflict', 'Event id already used');
+      const owner = await c.var.db
+        .prepare('SELECT team_id FROM events WHERE id = ?')
+        .bind(input.id)
+        .first<{ team_id: string }>();
+      if (owner?.team_id !== me.teamId)
+        throw new HttpError(409, 'conflict', 'Event id already used');
     }
     return c.json({ ok: true, id: input.id }, 201);
   });
@@ -109,10 +114,19 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const vals: unknown[] = [];
     for (const [k, col] of Object.entries(FIELD_COLS)) {
       const val = (input as Record<string, unknown>)[k];
-      if (val !== undefined) (sets.push(`${col} = ?`), vals.push(val));
+      if (val !== undefined) {
+        sets.push(`${col} = ?`);
+        vals.push(val);
+      }
     }
-    if (input.settings !== undefined) (sets.push('settings = ?'), vals.push(input.settings ? JSON.stringify(input.settings) : null));
-    if (input.cancelled !== undefined) (sets.push('cancelled_at = ?'), vals.push(input.cancelled ? now() : null));
+    if (input.settings !== undefined) {
+      sets.push('settings = ?');
+      vals.push(input.settings ? JSON.stringify(input.settings) : null);
+    }
+    if (input.cancelled !== undefined) {
+      sets.push('cancelled_at = ?');
+      vals.push(input.cancelled ? now() : null);
+    }
     const version = ifMatch(c);
     if (input.startsAt !== undefined || input.endsAt !== undefined || input.meetAt !== undefined) {
       const cur = await c.var.db
@@ -123,8 +137,10 @@ export function eventRoutes(app: Hono<AppEnv>) {
         const start = input.startsAt ?? cur.starts_at;
         const end = input.endsAt === undefined ? cur.ends_at : input.endsAt;
         const meet = input.meetAt === undefined ? cur.meet_at : input.meetAt;
-        if (end !== null && end < start) throw new HttpError(400, 'bad_request', 'Finish must be after the start');
-        if (meet !== null && meet > start) throw new HttpError(400, 'bad_request', 'Meet time must be before the start');
+        if (end !== null && end < start)
+          throw new HttpError(400, 'bad_request', 'Finish must be after the start');
+        if (meet !== null && meet > start)
+          throw new HttpError(400, 'bad_request', 'Meet time must be before the start');
       }
     }
     const row = await c.var.db
@@ -137,36 +153,60 @@ export function eventRoutes(app: Hono<AppEnv>) {
     if (row) {
       const ev = eventFromRow(row);
       if (input.cancelled !== undefined)
-        await auditStmt(c.var.db, { teamId: me.teamId, actorId: me.userId, action: input.cancelled ? 'event.cancelled' : 'event.restored', targetType: 'event', targetId: id, meta: { title: ev.title } }).run();
+        await auditStmt(c.var.db, {
+          teamId: me.teamId,
+          actorId: me.userId,
+          action: input.cancelled ? 'event.cancelled' : 'event.restored',
+          targetType: 'event',
+          targetId: id,
+          meta: { title: ev.title },
+        }).run();
       return c.json({ event: ev });
     }
     const current = await c.var.db
-      .prepare(`SELECT ${EVENT_COLS} FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL`)
+      .prepare(
+        `SELECT ${EVENT_COLS} FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL`,
+      )
       .bind(id, me.teamId)
       .first();
     if (!current) throw notFound('Event not found');
-    throw new HttpError(409, 'conflict', 'Someone else changed this event', { latest: eventFromRow(current) });
+    throw new HttpError(409, 'conflict', 'Someone else changed this event', {
+      latest: eventFromRow(current),
+    });
   });
 
   route(app, 'events.delete', async (c) => {
     const me = c.var.member;
     const t = now();
     const row = await c.var.db
-      .prepare('UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL RETURNING title')
+      .prepare(
+        'UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL RETURNING title',
+      )
       .bind(t, t, c.req.param('eventId'), me.teamId)
       .first<{ title: string }>();
     if (!row) throw notFound('Event not found');
-    await auditStmt(c.var.db, { teamId: me.teamId, actorId: me.userId, action: 'event.deleted', targetType: 'event', targetId: c.req.param('eventId')!, meta: { title: row.title } }).run();
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: 'event.deleted',
+      targetType: 'event',
+      targetId: c.req.param('eventId')!,
+      meta: { title: row.title },
+    }).run();
     return c.json({ ok: true });
   });
 
   route(app, 'recurrences.create', async (c) => {
     const me = c.var.member;
     const input = await body(c, RecurrenceCreate);
-    const team = await c.var.db.prepare('SELECT timezone FROM teams WHERE id = ?').bind(me.teamId).first<{ timezone: string }>();
+    const team = await c.var.db
+      .prepare('SELECT timezone FROM teams WHERE id = ?')
+      .bind(me.teamId)
+      .first<{ timezone: string }>();
     const tz = team!.timezone;
     const dates = weeklyDates(input.rule.startsOn, input.rule.until, input.rule.weekdays);
-    if (dates.length > 160) throw new HttpError(400, 'bad_request', 'That series has too many sessions');
+    if (dates.length > 160)
+      throw new HttpError(400, 'bad_request', 'That series has too many sessions');
     const t = now();
     const rows = dates.map((d, i) => {
       const startsAt = zonedToUtc(d, input.rule.time, tz);
@@ -177,11 +217,18 @@ export function eventRoutes(app: Hono<AppEnv>) {
         ends_at: startsAt + input.rule.durationMin * 60e3,
       };
     });
-    const template = { title: input.title, locationName: input.locationName, locationUrl: input.locationUrl, notes: input.notes };
+    const template = {
+      title: input.title,
+      locationName: input.locationName,
+      locationUrl: input.locationUrl,
+      notes: input.notes,
+    };
     // One statement for the whole series (D1 counts queries per invocation).
     await c.var.db.batch([
       c.var.db
-        .prepare('INSERT INTO recurrences (id, team_id, rule, template, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING')
+        .prepare(
+          'INSERT INTO recurrences (id, team_id, rule, template, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        )
         .bind(input.id, me.teamId, JSON.stringify(input.rule), JSON.stringify(template), t),
       c.var.db
         .prepare(
@@ -190,7 +237,18 @@ export function eventRoutes(app: Hono<AppEnv>) {
            SELECT j.value->>'id', ?, ?, 'training', ?, j.value->>'starts_at', j.value->>'meet_at', j.value->>'ends_at', ?, ?, ?, ?, 1, ?, ?
            FROM json_each(?) j WHERE true ON CONFLICT DO NOTHING`,
         )
-        .bind(me.teamId, input.seasonId ?? null, input.title, input.locationName ?? null, input.locationUrl ?? null, input.notes ?? null, input.id, me.userId, t, JSON.stringify(rows)),
+        .bind(
+          me.teamId,
+          input.seasonId ?? null,
+          input.title,
+          input.locationName ?? null,
+          input.locationUrl ?? null,
+          input.notes ?? null,
+          input.id,
+          me.userId,
+          t,
+          JSON.stringify(rows),
+        ),
     ]);
     return c.json({ ok: true, count: rows.length, ids: rows.map((r) => r.id) }, 201);
   });
@@ -200,9 +258,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const id = c.req.param('recurrenceId');
     const t = now();
     const [r] = await c.var.db.batch([
-      c.var.db.prepare('UPDATE recurrences SET deleted_at = ? WHERE id = ? AND team_id = ? AND deleted_at IS NULL').bind(t, id, me.teamId),
       c.var.db
-        .prepare('UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE recurrence_id = ? AND team_id = ? AND starts_at > ? AND deleted_at IS NULL')
+        .prepare(
+          'UPDATE recurrences SET deleted_at = ? WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+        )
+        .bind(t, id, me.teamId),
+      c.var.db
+        .prepare(
+          'UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE recurrence_id = ? AND team_id = ? AND starts_at > ? AND deleted_at IS NULL',
+        )
         .bind(t, t, id, me.teamId, t),
     ]);
     if (!r?.meta.changes) throw notFound();
@@ -212,7 +276,8 @@ export function eventRoutes(app: Hono<AppEnv>) {
   route(app, 'rsvps.put', async (c) => {
     const me = c.var.member;
     const memberId = c.req.param('memberId')!;
-    if (memberId !== me.id && !can(me.role, 'events.manage')) throw forbidden('You can only reply for yourself');
+    if (memberId !== me.id && !can(me.role, 'events.manage'))
+      throw forbidden('You can only reply for yourself');
     const input = await body(c, RsvpPut);
     const t = now();
     const note = input.note?.trim() ? input.note.trim() : null;
@@ -226,7 +291,16 @@ export function eventRoutes(app: Hono<AppEnv>) {
            note_expires_at = excluded.note_expires_at, updated_at = excluded.updated_at
          RETURNING event_id`,
       )
-      .bind(input.status, note, note, RSVP_NOTE_TTL_MS, t, memberId, c.req.param('eventId'), me.teamId)
+      .bind(
+        input.status,
+        note,
+        note,
+        RSVP_NOTE_TTL_MS,
+        t,
+        memberId,
+        c.req.param('eventId'),
+        me.teamId,
+      )
       .first();
     if (!row) throw notFound('Event not found');
     return c.json({ ok: true, updatedAt: t });

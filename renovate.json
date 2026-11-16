@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "schedule": ["before 6am on monday"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    { "groupName": "all non-major dependencies", "matchUpdateTypes": ["minor", "patch"], "automerge": true },
+    { "groupName": "playwright", "matchPackageNames": ["@playwright/test"], "automerge": false }
+  ]
+}

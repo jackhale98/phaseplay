@@ -10,7 +10,12 @@ export type Env = {
   VERSION: string;
 };
 
-export type SessionUser = { id: string; displayName: string; sessionHash: string; expiresAt: number };
+export type SessionUser = {
+  id: string;
+  displayName: string;
+  sessionHash: string;
+  expiresAt: number;
+};
 
 export type Vars = {
   db: D1Database;

@@ -1,14 +1,33 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  type Props = { label: string; hint?: string; error?: string | null; id?: string; children: Snippet<[{ id: string; describedby: string | undefined }]> };
-  let { label, hint, error = null, id = `f-${Math.random().toString(36).slice(2, 8)}`, children }: Props = $props();
-  const describedby = $derived([hint ? `${id}-h` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined);
+  type Props = {
+    label: string;
+    hint?: string;
+    error?: string | null;
+    id?: string;
+    children: Snippet<[{ id: string; describedby: string | undefined }]>;
+  };
+  let {
+    label,
+    hint,
+    error = null,
+    id = `f-${Math.random().toString(36).slice(2, 8)}`,
+    children,
+  }: Props = $props();
+  const describedby = $derived(
+    [hint ? `${id}-h` : '', error ? `${id}-e` : ''].filter(Boolean).join(' ') || undefined,
+  );
 </script>
 
 <div class="field" class:invalid={!!error}>
   <label for={id}>{label}</label>
   {@render children({ id, describedby })}
-  {#if error}<p class="err" id="{id}-e" role="alert">{error}</p>{:else if hint}<p class="hint" id="{id}-h">{hint}</p>{/if}
+  {#if error}<p class="err" id="{id}-e" role="alert">{error}</p>{:else if hint}<p
+      class="hint"
+      id="{id}-h"
+    >
+      {hint}
+    </p>{/if}
 </div>
 
 <style>
@@ -40,7 +59,9 @@
     border: 1px solid var(--border-strong);
     background: var(--surface);
     font-size: var(--t-16);
-    transition: border-color var(--m-fast) var(--ease), box-shadow var(--m-fast) var(--ease);
+    transition:
+      border-color var(--m-fast) var(--ease),
+      box-shadow var(--m-fast) var(--ease);
   }
   .field :global(textarea) {
     min-height: 96px;

@@ -36,7 +36,8 @@ function jsonObject(cols: string): string {
     ')'
   );
 }
-const arr = (cols: string, from: string) => `(SELECT json_group_array(${jsonObject(cols)}) FROM ${from})`;
+const arr = (cols: string, from: string) =>
+  `(SELECT json_group_array(${jsonObject(cols)}) FROM ${from})`;
 
 /** Overlap window so rows committed concurrently with the previous sync are never missed. */
 const OVERLAP_MS = 10_000;
@@ -64,7 +65,8 @@ export function syncRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const t = Date.now();
     const sinceRaw = Number(c.req.query('since') ?? 0);
-    const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.max(1, sinceRaw - OVERLAP_MS) : 0;
+    const since =
+      Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.max(1, sinceRaw - OVERLAP_MS) : 0;
     const staff = isStaff(me.role);
     const coach = isCoach(me.role);
     const row = await c.var.db
@@ -76,7 +78,11 @@ export function syncRoutes(app: Hono<AppEnv>) {
     // Players never see other members' RSVP rows, only counts.
     const rsvpCounts: Record<string, RsvpCounts> = {};
     for (const r of list('counts'))
-      rsvpCounts[r.event_id as string] = { yes: Number(r.yes ?? 0), no: Number(r.no ?? 0), maybe: Number(r.maybe ?? 0) };
+      rsvpCounts[r.event_id as string] = {
+        yes: Number(r.yes ?? 0),
+        no: Number(r.no ?? 0),
+        maybe: Number(r.maybe ?? 0),
+      };
     const res: SyncResponse = {
       cursor: t,
       full: since === 0,
@@ -87,7 +93,9 @@ export function syncRoutes(app: Hono<AppEnv>) {
       events: list('events').map(eventFromRow),
       rsvps: list('rsvps').map((r) => rsvpFromRow(r, staff || r.member_id === me.id)),
       rsvpCounts,
-      sheets: list('sheets').map((r) => sheetFromRow(r, !coach)).filter((s) => s !== null),
+      sheets: list('sheets')
+        .map((r) => sheetFromRow(r, !coach))
+        .filter((s) => s !== null),
       plays: list('plays').map(playMetaFromRow),
       drills: list('drills').map(drillMetaFromRow),
       plans: list('plans').map(planFromRow),

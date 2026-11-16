@@ -214,10 +214,9 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
 - **Season stats:** attendance, minutes played, match tallies and penalty trends, and training load (contact and high-intensity minutes from the practice plans).
 - **Team crest upload** to R2, resized client-side.
 
-### M8 — Move to Cloudflare
-- Serve the web app from Cloudflare Workers static assets on the same `phaseplay.app` domain, so passkeys and sessions are untouched.
-- Real security headers (CSP, HSTS, `frame-ancestors`, Permissions-Policy) through `_headers`, preview deploys per PR, and a staging environment.
-- Write up the runbook and rollback plan in `docs/runbook-cloudflare.md`.
+### M8 — Cloudflare hardening (hosting itself moved into M0)
+- Done in M0: one Worker serves web + API on `phaseplay.app`, real security headers through `_headers`, runbook in `docs/runbook.md`.
+- Remaining: preview deploys per PR (without passkeys, which need the real origin) and a staging environment on `staging.phaseplay.app`.
 
 ## 5. Definition of Done (every PR)
 
@@ -237,11 +236,12 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
 
 ## 7. Human setup checklist (agents can't do these)
 
-- [ ] Buy `phaseplay.app` and add it to a Cloudflare account, which will manage its DNS.
-- [ ] Create the GitHub repo. Set Settings → Pages → Source to "GitHub Actions" and the custom domain to `phaseplay.app`, then enforce HTTPS once the certificate is issued.
-- [ ] In Cloudflare DNS, point the apex to the GitHub Pages A and AAAA records (and `www` CNAME to `<user>.github.io`). Set them to **DNS only (grey cloud)**, so GitHub can issue the certificate.
-- [ ] Create a D1 database `phaseplay` and note its ID for `wrangler.toml`.
-- [ ] Create a Cloudflare API token scoped to Workers Scripts edit, D1 edit and Workers Routes on the zone. Add it as the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.
+See `docs/runbook.md` §First deploy for the exact steps.
+
+- [x] Buy `phaseplay.app` and add it to a Cloudflare account, which will manage its DNS.
+- [ ] Remove any existing apex/`www` DNS records for `phaseplay.app` (the Worker custom domain creates them).
+- [ ] Create a D1 database `phaseplay` (`wrangler d1 create phaseplay`) and put its ID in `apps/api/wrangler.toml` under `[env.production]`.
+- [ ] Create a Cloudflare API token scoped to Workers Scripts edit, D1 edit and Workers Routes on the zone. Add it as the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets of a GitHub `production` environment.
 - [ ] Turn on branch protection for `main` and require the CI checks.
 - [ ] Switch to the Workers Paid plan ($5/month) once a second team joins, so daily limits can't take the app down on match day.
 

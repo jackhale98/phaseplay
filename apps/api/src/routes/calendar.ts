@@ -34,12 +34,18 @@ export function calendarRoutes(app: Hono<AppEnv>) {
       results.map((e) => {
         const start = Number(e.starts_at);
         const label = e.type === 'match' && e.opponent ? `v ${e.opponent}` : String(e.title);
-        const meet = e.meet_at ? `Meet ${new Date(Number(e.meet_at)).toISOString().slice(11, 16)} UTC. ` : '';
+        const meet = e.meet_at
+          ? `Meet ${new Date(Number(e.meet_at)).toISOString().slice(11, 16)} UTC. `
+          : '';
         return {
           uid: String(e.id),
           start: e.meet_at ? Number(e.meet_at) : start,
           end: e.ends_at ? Number(e.ends_at) : start + (e.type === 'tournament' ? 8 : 2) * 3600e3,
-          summary: `${e.short_name} ${EVENT_TYPE_LABELS[e.type as keyof typeof EVENT_TYPE_LABELS] ?? ''}: ${label}`.replace(/\s+/g, ' '),
+          summary:
+            `${e.short_name} ${EVENT_TYPE_LABELS[e.type as keyof typeof EVENT_TYPE_LABELS] ?? ''}: ${label}`.replace(
+              /\s+/g,
+              ' ',
+            ),
           location: e.location_name as string | null,
           description: `${meet}${e.notes ?? ''}\nhttps://phaseplay.app/events/${e.id}`.trim(),
           url: e.location_url as string | null,

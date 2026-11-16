@@ -22,7 +22,10 @@ export function teamRoutes(app: Hono<AppEnv>) {
     const u = requireUser(c);
     const input = await body(c, TeamCreate);
     const t = now();
-    const existing = await c.var.db.prepare('SELECT owner_id FROM teams WHERE id = ?').bind(input.id).first<{ owner_id: string }>();
+    const existing = await c.var.db
+      .prepare('SELECT owner_id FROM teams WHERE id = ?')
+      .bind(input.id)
+      .first<{ owner_id: string }>();
     if (existing) {
       if (existing.owner_id === u.id) return c.json({ ok: true, id: input.id }); // idempotent retry
       throw new HttpError(409, 'conflict', 'Team id already used');
@@ -31,7 +34,17 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(`INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`)
-        .bind(input.id, input.name, input.shortName, JSON.stringify(input.colors), input.defaultFormat, input.timezone, u.id, t, t),
+        .bind(
+          input.id,
+          input.name,
+          input.shortName,
+          JSON.stringify(input.colors),
+          input.defaultFormat,
+          input.timezone,
+          u.id,
+          t,
+          t,
+        ),
       c.var.db
         .prepare(
           `INSERT INTO memberships (id, team_id, user_id, display_name, role, positions, status, joined_at, updated_at)
@@ -39,13 +52,22 @@ export function teamRoutes(app: Hono<AppEnv>) {
         )
         .bind(memberId, input.id, u.id, u.displayName, t, t),
       ...starterDrillStatements(c.var.db, input.id, t),
-      auditStmt(c.var.db, { teamId: input.id, actorId: u.id, action: 'team.created', targetType: 'team', targetId: input.id }),
+      auditStmt(c.var.db, {
+        teamId: input.id,
+        actorId: u.id,
+        action: 'team.created',
+        targetType: 'team',
+        targetId: input.id,
+      }),
     ]);
     return c.json({ ok: true, id: input.id }, 201);
   });
 
   route(app, 'teams.get', async (c) => {
-    const row = await c.var.db.prepare(`SELECT ${TEAM_COLS} FROM teams WHERE id = ?`).bind(c.var.member.teamId).first();
+    const row = await c.var.db
+      .prepare(`SELECT ${TEAM_COLS} FROM teams WHERE id = ?`)
+      .bind(c.var.member.teamId)
+      .first();
     if (!row) throw notFound();
     return c.json({ team: teamFromRow(row) });
   });
@@ -54,7 +76,12 @@ export function teamRoutes(app: Hono<AppEnv>) {
     const input = await body(c, TeamUpdate);
     const sets: string[] = [];
     const vals: unknown[] = [];
-    const map: Record<string, string> = { name: 'name', shortName: 'short_name', defaultFormat: 'default_format', timezone: 'timezone' };
+    const map: Record<string, string> = {
+      name: 'name',
+      shortName: 'short_name',
+      defaultFormat: 'default_format',
+      timezone: 'timezone',
+    };
     for (const [k, col] of Object.entries(map)) {
       const val = (input as Record<string, unknown>)[k];
       if (val !== undefined) {
@@ -76,13 +103,20 @@ export function teamRoutes(app: Hono<AppEnv>) {
 
   route(app, 'teams.delete', async (c) => {
     const { confirmName } = await body(c, v.object({ confirmName: v.string() }));
-    const team = await c.var.db.prepare('SELECT name FROM teams WHERE id = ?').bind(c.var.member.teamId).first<{ name: string }>();
+    const team = await c.var.db
+      .prepare('SELECT name FROM teams WHERE id = ?')
+      .bind(c.var.member.teamId)
+      .first<{ name: string }>();
     if (!team || team.name.trim().toLowerCase() !== confirmName.trim().toLowerCase())
       throw new HttpError(400, 'bad_request', 'Type the team name to confirm');
     const t = now();
     await c.var.db.batch([
-      c.var.db.prepare('UPDATE teams SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(t, t, c.var.member.teamId),
-      c.var.db.prepare('UPDATE invites SET revoked_at = ? WHERE team_id = ? AND revoked_at IS NULL').bind(t, c.var.member.teamId),
+      c.var.db
+        .prepare('UPDATE teams SET deleted_at = ?, updated_at = ? WHERE id = ?')
+        .bind(t, t, c.var.member.teamId),
+      c.var.db
+        .prepare('UPDATE invites SET revoked_at = ? WHERE team_id = ? AND revoked_at IS NULL')
+        .bind(t, c.var.member.teamId),
     ]);
     return c.json({ ok: true });
   });
@@ -92,27 +126,54 @@ export function teamRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const t = now();
     const target = await c.var.db
-      .prepare(`SELECT ${MEMBER_COLS} FROM memberships WHERE id = ? AND team_id = ? AND status = 'active' AND user_id IS NOT NULL`)
+      .prepare(
+        `SELECT ${MEMBER_COLS} FROM memberships WHERE id = ? AND team_id = ? AND status = 'active' AND user_id IS NOT NULL`,
+      )
       .bind(memberId, me.teamId)
       .first();
     if (!target || memberId === me.id) throw notFound('Member not found');
     const tm = memberFromRow(target);
     await c.var.db.batch([
-      c.var.db.prepare(`UPDATE memberships SET role = 'owner', updated_at = ? WHERE id = ?`).bind(t, memberId),
-      c.var.db.prepare(`UPDATE memberships SET role = 'coach', updated_at = ? WHERE id = ?`).bind(t, me.id),
-      c.var.db.prepare('UPDATE teams SET owner_id = ?, updated_at = ? WHERE id = ?').bind(tm.userId, t, me.teamId),
-      auditStmt(c.var.db, { teamId: me.teamId, actorId: me.userId, action: 'team.transferred', targetType: 'member', targetId: memberId, meta: { to: tm.displayName } }),
+      c.var.db
+        .prepare(`UPDATE memberships SET role = 'owner', updated_at = ? WHERE id = ?`)
+        .bind(t, memberId),
+      c.var.db
+        .prepare(`UPDATE memberships SET role = 'coach', updated_at = ? WHERE id = ?`)
+        .bind(t, me.id),
+      c.var.db
+        .prepare('UPDATE teams SET owner_id = ?, updated_at = ? WHERE id = ?')
+        .bind(tm.userId, t, me.teamId),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'team.transferred',
+        targetType: 'member',
+        targetId: memberId,
+        meta: { to: tm.displayName },
+      }),
     ]);
     return c.json({ ok: true });
   });
 
   route(app, 'teams.leave', async (c) => {
     const me = c.var.member;
-    if (me.role === 'owner') throw new HttpError(409, 'conflict', 'Transfer ownership before leaving the team.');
+    if (me.role === 'owner')
+      throw new HttpError(409, 'conflict', 'Transfer ownership before leaving the team.');
     const t = now();
     await c.var.db.batch([
-      c.var.db.prepare(`UPDATE memberships SET status = 'removed', removed_at = ?, updated_at = ? WHERE id = ?`).bind(t, t, me.id),
-      auditStmt(c.var.db, { teamId: me.teamId, actorId: me.userId, action: 'member.left', targetType: 'member', targetId: me.id, meta: { name: me.displayName } }),
+      c.var.db
+        .prepare(
+          `UPDATE memberships SET status = 'removed', removed_at = ?, updated_at = ? WHERE id = ?`,
+        )
+        .bind(t, t, me.id),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'member.left',
+        targetType: 'member',
+        targetId: me.id,
+        meta: { name: me.displayName },
+      }),
     ]);
     return c.json({ ok: true });
   });
@@ -153,9 +214,23 @@ export function teamRoutes(app: Hono<AppEnv>) {
             `INSERT INTO memberships (id, team_id, user_id, display_name, role, jersey, positions, status, updated_at)
              VALUES (?, ?, NULL, ?, 'player', ?, ?, 'pending', ?) ON CONFLICT DO NOTHING`,
           )
-          .bind(m.id, me.teamId, m.displayName, m.jersey ?? null, JSON.stringify(m.positions ?? []), t),
+          .bind(
+            m.id,
+            me.teamId,
+            m.displayName,
+            m.jersey ?? null,
+            JSON.stringify(m.positions ?? []),
+            t,
+          ),
       ),
-      auditStmt(c.var.db, { teamId: me.teamId, actorId: me.userId, action: 'team.imported', targetType: 'team', targetId: me.teamId, meta: { events: input.events.length, members: input.members.length } }),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'team.imported',
+        targetType: 'team',
+        targetId: me.teamId,
+        meta: { events: input.events.length, members: input.members.length },
+      }),
     ];
     // Imports are the one bulk path; D1 batches are a single round trip.
     await c.var.db.batch(stmts);

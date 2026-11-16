@@ -1,14 +1,29 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { HTMLButtonAttributes } from 'svelte/elements';
-  type Props = HTMLButtonAttributes & { label: string; href?: string; children: Snippet; tone?: 'default' | 'accent' | 'danger' };
-  let { label, href, children, tone = 'default', class: cls = '', type = 'button', ...rest }: Props = $props();
+  type Props = HTMLButtonAttributes & {
+    label: string;
+    href?: string;
+    children: Snippet;
+    tone?: 'default' | 'accent' | 'danger';
+  };
+  let {
+    label,
+    href,
+    children,
+    tone = 'default',
+    class: cls = '',
+    type = 'button',
+    ...rest
+  }: Props = $props();
 </script>
 
 {#if href}
   <a {href} class="ib {tone} {cls}" aria-label={label} title={label}>{@render children()}</a>
 {:else}
-  <button {type} class="ib {tone} {cls}" aria-label={label} title={label} {...rest}>{@render children()}</button>
+  <button {type} class="ib {tone} {cls}" aria-label={label} title={label} {...rest}
+    >{@render children()}</button
+  >
 {/if}
 
 <style>
@@ -22,7 +37,9 @@
     border: 0;
     background: transparent;
     color: var(--text-2);
-    transition: background var(--m-fast) var(--ease), color var(--m-fast) var(--ease);
+    transition:
+      background var(--m-fast) var(--ease),
+      color var(--m-fast) var(--ease);
   }
   .ib:hover {
     background: var(--surface-3);

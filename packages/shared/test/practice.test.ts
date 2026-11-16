@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { type PlanData, type RunEvent, planTotals, runState, runSteps, timeline, uuidv7 } from '../src';
+import {
+  type PlanData,
+  type RunEvent,
+  planTotals,
+  runState,
+  runSteps,
+  timeline,
+  uuidv7,
+} from '../src';
 
 const plan: PlanData = {
   lanes: ['forwards', 'backs'],
   waterEveryMin: 22,
   slots: [
-    { id: 's1', blocks: [{ id: 'b1', kind: 'drill', drillId: 'd-warm', durationMin: 15, lane: 'all' }] },
+    {
+      id: 's1',
+      blocks: [{ id: 'b1', kind: 'drill', drillId: 'd-warm', durationMin: 15, lane: 'all' }],
+    },
     {
       id: 's2',
       blocks: [
@@ -82,7 +93,12 @@ describe('runState', () => {
   });
 
   it('pause and +2 min shift the projected finish', () => {
-    const evs = [e('start', T, { auto: false }), e('pause', T + 60e3), e('resume', T + 3 * 60e3), e('extend', T + 4 * 60e3, { ms: 120e3 })];
+    const evs = [
+      e('start', T, { auto: false }),
+      e('pause', T + 60e3),
+      e('resume', T + 3 * 60e3),
+      e('extend', T + 4 * 60e3, { ms: 120e3 }),
+    ];
     const s = runState(steps, evs, T + 5 * 60e3);
     expect(s.status).toBe('running');
     expect(s.elapsedMs).toBe(3 * 60e3);

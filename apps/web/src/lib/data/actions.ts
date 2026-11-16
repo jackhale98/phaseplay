@@ -9,7 +9,13 @@ import { toasts } from '#lib/stores/toast.svelte';
 
 export const teamPath = (p: string) => v1(`/teams/${app.teamId}${p}`);
 
-export async function setRsvp(eventId: string, memberId: string, status: RsvpStatus, note: string | null = null, opts: { undo?: boolean } = {}) {
+export async function setRsvp(
+  eventId: string,
+  memberId: string,
+  status: RsvpStatus,
+  note: string | null = null,
+  opts: { undo?: boolean } = {},
+) {
   const s = app.snap;
   if (!s) return;
   const prev = rsvpOf(s, eventId, memberId);
@@ -19,7 +25,7 @@ export async function setRsvp(eventId: string, memberId: string, status: RsvpSta
     memberId,
     teamId: s.teamId,
     status,
-    note: note ?? (prev?.status === status ? prev?.note ?? null : null),
+    note: note ?? (prev?.status === status ? (prev?.note ?? null) : null),
     attended: prev?.attended ?? null,
     updatedAt: Date.now(),
   };

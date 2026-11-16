@@ -28,11 +28,13 @@
   const LABELS: Record<string, (e: AuditEntry) => string> = {
     'team.created': () => 'created the team',
     'team.transferred': (e) => `transferred ownership to ${e.meta?.to ?? 'someone'}`,
-    'team.imported': (e) => `imported ${e.meta?.events ?? 0} events and ${e.meta?.members ?? 0} names`,
+    'team.imported': (e) =>
+      `imported ${e.meta?.events ?? 0} events and ${e.meta?.members ?? 0} names`,
     'member.joined': (e) => `joined as ${e.meta?.role ?? 'player'}`,
     'member.left': (e) => `${e.meta?.name ?? 'someone'} left`,
     'member.removed': (e) => `removed ${e.meta?.name ?? 'a member'}`,
-    'member.role_changed': (e) => `changed ${e.meta?.name}'s role from ${e.meta?.from} to ${e.meta?.to}`,
+    'member.role_changed': (e) =>
+      `changed ${e.meta?.name}'s role from ${e.meta?.from} to ${e.meta?.to}`,
     'member.relink_issued': (e) => `made a device link for ${e.meta?.name}`,
     'member.relinked': () => 'added a passkey with a device link',
     'invite.created': (e) => `created a ${e.meta?.role} invite`,
@@ -56,7 +58,10 @@
     {#each entries as e (e.id)}
       <li>
         <span class="t subtle tnum">{dateTime(e.at, tz)}</span>
-        <span><strong>{e.actorName ?? 'Someone'}</strong> {(LABELS[e.action] ?? (() => e.action))(e)}</span>
+        <span
+          ><strong>{e.actorName ?? 'Someone'}</strong>
+          {(LABELS[e.action] ?? (() => e.action))(e)}</span
+        >
       </li>
     {/each}
   </ol>

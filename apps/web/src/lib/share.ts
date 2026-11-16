@@ -1,5 +1,9 @@
 /** Share a file with the Web Share API on mobile, otherwise download it. */
-export async function shareOrDownload(blob: Blob, filename: string, title?: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareOrDownload(
+  blob: Blob,
+  filename: string,
+  title?: string,
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const file = new File([blob], filename, { type: blob.type });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   const coarse = matchMedia('(pointer: coarse)').matches;
@@ -40,7 +44,11 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export async function shareLink(url: string, title: string, text?: string): Promise<'shared' | 'copied' | 'failed'> {
+export async function shareLink(
+  url: string,
+  title: string,
+  text?: string,
+): Promise<'shared' | 'copied' | 'failed'> {
   if (matchMedia('(pointer: coarse)').matches && navigator.share) {
     try {
       await navigator.share({ url, title, text });

@@ -4,8 +4,22 @@
   import { setRsvp } from '#lib/data/actions';
   import { IconCheck, IconX, IconHelp } from '#lib/icons';
 
-  type Props = { eventId: string; memberId: string; status: RsvpStatus | null; size?: 'md' | 'lg'; disabled?: boolean; label?: string };
-  let { eventId, memberId, status, size = 'md', disabled = false, label = 'Are you in?' }: Props = $props();
+  type Props = {
+    eventId: string;
+    memberId: string;
+    status: RsvpStatus | null;
+    size?: 'md' | 'lg';
+    disabled?: boolean;
+    label?: string;
+  };
+  let {
+    eventId,
+    memberId,
+    status,
+    size = 'md',
+    disabled = false,
+    label = 'Are you in?',
+  }: Props = $props();
   const opts: { v: RsvpStatus; t: string }[] = [
     { v: 'yes', t: 'In' },
     { v: 'maybe', t: 'Maybe' },

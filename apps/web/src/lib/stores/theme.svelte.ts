@@ -29,7 +29,13 @@ class Theme {
   applyTeam(colors: TeamColors | null) {
     const root = document.documentElement.style;
     if (!colors) {
-      for (const k of ['--accent', '--on-accent', '--accent-text', '--secondary', '--accent-text-dark'])
+      for (const k of [
+        '--accent',
+        '--on-accent',
+        '--accent-text',
+        '--secondary',
+        '--accent-text-dark',
+      ])
         root.removeProperty(k);
       try {
         localStorage.removeItem('pp:accent');

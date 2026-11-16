@@ -36,18 +36,33 @@
 
 {#if codes}
   <h1>Save your recovery codes</h1>
-  <p class="lede">If you ever lose every device with your passkey, one of these codes gets you back in. Each works once.</p>
+  <p class="lede">
+    If you ever lose every device with your passkey, one of these codes gets you back in. Each works
+    once.
+  </p>
   <RecoveryCodes {codes} ondone={done} />
 {:else}
   <h1>Create your account</h1>
-  <p class="lede">Just your name. You'll sign in with a passkey (Face ID, fingerprint or your phone's screen lock), with no password to remember.</p>
+  <p class="lede">
+    Just your name. You'll sign in with a passkey (Face ID, fingerprint or your phone's screen
+    lock), with no password to remember.
+  </p>
   {#if !supported}
-    <p class="warn" role="alert">This browser doesn't support passkeys. Try Safari on iPhone, or Chrome on Android or desktop.</p>
+    <p class="warn" role="alert">
+      This browser doesn't support passkeys. Try Safari on iPhone, or Chrome on Android or desktop.
+    </p>
   {/if}
   <form onsubmit={submit} class="stack" novalidate>
     <Field label="Your name" hint="How your team will see you, e.g. Jess Taylor" {error}>
       {#snippet children({ id, describedby })}
-        <input {id} aria-describedby={describedby} bind:value={name} autocomplete="name" maxlength="40" required />
+        <input
+          {id}
+          aria-describedby={describedby}
+          bind:value={name}
+          autocomplete="name"
+          maxlength="40"
+          required
+        />
       {/snippet}
     </Field>
     <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!supported}>
@@ -55,7 +70,11 @@
     </Button>
   </form>
   <div class="alt">
-    <span>Already have an account? <a href="/signin{next ? `?next=${encodeURIComponent(next)}` : ''}">Sign in</a></span>
+    <span
+      >Already have an account? <a href="/signin{next ? `?next=${encodeURIComponent(next)}` : ''}"
+        >Sign in</a
+      ></span
+    >
   </div>
 {/if}
 

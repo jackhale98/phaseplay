@@ -6,8 +6,19 @@
   import Crest from './Crest.svelte';
   import Button from './Button.svelte';
 
-  export type TeamFormValue = { name: string; shortName: string; colors: TeamColors; defaultFormat: Format; timezone: string };
-  type Props = { value?: Partial<TeamFormValue>; submitLabel: string; busy?: boolean; onsubmit: (v: TeamFormValue) => void };
+  export type TeamFormValue = {
+    name: string;
+    shortName: string;
+    colors: TeamColors;
+    defaultFormat: Format;
+    timezone: string;
+  };
+  type Props = {
+    value?: Partial<TeamFormValue>;
+    submitLabel: string;
+    busy?: boolean;
+    onsubmit: (v: TeamFormValue) => void;
+  };
   let { value = {}, submitLabel, busy = false, onsubmit }: Props = $props();
 
   const PRESETS: TeamColors[] = [
@@ -26,9 +37,13 @@
   let shortTouched = $state(!!value.shortName);
   let colors = $state<TeamColors>(value.colors ?? PRESETS[0]!);
   let format = $state<Format>(value.defaultFormat ?? '15s');
-  const localTz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
+  const localTz =
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   let timezone = $state(value.timezone ?? localTz);
-  const zones = typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl ? Intl.supportedValuesOf('timeZone') : [localTz];
+  const zones =
+    typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
+      ? Intl.supportedValuesOf('timeZone')
+      : [localTz];
   let error = $state<string | null>(null);
 
   const autoShort = $derived(initials(name || 'Team', 4).slice(0, 4));
@@ -37,7 +52,13 @@
   function submit(e: SubmitEvent) {
     e.preventDefault();
     if (!name.trim()) return (error = 'Give your team a name');
-    onsubmit({ name: name.trim(), shortName: shortName || 'TEAM', colors, defaultFormat: format, timezone });
+    onsubmit({
+      name: name.trim(),
+      shortName: shortName || 'TEAM',
+      colors,
+      defaultFormat: format,
+      timezone,
+    });
   }
 </script>
 
@@ -51,7 +72,13 @@
   </div>
   <Field label="Team name" {error}>
     {#snippet children({ id, describedby })}
-      <input {id} aria-describedby={describedby} bind:value={name} maxlength="60" placeholder="e.g. Riverside Women RFC" />
+      <input
+        {id}
+        aria-describedby={describedby}
+        bind:value={name}
+        maxlength="60"
+        placeholder="e.g. Riverside Women RFC"
+      />
     {/snippet}
   </Field>
   <Field label="Short name" hint="Up to 4 letters, used on the crest and exports">
@@ -91,7 +118,14 @@
   </fieldset>
   <div class="field-like">
     <span class="lbl" id="fmt-l">Usual format</span>
-    <Segmented label="Usual format" bind:value={format} options={[{ value: '15s', label: '15s' }, { value: '7s', label: '7s' }]} />
+    <Segmented
+      label="Usual format"
+      bind:value={format}
+      options={[
+        { value: '15s', label: '15s' },
+        { value: '7s', label: '7s' },
+      ]}
+    />
   </div>
   <Field label="Timezone" hint="Event times are shown in this timezone">
     {#snippet children({ id, describedby })}
@@ -114,7 +148,11 @@
     align-items: center;
     padding: var(--s-4);
     border-radius: var(--r-lg);
-    background: linear-gradient(135deg, color-mix(in srgb, var(--p) 14%, var(--surface)), var(--surface));
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--p) 14%, var(--surface)),
+      var(--surface)
+    );
     border: 1px solid var(--border);
   }
   .preview strong {

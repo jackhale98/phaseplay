@@ -104,5 +104,6 @@ export async function rateLimit(c: Context<AppEnv>, scope: string, key?: string)
   if (!rl) return;
   const ip = c.req.header('cf-connecting-ip') ?? 'local';
   const { success } = await rl.limit({ key: `${scope}:${key ?? ip}` });
-  if (!success) throw new HttpError(429, 'rate_limited', 'Too many attempts. Try again in a minute.');
+  if (!success)
+    throw new HttpError(429, 'rate_limited', 'Too many attempts. Try again in a minute.');
 }

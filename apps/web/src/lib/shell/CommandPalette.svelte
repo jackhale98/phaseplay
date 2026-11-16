@@ -22,18 +22,39 @@
       { label: 'Account & passkeys', hint: 'Settings', href: '/settings/account' },
       { label: 'Team settings', hint: 'Settings', href: '/settings/team' },
     ];
-    if (isStaff(app.role)) list.push({ label: 'New event', hint: 'Action', href: '/schedule?new=1' }, { label: 'Invite players', hint: 'Action', href: '/squad?invite=1' });
-    for (const e of upcoming(s).slice(0, 30)) list.push({ label: e.opponent ? `${e.title} v ${e.opponent}` : e.title, hint: day(e.startsAt, tz), href: `/events/${e.id}` });
-    for (const p of Object.values(s?.rows.plays ?? {})) list.push({ label: p.title, hint: 'Play', href: `/plays/${p.id}` });
-    for (const d of Object.values(s?.rows.drills ?? {})) list.push({ label: d.title, hint: 'Drill', href: `/drills/${d.id}` });
-    for (const m of squad(s)) list.push({ label: m.displayName, hint: 'Squad', href: `/squad/${m.id}` });
+    if (isStaff(app.role))
+      list.push(
+        { label: 'New event', hint: 'Action', href: '/schedule?new=1' },
+        { label: 'Invite players', hint: 'Action', href: '/squad?invite=1' },
+      );
+    for (const e of upcoming(s).slice(0, 30))
+      list.push({
+        label: e.opponent ? `${e.title} v ${e.opponent}` : e.title,
+        hint: day(e.startsAt, tz),
+        href: `/events/${e.id}`,
+      });
+    for (const p of Object.values(s?.rows.plays ?? {}))
+      list.push({ label: p.title, hint: 'Play', href: `/plays/${p.id}` });
+    for (const d of Object.values(s?.rows.drills ?? {}))
+      list.push({ label: d.title, hint: 'Drill', href: `/drills/${d.id}` });
+    for (const m of squad(s))
+      list.push({ label: m.displayName, hint: 'Squad', href: `/squad/${m.id}` });
     return list;
   });
   const results = $derived.by(() => {
     const t = q.trim().toLowerCase();
     if (!t) return items.slice(0, 12);
     return items
-      .map((i) => ({ i, score: i.label.toLowerCase().startsWith(t) ? 0 : i.label.toLowerCase().includes(t) ? 1 : i.hint.toLowerCase().includes(t) ? 2 : 9 }))
+      .map((i) => ({
+        i,
+        score: i.label.toLowerCase().startsWith(t)
+          ? 0
+          : i.label.toLowerCase().includes(t)
+            ? 1
+            : i.hint.toLowerCase().includes(t)
+              ? 2
+              : 9,
+      }))
       .filter((x) => x.score < 9)
       .sort((a, b) => a.score - b.score)
       .slice(0, 20)
@@ -56,13 +77,26 @@
     void goto(i.href);
   }
   function key(e: KeyboardEvent) {
-    if (e.key === 'ArrowDown') (e.preventDefault(), (active = Math.min(results.length - 1, active + 1)));
-    else if (e.key === 'ArrowUp') (e.preventDefault(), (active = Math.max(0, active - 1)));
-    else if (e.key === 'Enter') (e.preventDefault(), pick(results[active]));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      active = Math.min(results.length - 1, active + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      active = Math.max(0, active - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      pick(results[active]);
+    }
   }
 </script>
 
-<dialog bind:this={dialog} class="pal" aria-label="Search" onclose={() => (open = false)} onclick={(e) => e.target === dialog && (open = false)}>
+<dialog
+  bind:this={dialog}
+  class="pal"
+  aria-label="Search"
+  onclose={() => (open = false)}
+  onclick={(e) => e.target === dialog && (open = false)}
+>
   <div class="box">
     <input
       bind:this={input}
@@ -78,7 +112,9 @@
     <ul id="pal-list" role="listbox">
       {#each results as r, i (r.href + r.label)}
         <li id="pal-{i}" role="option" aria-selected={i === active}>
-          <button tabindex="-1" onclick={() => pick(r)} onmousemove={() => (active = i)}><span>{r.label}</span><small>{r.hint}</small></button>
+          <button tabindex="-1" onclick={() => pick(r)} onmousemove={() => (active = i)}
+            ><span>{r.label}</span><small>{r.hint}</small></button
+          >
         </li>
       {:else}
         <li class="none">No matches</li>

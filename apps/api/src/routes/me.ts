@@ -1,17 +1,38 @@
 import type { Hono } from 'hono';
 import * as v from 'valibot';
-import { Id, randomToken, sha256Base64Url, text, uuidv7, type MeResponse, type Passkey } from '@phaseplay/shared';
+import {
+  Id,
+  randomToken,
+  sha256Base64Url,
+  text,
+  uuidv7,
+  type MeResponse,
+  type Passkey,
+} from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
 import { MEMBER_COLS, TEAM_COLS, memberFromRow, teamFromRow } from '../db/rows';
 import { clearSessionCookie, recoveryCodeStatements, requireUser } from '../auth/session';
-import { insertCredential, registrationOptions, takeChallenge, verifyRegistration } from '../auth/webauthn';
+import {
+  insertCredential,
+  registrationOptions,
+  takeChallenge,
+  verifyRegistration,
+} from '../auth/webauthn';
 import { bool } from '../lib/db';
 
-const prefixed = (cols: string, p: string) => cols.split(', ').map((x) => `${p}.${x} AS ${p}_${x}`).join(', ');
+const prefixed = (cols: string, p: string) =>
+  cols
+    .split(', ')
+    .map((x) => `${p}.${x} AS ${p}_${x}`)
+    .join(', ');
 const strip = (row: Record<string, unknown>, p: string) =>
-  Object.fromEntries(Object.entries(row).filter(([k]) => k.startsWith(p + '_')).map(([k, val]) => [k.slice(p.length + 1), val]));
+  Object.fromEntries(
+    Object.entries(row)
+      .filter(([k]) => k.startsWith(p + '_'))
+      .map(([k, val]) => [k.slice(p.length + 1), val]),
+  );
 
 export function meRoutes(app: Hono<AppEnv>) {
   route(app, 'me.get', async (c) => {
@@ -26,7 +47,10 @@ export function meRoutes(app: Hono<AppEnv>) {
       .all<Record<string, unknown>>();
     const res: MeResponse = {
       user: { id: u.id, displayName: u.displayName, createdAt: 0 },
-      memberships: results.map((r) => ({ member: memberFromRow(strip(r, 'm')), team: teamFromRow(strip(r, 't')) })),
+      memberships: results.map((r) => ({
+        member: memberFromRow(strip(r, 'm')),
+        team: teamFromRow(strip(r, 't')),
+      })),
       env: c.env.ENV,
     };
     return c.json(res);
@@ -38,7 +62,9 @@ export function meRoutes(app: Hono<AppEnv>) {
     const t = now();
     await c.var.db.batch([
       c.var.db.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(displayName, u.id),
-      c.var.db.prepare('UPDATE memberships SET display_name = ?, updated_at = ? WHERE user_id = ?').bind(displayName, t, u.id),
+      c.var.db
+        .prepare('UPDATE memberships SET display_name = ?, updated_at = ? WHERE user_id = ?')
+        .bind(displayName, t, u.id),
     ]);
     return c.json({ ok: true });
   });
@@ -50,17 +76,25 @@ export function meRoutes(app: Hono<AppEnv>) {
       .bind(u.id)
       .first<{ name: string }>();
     if (owns)
-      throw new HttpError(409, 'conflict', `Transfer or delete ${owns.name} before deleting your account.`);
+      throw new HttpError(
+        409,
+        'conflict',
+        `Transfer or delete ${owns.name} before deleting your account.`,
+      );
     const t = now();
     await c.var.db.batch([
       c.var.db
-        .prepare(`UPDATE memberships SET status = 'removed', removed_at = ?, updated_at = ?, display_name = 'Former member', user_id = NULL WHERE user_id = ?`)
+        .prepare(
+          `UPDATE memberships SET status = 'removed', removed_at = ?, updated_at = ?, display_name = 'Former member', user_id = NULL WHERE user_id = ?`,
+        )
         .bind(t, t, u.id),
       c.var.db.prepare('DELETE FROM credentials WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('DELETE FROM calendar_tokens WHERE user_id = ?').bind(u.id),
-      c.var.db.prepare(`UPDATE users SET display_name = 'Deleted user', deleted_at = ? WHERE id = ?`).bind(t, u.id),
+      c.var.db
+        .prepare(`UPDATE users SET display_name = 'Deleted user', deleted_at = ? WHERE id = ?`)
+        .bind(t, u.id),
     ]);
     clearSessionCookie(c);
     return c.json({ ok: true });
@@ -71,12 +105,20 @@ export function meRoutes(app: Hono<AppEnv>) {
     const [user, members, rsvps, creds] = await c.var.db.batch([
       c.var.db.prepare('SELECT id, display_name, created_at FROM users WHERE id = ?').bind(u.id),
       c.var.db
-        .prepare(`SELECT m.id, m.role, m.jersey, m.positions, m.status, m.joined_at, t.name AS team FROM memberships m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?`)
+        .prepare(
+          `SELECT m.id, m.role, m.jersey, m.positions, m.status, m.joined_at, t.name AS team FROM memberships m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?`,
+        )
         .bind(u.id),
       c.var.db
-        .prepare(`SELECT r.event_id, e.title, e.starts_at, r.status, r.note, r.attended, r.updated_at FROM rsvps r JOIN memberships m ON m.id = r.member_id JOIN events e ON e.id = r.event_id WHERE m.user_id = ?`)
+        .prepare(
+          `SELECT r.event_id, e.title, e.starts_at, r.status, r.note, r.attended, r.updated_at FROM rsvps r JOIN memberships m ON m.id = r.member_id JOIN events e ON e.id = r.event_id WHERE m.user_id = ?`,
+        )
         .bind(u.id),
-      c.var.db.prepare('SELECT nickname, created_at, last_used_at, backed_up FROM credentials WHERE user_id = ?').bind(u.id),
+      c.var.db
+        .prepare(
+          'SELECT nickname, created_at, last_used_at, backed_up FROM credentials WHERE user_id = ?',
+        )
+        .bind(u.id),
     ]);
     c.header('Content-Disposition', 'attachment; filename="phaseplay-export.json"');
     return c.json({
@@ -98,7 +140,9 @@ export function meRoutes(app: Hono<AppEnv>) {
   route(app, 'me.passkeys.list', async (c) => {
     const u = requireUser(c);
     const { results } = await c.var.db
-      .prepare('SELECT id, nickname, created_at, last_used_at, backed_up FROM credentials WHERE user_id = ? ORDER BY created_at')
+      .prepare(
+        'SELECT id, nickname, created_at, last_used_at, backed_up FROM credentials WHERE user_id = ? ORDER BY created_at',
+      )
       .bind(u.id)
       .all<Record<string, unknown>>();
     const out: Passkey[] = results.map((r) => ({
@@ -122,7 +166,14 @@ export function meRoutes(app: Hono<AppEnv>) {
 
   route(app, 'me.passkeys.add', async (c) => {
     const u = requireUser(c);
-    const input = await body(c, v.object({ challengeId: Id, response: v.record(v.string(), v.unknown()), nickname: v.optional(v.nullable(text(40))) }));
+    const input = await body(
+      c,
+      v.object({
+        challengeId: Id,
+        response: v.record(v.string(), v.unknown()),
+        nickname: v.optional(v.nullable(text(40))),
+      }),
+    );
     const ch = await takeChallenge(c, input.challengeId, 'add');
     if (ch.userId !== u.id) throw new HttpError(400, 'bad_request', 'Mismatched challenge');
     const cred = await verifyRegistration(c, ch.challenge, input.response);
@@ -151,7 +202,11 @@ export function meRoutes(app: Hono<AppEnv>) {
       .bind(c.req.param('credentialId'), u.id, u.id)
       .run();
     if (!r.meta.changes)
-      throw new HttpError(409, 'conflict', "You can't remove your only passkey. Add another first.");
+      throw new HttpError(
+        409,
+        'conflict',
+        "You can't remove your only passkey. Add another first.",
+      );
     return c.json({ ok: true });
   });
 
@@ -164,19 +219,27 @@ export function meRoutes(app: Hono<AppEnv>) {
 
   route(app, 'me.calendar.create', async (c) => {
     const u = requireUser(c);
-    const input = await body(c, v.object({ teamId: v.nullable(Id), scope: v.picklist(['me', 'team']) }));
+    const input = await body(
+      c,
+      v.object({ teamId: v.nullable(Id), scope: v.picklist(['me', 'team']) }),
+    );
     if (input.teamId) {
       const m = await c.var.db
-        .prepare(`SELECT role FROM memberships WHERE team_id = ? AND user_id = ? AND status = 'active'`)
+        .prepare(
+          `SELECT role FROM memberships WHERE team_id = ? AND user_id = ? AND status = 'active'`,
+        )
         .bind(input.teamId, u.id)
         .first<{ role: string }>();
       if (!m) throw notFound();
-      if (input.scope === 'team' && m.role === 'player') throw new HttpError(403, 'forbidden', 'Team feeds are for staff');
+      if (input.scope === 'team' && m.role === 'player')
+        throw new HttpError(403, 'forbidden', 'Team feeds are for staff');
     }
     const token = randomToken(16);
     const id = uuidv7();
     await c.var.db
-      .prepare('INSERT INTO calendar_tokens (id, token_hash, user_id, team_id, scope, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .prepare(
+        'INSERT INTO calendar_tokens (id, token_hash, user_id, team_id, scope, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
       .bind(id, await sha256Base64Url(token), u.id, input.teamId, input.scope, now())
       .run();
     return c.json({ id, token, path: `/cal/${token}.ics` }, 201);
@@ -185,7 +248,9 @@ export function meRoutes(app: Hono<AppEnv>) {
   route(app, 'me.calendar.list', async (c) => {
     const u = requireUser(c);
     const { results } = await c.var.db
-      .prepare('SELECT id, team_id, scope, created_at FROM calendar_tokens WHERE user_id = ? AND revoked_at IS NULL')
+      .prepare(
+        'SELECT id, team_id, scope, created_at FROM calendar_tokens WHERE user_id = ? AND revoked_at IS NULL',
+      )
       .bind(u.id)
       .all();
     return c.json({ feeds: results });

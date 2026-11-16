@@ -11,7 +11,13 @@ class Toasts {
   items = $state<Toast[]>([]);
 
   show(message: string, opts: Partial<Omit<Toast, 'id' | 'message'>> = {}) {
-    const t: Toast = { id: next++, message, tone: opts.tone ?? 'neutral', action: opts.action, timeout: opts.timeout ?? (opts.action ? 5000 : 3500) };
+    const t: Toast = {
+      id: next++,
+      message,
+      tone: opts.tone ?? 'neutral',
+      action: opts.action,
+      timeout: opts.timeout ?? (opts.action ? 5000 : 3500),
+    };
     this.items = [...this.items.slice(-2), t];
     if (t.timeout > 0) setTimeout(() => this.dismiss(t.id), t.timeout);
     return t.id;

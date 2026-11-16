@@ -1,11 +1,25 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  type Props = { selected?: boolean; onclick?: () => void; children: Snippet; tone?: 'default' | 'ok' | 'warn' | 'danger' | 'accent' | 'info'; as?: 'button' | 'span' };
-  let { selected = false, onclick, children, tone = 'default', as = onclick ? 'button' : 'span' }: Props = $props();
+  type Props = {
+    selected?: boolean;
+    onclick?: () => void;
+    children: Snippet;
+    tone?: 'default' | 'ok' | 'warn' | 'danger' | 'accent' | 'info';
+    as?: 'button' | 'span';
+  };
+  let {
+    selected = false,
+    onclick,
+    children,
+    tone = 'default',
+    as = onclick ? 'button' : 'span',
+  }: Props = $props();
 </script>
 
 {#if as === 'button'}
-  <button type="button" class="chip {tone}" class:selected aria-pressed={selected} {onclick}>{@render children()}</button>
+  <button type="button" class="chip {tone}" class:selected aria-pressed={selected} {onclick}
+    >{@render children()}</button
+  >
 {:else}
   <span class="chip {tone}" class:selected>{@render children()}</span>
 {/if}

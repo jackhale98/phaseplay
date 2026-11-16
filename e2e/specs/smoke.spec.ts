@@ -18,12 +18,22 @@ test('signed-in owner lands on Home for a new team', async ({ page, team, axe })
 
 test('RSVP from Home is one tap and survives a reload', async ({ page, team }) => {
   const id = crypto.randomUUID();
-  await team.post(`/teams/${team.teamId}/events`, { id, type: 'training', title: 'Training', startsAt: Date.now() + 2 * 86400e3 });
+  await team.post(`/teams/${team.teamId}/events`, {
+    id,
+    type: 'training',
+    title: 'Training',
+    startsAt: Date.now() + 2 * 86400e3,
+  });
   await openTeam(page, team.teamId, '/home');
-  const inBtn = page.getByRole('group', { name: 'Are you in?' }).first().getByRole('button', { name: 'In' });
+  const inBtn = page
+    .getByRole('group', { name: 'Are you in?' })
+    .first()
+    .getByRole('button', { name: 'In' });
   await inBtn.click();
   await expect(inBtn).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText('All changes saved').first()).toBeAttached();
   await page.reload();
-  await expect(page.getByRole('group', { name: 'Are you in?' }).first().getByRole('button', { name: 'In' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page.getByRole('group', { name: 'Are you in?' }).first().getByRole('button', { name: 'In' }),
+  ).toHaveAttribute('aria-pressed', 'true');
 });

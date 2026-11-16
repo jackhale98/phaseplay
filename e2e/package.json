@@ -2,5 +2,7 @@
   "name": "@phaseplay/e2e",
   "private": true,
   "type": "module",
-  "scripts": { "check": "tsc -p tsconfig.json" }
+  "scripts": {
+    "check": "tsc -p tsconfig.json"
+  }
 }

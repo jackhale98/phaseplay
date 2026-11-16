@@ -24,10 +24,15 @@
 
   onMount(async () => {
     token = fragmentToken();
-    if (!token) return (problem = 'This invite link looks incomplete. Ask your coach to send it again.');
+    if (!token)
+      return (problem = 'This invite link looks incomplete. Ask your coach to send it again.');
     try {
-      preview = await api<InvitePreview>(v1('/invites/preview'), { method: 'POST', body: { token } });
-      if (preview.kind === 'relink') return void goto(`/relink${location.hash}`, { replaceState: true });
+      preview = await api<InvitePreview>(v1('/invites/preview'), {
+        method: 'POST',
+        body: { token },
+      });
+      if (preview.kind === 'relink')
+        return void goto(`/relink${location.hash}`, { replaceState: true });
     } catch (e) {
       problem = e instanceof ApiError ? e.message : 'Could not open this invite.';
       return;
@@ -36,7 +41,10 @@
   });
 
   async function accept() {
-    const r = await api<{ teamId: string }>(v1('/invites/accept'), { method: 'POST', body: { token, claimMemberId: claim } });
+    const r = await api<{ teamId: string }>(v1('/invites/accept'), {
+      method: 'POST',
+      body: { token, claimMemberId: claim },
+    });
     await app.refreshMe();
     await app.selectTeam(r.teamId);
     return r.teamId;
@@ -82,15 +90,27 @@
     <div>
       <p class="eyebrow">You're invited</p>
       <h1>{preview.team.name}</h1>
-      <p class="muted">{preview.invitedBy} invited you to join as a <strong>{preview.role}</strong>.</p>
+      <p class="muted">
+        {preview.invitedBy} invited you to join as a <strong>{preview.role}</strong>.
+      </p>
     </div>
   </div>
 
   <form class="stack" onsubmit={join} novalidate>
     {#if !signedIn}
-      <Field label="Your name" hint="As your teammates know you" error={error && !name.trim() ? error : null}>
+      <Field
+        label="Your name"
+        hint="As your teammates know you"
+        error={error && !name.trim() ? error : null}
+      >
         {#snippet children({ id, describedby })}
-          <input {id} aria-describedby={describedby} bind:value={name} autocomplete="name" maxlength="40" />
+          <input
+            {id}
+            aria-describedby={describedby}
+            bind:value={name}
+            autocomplete="name"
+            maxlength="40"
+          />
         {/snippet}
       </Field>
     {/if}
@@ -99,19 +119,38 @@
         <legend>Are you already on the squad list?</legend>
         <div class="names">
           {#each preview.pending as p (p.id)}
-            <label class:on={claim === p.id}><input type="radio" name="claim" value={p.id} bind:group={claim} />{p.displayName}</label>
+            <label class:on={claim === p.id}
+              ><input
+                type="radio"
+                name="claim"
+                value={p.id}
+                bind:group={claim}
+              />{p.displayName}</label
+            >
           {/each}
-          <label class:on={claim === null}><input type="radio" name="claim" value={null} bind:group={claim} />None of these</label>
+          <label class:on={claim === null}
+            ><input type="radio" name="claim" value={null} bind:group={claim} />None of these</label
+          >
         </div>
       </fieldset>
     {/if}
     <Button type="submit" variant="primary" size="lg" block loading={busy}>
-      {#snippet icon()}<IconKey />{/snippet}{signedIn ? `Join ${preview.team.shortName}` : 'Join with a passkey'}
+      {#snippet icon()}<IconKey />{/snippet}{signedIn
+        ? `Join ${preview.team.shortName}`
+        : 'Join with a passkey'}
     </Button>
     {#if error && (signedIn || name.trim())}<p class="err" role="alert">{error}</p>{/if}
   </form>
   {#if !signedIn}
-    <div class="alt"><span>Already use Phaseplay? <a href="/signin?next={encodeURIComponent('/join' + (typeof location !== 'undefined' ? location.hash : ''))}">Sign in first</a></span></div>
+    <div class="alt">
+      <span
+        >Already use Phaseplay? <a
+          href="/signin?next={encodeURIComponent(
+            '/join' + (typeof location !== 'undefined' ? location.hash : ''),
+          )}">Sign in first</a
+        ></span
+      >
+    </div>
   {/if}
 {/if}
 

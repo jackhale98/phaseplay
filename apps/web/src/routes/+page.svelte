@@ -13,18 +13,45 @@
   });
 
   const features = [
-    { t: "Who's in for Saturday?", b: 'One-tap RSVPs, availability by position group, and a nudge you can paste straight into the group chat.', k: 'avail' },
-    { t: 'Team sheets in two minutes', b: 'Drag-and-drop on a laptop, tap-to-pick on a phone. Out-of-position and front-row cover warnings built in.', k: 'sheet' },
-    { t: 'Plays that move', b: 'Draw lineouts and strike moves frame by frame. Players watch them anywhere and you see who has.', k: 'play' },
-    { t: 'Practice, planned', b: 'Drill library, split forwards/backs sessions, water breaks and a full-screen session timer.', k: 'practice' },
-    { t: 'Sideline match mode', b: 'Game clock, scores, cards, sin bins and subs. Big buttons, one hand, works in airplane mode.', k: 'match' },
-    { t: 'Exports for the chat', b: 'Team sheets, plays and match reports as images that look great on every phone.', k: 'export' },
+    {
+      t: "Who's in for Saturday?",
+      b: 'One-tap RSVPs, availability by position group, and a nudge you can paste straight into the group chat.',
+      k: 'avail',
+    },
+    {
+      t: 'Team sheets in two minutes',
+      b: 'Drag-and-drop on a laptop, tap-to-pick on a phone. Out-of-position and front-row cover warnings built in.',
+      k: 'sheet',
+    },
+    {
+      t: 'Plays that move',
+      b: 'Draw lineouts and strike moves frame by frame. Players watch them anywhere and you see who has.',
+      k: 'play',
+    },
+    {
+      t: 'Practice, planned',
+      b: 'Drill library, split forwards/backs sessions, water breaks and a full-screen session timer.',
+      k: 'practice',
+    },
+    {
+      t: 'Sideline match mode',
+      b: 'Game clock, scores, cards, sin bins and subs. Big buttons, one hand, works in airplane mode.',
+      k: 'match',
+    },
+    {
+      t: 'Exports for the chat',
+      b: 'Team sheets, plays and match reports as images that look great on every phone.',
+      k: 'export',
+    },
   ];
 </script>
 
 <svelte:head>
   <title>Phaseplay: your rugby team, one calm place</title>
-  <meta name="description" content="Availability, team sheets, animated plays, practice plans and a sideline match mode for rugby coaches running 15s and 7s." />
+  <meta
+    name="description"
+    content="Availability, team sheets, animated plays, practice plans and a sideline match mode for rugby coaches running 15s and 7s."
+  />
   <meta property="og:title" content="Phaseplay" />
   <meta property="og:description" content="Your rugby team, one calm place." />
   <link rel="canonical" href="https://phaseplay.app/" />
@@ -32,7 +59,9 @@
 
 <div class="landing">
   <header class="top">
-    <a class="brand" href="/" aria-label="Phaseplay home"><Logo size={30} /><span>Phaseplay</span></a>
+    <a class="brand" href="/" aria-label="Phaseplay home"
+      ><Logo size={30} /><span>Phaseplay</span></a
+    >
     <nav aria-label="Account">
       <a class="link" href="/signin">Sign in</a>
       <a class="cta sm" href="/signup">Get started</a>
@@ -45,7 +74,8 @@
         <p class="eyebrow">For rugby coaches · 15s and 7s</p>
         <h1>Your whole season,<br /><span>one calm place.</span></h1>
         <p class="lede">
-          Availability, team sheets, animated plays, practice plans and a sideline match mode. Fast on a phone at the pitch, roomy on a laptop at home.
+          Availability, team sheets, animated plays, practice plans and a sideline match mode. Fast
+          on a phone at the pitch, roomy on a laptop at home.
         </p>
         <div class="actions">
           <a class="cta" href="/signup">Create your team</a>
@@ -58,7 +88,10 @@
           <HeroPitch />
           <div class="float avail" aria-hidden="true">
             <strong>Who's in for Saturday?</strong>
-            <div class="bars"><span class="y" style="width:68%"></span><span class="m" style="width:14%"></span><span class="n" style="width:18%"></span></div>
+            <div class="bars">
+              <span class="y" style="width:68%"></span><span class="m" style="width:14%"
+              ></span><span class="n" style="width:18%"></span>
+            </div>
             <small>19 in · 4 maybe · 5 out</small>
           </div>
           <div class="float score" aria-hidden="true">
@@ -85,7 +118,10 @@
     <section class="promise">
       <div>
         <h2>Calm by design</h2>
-        <p>No ads, no trackers, no feeds. It opens instantly from your home screen, keeps working without signal, and never asks for anyone's medical details.</p>
+        <p>
+          No ads, no trackers, no feeds. It opens instantly from your home screen, keeps working
+          without signal, and never asks for anyone's medical details.
+        </p>
       </div>
       <ul class="ticks">
         <li>Installs like an app on iPhone and Android</li>
@@ -96,11 +132,19 @@
     </section>
 
     <section class="soon" aria-label="Coming soon">
-      <Crest colors={{ primary: '#1f6f43', secondary: '#f2c230' }} text="PRFC" size={64} label="Phaseplay RFC crest" />
+      <Crest
+        colors={{ primary: '#1f6f43', secondary: '#f2c230' }}
+        text="PRFC"
+        size={64}
+        label="Phaseplay RFC crest"
+      />
       <div>
         <p class="eyebrow">Phaseplay RFC</p>
         <h2>Your team is coming soon.</h2>
-        <p class="muted">The squad, the schedule and the playbook are being set up. Got an invite link? Open it on your phone to join.</p>
+        <p class="muted">
+          The squad, the schedule and the playbook are being set up. Got an invite link? Open it on
+          your phone to join.
+        </p>
       </div>
     </section>
   </main>
@@ -116,8 +160,16 @@
     --maxw: 1120px;
     min-height: 100dvh;
     background:
-      radial-gradient(1200px 600px at 80% -10%, color-mix(in srgb, #1f6f43 14%, transparent), transparent 60%),
-      radial-gradient(700px 500px at -10% 20%, color-mix(in srgb, #f2c230 10%, transparent), transparent 60%),
+      radial-gradient(
+        1200px 600px at 80% -10%,
+        color-mix(in srgb, #1f6f43 14%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        700px 500px at -10% 20%,
+        color-mix(in srgb, #f2c230 10%, transparent),
+        transparent 60%
+      ),
       var(--bg);
   }
   .top {
@@ -370,7 +422,9 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: #2f8a52 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center / 12px no-repeat;
+    background: #2f8a52
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
+      center / 12px no-repeat;
   }
   .soon {
     display: flex;

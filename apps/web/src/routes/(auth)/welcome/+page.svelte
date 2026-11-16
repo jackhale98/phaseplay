@@ -32,5 +32,7 @@
 <svelte:head><title>Create your team · Phaseplay</title></svelte:head>
 
 <h1>Set up your team</h1>
-<p class="lede">You can change any of this later. Got an invite instead? Open the link your coach sent.</p>
+<p class="lede">
+  You can change any of this later. Got an invite instead? Open the link your coach sent.
+</p>
 <TeamForm submitLabel="Create team" {busy} onsubmit={create} />

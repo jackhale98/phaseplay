@@ -27,7 +27,12 @@ export async function call(
   try {
     body = JSON.parse(text);
   } catch {}
-  return { status: res.status, body, headers: res.headers, queries: Number(res.headers.get('x-pp-queries') ?? 0) };
+  return {
+    status: res.status,
+    body,
+    headers: res.headers,
+    queries: Number(res.headers.get('x-pp-queries') ?? 0),
+  };
 }
 
 export async function login(displayName = 'Test User') {
@@ -45,16 +50,29 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
   const teamId = uuidv7();
   const r = await call('POST', '/api/v1/teams', {
     cookie: owner.cookie,
-    body: { id: teamId, name, shortName: 'PRFC', colors: { primary: '#1f6f43', secondary: '#f2c230' }, defaultFormat: '15s', timezone: 'Europe/London' },
+    body: {
+      id: teamId,
+      name,
+      shortName: 'PRFC',
+      colors: { primary: '#1f6f43', secondary: '#f2c230' },
+      defaultFormat: '15s',
+      timezone: 'Europe/London',
+    },
   });
   if (r.status !== 201) throw new Error(`team create failed ${JSON.stringify(r.body)}`);
   const me = await call('GET', '/api/v1/me', { cookie: owner.cookie });
   const ownerA: Actor = { ...owner, memberId: me.body.memberships[0].member.id };
 
   async function join(role: 'coach' | 'manager' | 'player', who: string): Promise<Actor> {
-    const inv = await call('POST', `/api/v1/teams/${teamId}/invites`, { cookie: owner.cookie, body: { id: uuidv7(), role, maxUses: 5 } });
+    const inv = await call('POST', `/api/v1/teams/${teamId}/invites`, {
+      cookie: owner.cookie,
+      body: { id: uuidv7(), role, maxUses: 5 },
+    });
     const u = await login(who);
-    const acc = await call('POST', '/api/v1/invites/accept', { cookie: u.cookie, body: { token: inv.body.token } });
+    const acc = await call('POST', '/api/v1/invites/accept', {
+      cookie: u.cookie,
+      body: { token: inv.body.token },
+    });
     if (acc.status !== 200) throw new Error(`accept failed ${JSON.stringify(acc.body)}`);
     return { ...u, memberId: acc.body.memberId };
   }
@@ -62,32 +80,79 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
   const manager = await join('manager', 'Manager Mo');
   const player = await join('player', 'Player Pip');
   const removed = await join('player', 'Removed Rae');
-  await call('DELETE', `/api/v1/teams/${teamId}/members/${removed.memberId}`, { cookie: owner.cookie });
+  await call('DELETE', `/api/v1/teams/${teamId}/members/${removed.memberId}`, {
+    cookie: owner.cookie,
+  });
 
   const eventId = uuidv7();
   await call('POST', `/api/v1/teams/${teamId}/events`, {
     cookie: owner.cookie,
-    body: { id: eventId, type: 'match', format: '15s', title: 'League', opponent: 'Rivals', startsAt: Date.now() + 86400e3 },
+    body: {
+      id: eventId,
+      type: 'match',
+      format: '15s',
+      title: 'League',
+      opponent: 'Rivals',
+      startsAt: Date.now() + 86400e3,
+    },
   });
   const sheetId = uuidv7();
   await call('PUT', `/api/v1/teams/${teamId}/sheets/${sheetId}`, {
     cookie: owner.cookie,
-    body: { eventId, format: '15s', replacements: 8, slots: { '1': player.memberId }, captainId: null, viceId: null },
+    body: {
+      eventId,
+      format: '15s',
+      replacements: 8,
+      slots: { '1': player.memberId },
+      captainId: null,
+      viceId: null,
+    },
   });
   const playId = uuidv7();
-  await call('POST', `/api/v1/teams/${teamId}/plays`, { cookie: owner.cookie, body: playBody(playId, 'team') });
+  await call('POST', `/api/v1/teams/${teamId}/plays`, {
+    cookie: owner.cookie,
+    body: playBody(playId, 'team'),
+  });
   const drillId = uuidv7();
-  await call('POST', `/api/v1/teams/${teamId}/drills`, { cookie: owner.cookie, body: drillBody(drillId) });
+  await call('POST', `/api/v1/teams/${teamId}/drills`, {
+    cookie: owner.cookie,
+    body: drillBody(drillId),
+  });
   const planId = uuidv7();
   await call('POST', `/api/v1/teams/${teamId}/plans`, {
     cookie: owner.cookie,
-    body: { id: planId, title: 'Tuesday', data: { lanes: ['all'], slots: [{ id: 's1', blocks: [{ id: 'b1', kind: 'drill', drillId, durationMin: 10, lane: 'all' }] }] } },
+    body: {
+      id: planId,
+      title: 'Tuesday',
+      data: {
+        lanes: ['all'],
+        slots: [
+          {
+            id: 's1',
+            blocks: [{ id: 'b1', kind: 'drill', drillId, durationMin: 10, lane: 'all' }],
+          },
+        ],
+      },
+    },
   });
-  const inv = await call('POST', `/api/v1/teams/${teamId}/invites`, { cookie: owner.cookie, body: { id: uuidv7(), role: 'player' } });
+  const inv = await call('POST', `/api/v1/teams/${teamId}/invites`, {
+    cookie: owner.cookie,
+    body: { id: uuidv7(), role: 'player' },
+  });
   const recurrenceId = uuidv7();
   await call('POST', `/api/v1/teams/${teamId}/recurrences`, {
     cookie: owner.cookie,
-    body: { id: recurrenceId, title: 'Training', rule: { weekdays: [2, 4], time: '19:00', durationMin: 90, startsOn: '2030-01-01', until: '2030-01-31' } },
+    body: {
+      id: recurrenceId,
+      title: 'Training',
+      rule: {
+        weekdays: [2, 4],
+        time: '19:00',
+        durationMin: 90,
+        startsOn: '2030-01-01',
+        until: '2030-01-31',
+      },
+    },
   });
   return {
     teamId,
@@ -124,7 +189,12 @@ export function playBody(id: string, visibility: 'team' | 'coaches') {
       entities: [{ id: 'a1', kind: 'attack', number: 2 }],
       frames: [
         { id: 'f0', durationMs: 0, pos: { a1: { x: 1, y: 40 } }, moves: {} },
-        { id: 'f1', durationMs: 1000, pos: { a1: { x: 5, y: 40 } }, moves: { a1: { kind: 'run' } } },
+        {
+          id: 'f1',
+          durationMs: 1000,
+          pos: { a1: { x: 5, y: 40 } },
+          moves: { a1: { kind: 'run' } },
+        },
       ],
     },
   };

@@ -24,7 +24,17 @@ const VERSIONED_RESPONSE_KEYS: Record<string, VersionedEntity> = {
 type ConflictListener = (entity: VersionedEntity, latest: { id: string }) => void;
 
 function emptyRows(): TeamSnapshot['rows'] {
-  return { members: {}, seasons: {}, events: {}, rsvps: {}, counts: {}, sheets: {}, plays: {}, drills: {}, plans: {} };
+  return {
+    members: {},
+    seasons: {},
+    events: {},
+    rsvps: {},
+    counts: {},
+    sheets: {},
+    plays: {},
+    drills: {},
+    plans: {},
+  };
 }
 
 function applyOps(snap: TeamSnapshot, ops: Optimistic[]): TeamSnapshot {
@@ -33,7 +43,8 @@ function applyOps(snap: TeamSnapshot, ops: Optimistic[]): TeamSnapshot {
   for (const op of ops) {
     const table = { ...(rows[op.entity] as Record<string, unknown>) };
     if (op.op === 'put') table[op.key] = op.value;
-    else if (op.op === 'patch') table[op.key] = { ...((table[op.key] as object) ?? {}), ...op.value };
+    else if (op.op === 'patch')
+      table[op.key] = { ...((table[op.key] as object) ?? {}), ...op.value };
     else delete table[op.key];
     (rows as Record<string, unknown>)[op.entity] = table;
   }
@@ -43,10 +54,22 @@ function applyOps(snap: TeamSnapshot, ops: Optimistic[]): TeamSnapshot {
 function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
   const base: TeamSnapshot =
     res.full || !prev
-      ? { teamId: res.team.id, cursor: 0, syncedAt: 0, team: res.team, me: res.me, rows: emptyRows() }
+      ? {
+          teamId: res.team.id,
+          cursor: 0,
+          syncedAt: 0,
+          team: res.team,
+          me: res.me,
+          rows: emptyRows(),
+        }
       : prev;
   const rows = { ...base.rows };
-  const upsert = <K extends keyof TeamSnapshot['rows']>(k: K, list: { id?: string }[], key: (x: never) => string, gone: (x: never) => boolean) => {
+  const upsert = <K extends keyof TeamSnapshot['rows']>(
+    k: K,
+    list: { id?: string }[],
+    key: (x: never) => string,
+    gone: (x: never) => boolean,
+  ) => {
     if (!list.length && !res.full) return;
     const t = res.full ? {} : { ...(rows[k] as Record<string, unknown>) };
     for (const x of list) {
@@ -61,13 +84,26 @@ function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
   upsert('members', res.members, byId, (m: Member) => m.status === 'removed');
   upsert('seasons', res.seasons, byId, deleted);
   upsert('events', res.events, byId, deleted);
-  upsert('rsvps', res.rsvps as never[], (r: { eventId: string; memberId: string }) => rsvpKey(r.eventId, r.memberId), () => false);
+  upsert(
+    'rsvps',
+    res.rsvps as never[],
+    (r: { eventId: string; memberId: string }) => rsvpKey(r.eventId, r.memberId),
+    () => false,
+  );
   upsert('sheets', res.sheets, byId, () => false);
   upsert('plays', res.plays, byId, deleted);
   upsert('drills', res.drills, byId, deleted);
   upsert('plans', res.plans, byId, deleted);
   rows.counts = res.full ? { ...res.rsvpCounts } : { ...rows.counts, ...res.rsvpCounts };
-  return { ...base, teamId: res.team.id, team: res.team, me: res.me, cursor: res.cursor, syncedAt: Date.now(), rows };
+  return {
+    ...base,
+    teamId: res.team.id,
+    team: res.team,
+    me: res.me,
+    cursor: res.cursor,
+    syncedAt: Date.now(),
+    rows,
+  };
 }
 
 class AppState {
@@ -172,7 +208,10 @@ class AppState {
   }
 
   private async lostTeam(teamId: string) {
-    const name = this.snap?.team.name ?? this.me?.memberships.find((m) => m.team.id === teamId)?.team.name ?? 'the team';
+    const name =
+      this.snap?.team.name ??
+      this.me?.memberships.find((m) => m.team.id === teamId)?.team.name ??
+      'the team';
     await (await db()).delete('teams', teamId).catch(() => {});
     toasts.show(`You've been removed from ${name}`, { tone: 'warn', timeout: 8000 });
     await this.refreshMe();
@@ -226,11 +265,24 @@ class AppState {
    * Queue a write. The optimistic ops apply now; the request is sent by the outbox (with
    * If-Match resolved at send time for versioned entities).
    */
-  async mutate(entry: Omit<OutboxEntry, 'createdAt' | 'attempts' | 'nextAt' | 'teamId' | 'id'> & { teamId?: string; id?: string }) {
+  async mutate(
+    entry: Omit<OutboxEntry, 'createdAt' | 'attempts' | 'nextAt' | 'teamId' | 'id'> & {
+      teamId?: string;
+      id?: string;
+    },
+  ) {
     const teamId = entry.teamId ?? this.teamId;
     if (!teamId) throw new Error('No team selected');
-    const full: OutboxEntry = { ...entry, id: entry.id ?? crypto.randomUUID(), teamId, createdAt: Date.now(), attempts: 0, nextAt: 0 };
-    if (this.snap && this.snap.teamId === teamId && full.optimistic) this.snap = applyOps(this.snap, full.optimistic);
+    const full: OutboxEntry = {
+      ...entry,
+      id: entry.id ?? crypto.randomUUID(),
+      teamId,
+      createdAt: Date.now(),
+      attempts: 0,
+      nextAt: 0,
+    };
+    if (this.snap && this.snap.teamId === teamId && full.optimistic)
+      this.snap = applyOps(this.snap, full.optimistic);
     try {
       await (await db()).add('outbox', full);
     } catch {
@@ -293,11 +345,17 @@ class AppState {
     let ifMatch: number | null = null;
     if (e.versionOf) {
       const s = e.teamId === this.snap?.teamId ? this.snap : await d?.get('teams', e.teamId);
-      const row = (s?.rows[e.versionOf.entity] as Record<string, { version?: number }> | undefined)?.[e.versionOf.id];
+      const row = (
+        s?.rows[e.versionOf.entity] as Record<string, { version?: number }> | undefined
+      )?.[e.versionOf.id];
       ifMatch = row?.version ?? null;
     }
     try {
-      const res = await api<Record<string, unknown>>(e.path, { method: e.method, body: e.body, ifMatch });
+      const res = await api<Record<string, unknown>>(e.path, {
+        method: e.method,
+        body: e.body,
+        ifMatch,
+      });
       await drop();
       await this.absorb(e.teamId, res, e);
       return true;
@@ -310,7 +368,8 @@ class AppState {
         }
         const attempts = e.attempts + 1;
         const backoff = Math.min(60_000, 1000 * 2 ** attempts) * (0.75 + Math.random() * 0.5);
-        if (e.seq !== undefined) await d?.put('outbox', { ...e, attempts, nextAt: Date.now() + backoff });
+        if (e.seq !== undefined)
+          await d?.put('outbox', { ...e, attempts, nextAt: Date.now() + backoff });
         this.status = 'error';
         return false;
       }
@@ -322,11 +381,15 @@ class AppState {
       if (err.status === 409 && err.extra.latest && e.versionOf) {
         const latest = err.extra.latest as { id: string };
         await this.putRow(e.teamId, e.versionOf.entity, latest.id, latest);
-        toasts.show(`${e.label}: someone else changed this, so you're seeing their version.`, { tone: 'warn', timeout: 7000 });
+        toasts.show(`${e.label}: someone else changed this, so you're seeing their version.`, {
+          tone: 'warn',
+          timeout: 7000,
+        });
         for (const fn of this.conflictListeners) fn(e.versionOf.entity, latest);
       } else {
         toasts.error(`${e.label} didn't save: ${err.message}`);
-        if (err.status === 404 && e.path.includes(`/teams/${e.teamId}/sync`)) await this.lostTeam(e.teamId);
+        if (err.status === 404 && e.path.includes(`/teams/${e.teamId}/sync`))
+          await this.lostTeam(e.teamId);
       }
       // Re-derive the snapshot so failed optimistic changes are rolled back.
       void this.resync(e.teamId);
@@ -362,7 +425,8 @@ class AppState {
     const d = await db().catch(() => null);
     const stored = await d?.get('teams', teamId);
     if (stored) await d?.put('teams', applyOps(stored, [{ op: 'put', entity, key, value }]));
-    if (this.snap?.teamId === teamId) this.snap = applyOps(this.snap, [{ op: 'put', entity, key, value }]);
+    if (this.snap?.teamId === teamId)
+      this.snap = applyOps(this.snap, [{ op: 'put', entity, key, value }]);
   }
 
   private listen() {

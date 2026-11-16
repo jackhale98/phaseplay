@@ -48,8 +48,13 @@ export async function takeChallenge(c: Context<AppEnv>, id: string, kind: Challe
     .prepare('DELETE FROM auth_challenges WHERE id = ? AND kind = ? AND expires_at > ? RETURNING *')
     .bind(id, kind, Date.now())
     .first<{ challenge: string; user_id: string | null; data: string }>();
-  if (!row) throw new HttpError(400, 'bad_request', 'This sign-in attempt expired. Please try again.');
-  return { challenge: row.challenge, userId: row.user_id, data: JSON.parse(row.data) as Record<string, unknown> };
+  if (!row)
+    throw new HttpError(400, 'bad_request', 'This sign-in attempt expired. Please try again.');
+  return {
+    challenge: row.challenge,
+    userId: row.user_id,
+    data: JSON.parse(row.data) as Record<string, unknown>,
+  };
 }
 
 export async function registrationOptions(
@@ -76,11 +81,7 @@ export async function registrationOptions(
   return { challengeId, options };
 }
 
-export async function verifyRegistration(
-  c: Context<AppEnv>,
-  challenge: string,
-  response: unknown,
-) {
+export async function verifyRegistration(c: Context<AppEnv>, challenge: string, response: unknown) {
   let result;
   try {
     result = await verifyRegistrationResponse({
@@ -91,7 +92,11 @@ export async function verifyRegistration(
       requireUserVerification: false,
     });
   } catch (e) {
-    throw new HttpError(400, 'bad_request', `Passkey could not be verified: ${(e as Error).message}`);
+    throw new HttpError(
+      400,
+      'bad_request',
+      `Passkey could not be verified: ${(e as Error).message}`,
+    );
   }
   if (!result.verified) throw new HttpError(400, 'bad_request', 'Passkey could not be verified');
   const info = result.registrationInfo;
@@ -140,17 +145,34 @@ export async function authenticationOptions(c: Context<AppEnv>) {
   return { challengeId, options };
 }
 
-export async function verifyAuthentication(c: Context<AppEnv>, challenge: string, response: unknown) {
+export async function verifyAuthentication(
+  c: Context<AppEnv>,
+  challenge: string,
+  response: unknown,
+) {
   const r = response as AuthenticationResponseJSON;
-  if (!r || typeof r.id !== 'string') throw new HttpError(400, 'bad_request', 'Invalid passkey response');
+  if (!r || typeof r.id !== 'string')
+    throw new HttpError(400, 'bad_request', 'Invalid passkey response');
   const cred = await c.var.db
     .prepare(
       `SELECT c.id, c.user_id, c.public_key, c.counter, c.transports, u.display_name FROM credentials c
        JOIN users u ON u.id = c.user_id WHERE c.id = ? AND u.deleted_at IS NULL`,
     )
     .bind(r.id)
-    .first<{ id: string; user_id: string; public_key: string; counter: number; transports: string | null; display_name: string }>();
-  if (!cred) throw new HttpError(400, 'bad_request', "We don't recognise that passkey. It may have been removed.");
+    .first<{
+      id: string;
+      user_id: string;
+      public_key: string;
+      counter: number;
+      transports: string | null;
+      display_name: string;
+    }>();
+  if (!cred)
+    throw new HttpError(
+      400,
+      'bad_request',
+      "We don't recognise that passkey. It may have been removed.",
+    );
   let result;
   try {
     result = await verifyAuthenticationResponse({
@@ -163,11 +185,17 @@ export async function verifyAuthentication(c: Context<AppEnv>, challenge: string
         id: cred.id,
         publicKey: base64UrlToBytes(cred.public_key),
         counter: cred.counter,
-        transports: cred.transports ? (JSON.parse(cred.transports) as AuthenticatorTransport[]) : undefined,
+        transports: cred.transports
+          ? (JSON.parse(cred.transports) as AuthenticatorTransport[])
+          : undefined,
       },
     });
   } catch (e) {
-    throw new HttpError(400, 'bad_request', `Passkey could not be verified: ${(e as Error).message}`);
+    throw new HttpError(
+      400,
+      'bad_request',
+      `Passkey could not be verified: ${(e as Error).message}`,
+    );
   }
   if (!result.verified) throw new HttpError(400, 'bad_request', 'Passkey could not be verified');
   return {

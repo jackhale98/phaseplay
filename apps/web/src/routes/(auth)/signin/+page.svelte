@@ -3,7 +3,12 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import Button from '#lib/components/Button.svelte';
-  import { browserSupportsWebAuthnAutofill, cancelPasskey, friendlyWebAuthnError, signIn } from '#lib/auth';
+  import {
+    browserSupportsWebAuthnAutofill,
+    cancelPasskey,
+    friendlyWebAuthnError,
+    signIn,
+  } from '#lib/auth';
   import { IconKey } from '#lib/icons';
   import { api, v1 } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
@@ -27,7 +32,9 @@
   const go = () => goto(next && next.startsWith('/') ? next : '/home', { replaceState: true });
 
   onMount(() => {
-    void api<{ env: string }>('/api/health').then((h) => (devEnv = h.env !== 'production')).catch(() => {});
+    void api<{ env: string }>('/api/health')
+      .then((h) => (devEnv = h.env !== 'production'))
+      .catch(() => {});
     // Passkey autofill (conditional mediation): the browser offers saved passkeys in the field.
     void browserSupportsWebAuthnAutofill().then(async (ok) => {
       if (!ok) return;
@@ -62,7 +69,13 @@
 <p class="lede">Sign in with the passkey on this device, or one nearby.</p>
 <div class="stack">
   <label class="sr-only" for="pk">Passkey</label>
-  <input id="pk" class="autofill" autocomplete="username webauthn" placeholder="Choose a saved passkey" readonly />
+  <input
+    id="pk"
+    class="autofill"
+    autocomplete="username webauthn"
+    placeholder="Choose a saved passkey"
+    readonly
+  />
   <Button variant="primary" size="lg" block loading={busy} onclick={withButton}>
     {#snippet icon()}<IconKey />{/snippet}Sign in with a passkey
   </Button>
@@ -71,11 +84,17 @@
 {#if devEnv}
   <div class="dev">
     <p class="eyebrow">Local dev: seeded users</p>
-    {#each DEV_USERS as u (u.id)}<Button size="sm" onclick={() => devLogin(u)}>{u.name} ({u.role})</Button>{/each}
+    {#each DEV_USERS as u (u.id)}<Button size="sm" onclick={() => devLogin(u)}
+        >{u.name} ({u.role})</Button
+      >{/each}
   </div>
 {/if}
 <div class="alt">
-  <span>New to Phaseplay? <a href="/signup{next ? `?next=${encodeURIComponent(next)}` : ''}">Create an account</a></span>
+  <span
+    >New to Phaseplay? <a href="/signup{next ? `?next=${encodeURIComponent(next)}` : ''}"
+      >Create an account</a
+    ></span
+  >
   <span>Lost your device? <a href="/recover">Use a recovery code</a></span>
 </div>
 

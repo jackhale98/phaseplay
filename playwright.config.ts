@@ -7,6 +7,7 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT ?? 8787);
 export default defineConfig({
   testDir: './e2e/specs',
+  testIgnore: ['**/specs-prod/**'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -20,9 +21,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1360, height: 860 } } },
+    {
+      name: 'desktop-chromium',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1360, height: 860 } },
+    },
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
     { name: 'mobile-webkit', use: { ...devices['iPhone 15'] } },
+    ...(process.env.NIGHTLY
+      ? [
+          { name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } },
+          { name: 'desktop-firefox', use: { ...devices['Desktop Firefox'] } },
+        ]
+      : []),
   ],
   webServer: {
     command: 'pnpm --filter @phaseplay/api e2e:serve',

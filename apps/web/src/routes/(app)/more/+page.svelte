@@ -3,7 +3,17 @@
   import { app } from '#lib/data/app.svelte';
   import { theme, type ThemePref } from '#lib/stores/theme.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
-  import { IconTimer, IconKey, IconSettings, IconShield, IconClipboard, IconCalendar, IconChevronRight, IconUpload, IconInfo } from '#lib/icons';
+  import {
+    IconTimer,
+    IconKey,
+    IconSettings,
+    IconShield,
+    IconClipboard,
+    IconCalendar,
+    IconChevronRight,
+    IconUpload,
+    IconInfo,
+  } from '#lib/icons';
 
   const role = $derived(app.role);
   let pref = $state<ThemePref>(theme.pref);
@@ -11,7 +21,12 @@
   const links = $derived([
     { href: '/practice', label: 'Practice plans', icon: IconTimer, show: true },
     { href: '/settings/calendar', label: 'Calendar feed', icon: IconCalendar, show: true },
-    { href: '/settings/import', label: 'Import from TeamSnap', icon: IconUpload, show: isStaff(role) },
+    {
+      href: '/settings/import',
+      label: 'Import from TeamSnap',
+      icon: IconUpload,
+      show: isStaff(role),
+    },
     { href: '/settings/account', label: 'Account and passkeys', icon: IconKey, show: true },
     { href: '/settings/team', label: 'Team settings', icon: IconSettings, show: true },
     { href: '/settings/audit', label: 'Audit log', icon: IconClipboard, show: isCoach(role) },
@@ -25,14 +40,26 @@
   <h1>More</h1>
   <ul class="list card menu">
     {#each links.filter((l) => l.show) as l (l.href)}
-      <li><a href={l.href}><l.icon /><span class="grow">{l.label}</span><IconChevronRight /></a></li>
+      <li>
+        <a href={l.href}><l.icon /><span class="grow">{l.label}</span><IconChevronRight /></a>
+      </li>
     {/each}
   </ul>
   <section class="card pad">
     <span class="lbl">Appearance</span>
-    <Segmented label="Appearance" bind:value={pref} options={[{ value: 'system', label: 'Auto' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
+    <Segmented
+      label="Appearance"
+      bind:value={pref}
+      options={[
+        { value: 'system', label: 'Auto' },
+        { value: 'light', label: 'Light' },
+        { value: 'dark', label: 'Dark' },
+      ]}
+    />
   </section>
-  <p class="ver subtle"><IconInfo /> Phaseplay {__APP_VERSION__.slice(0, 7)} · built {__APP_BUILT_AT__.slice(0, 10)}</p>
+  <p class="ver subtle">
+    <IconInfo /> Phaseplay {__APP_VERSION__.slice(0, 7)} · built {__APP_BUILT_AT__.slice(0, 10)}
+  </p>
 </div>
 
 <style>

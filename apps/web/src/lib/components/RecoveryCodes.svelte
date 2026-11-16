@@ -6,11 +6,16 @@
 
   let { codes, ondone }: { codes: string[]; ondone: () => void } = $props();
   let saved = $state(false);
-  const text = $derived(`Phaseplay recovery codes\nEach code works once. Keep them somewhere safe.\n\n${codes.join('\n')}\n`);
+  const text = $derived(
+    `Phaseplay recovery codes\nEach code works once. Keep them somewhere safe.\n\n${codes.join('\n')}\n`,
+  );
 
   function download() {
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: 'phaseplay-recovery-codes.txt' });
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: 'phaseplay-recovery-codes.txt',
+    });
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
@@ -21,10 +26,14 @@
     {#each codes as c (c)}<li><code>{c}</code></li>{/each}
   </ol>
   <div class="row wrap">
-    <Button size="sm" onclick={async () => toasts.show((await copyText(text)) ? 'Codes copied' : "Couldn't copy")}>
+    <Button
+      size="sm"
+      onclick={async () => toasts.show((await copyText(text)) ? 'Codes copied' : "Couldn't copy")}
+    >
       {#snippet icon()}<IconCopy />{/snippet}Copy
     </Button>
-    <Button size="sm" onclick={download}>{#snippet icon()}<IconDownload />{/snippet}Download</Button>
+    <Button size="sm" onclick={download}>{#snippet icon()}<IconDownload />{/snippet}Download</Button
+    >
     <Button size="sm" onclick={() => print()}>{#snippet icon()}<IconPrint />{/snippet}Print</Button>
   </div>
   <label class="ack">

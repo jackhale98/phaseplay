@@ -1,5 +1,10 @@
 <script lang="ts">
-  import { EVENT_TYPE_LABELS, type TeamEvent, type RsvpCounts, type RsvpStatus } from '@phaseplay/shared';
+  import {
+    EVENT_TYPE_LABELS,
+    type TeamEvent,
+    type RsvpCounts,
+    type RsvpStatus,
+  } from '@phaseplay/shared';
   import { relDay, time, tzName } from '#lib/format';
   import RsvpButtons from './RsvpButtons.svelte';
   import { IconClock, IconMapPin, IconChevronRight } from '#lib/icons';
@@ -13,13 +18,28 @@
     variant?: 'hero' | 'row';
     teamShort?: string;
   };
-  let { event: e, tz, counts = null, myStatus = null, memberId = null, variant = 'row', teamShort }: Props = $props();
+  let {
+    event: e,
+    tz,
+    counts = null,
+    myStatus = null,
+    memberId = null,
+    variant = 'row',
+    teamShort,
+  }: Props = $props();
   const title = $derived(e.type === 'match' && e.opponent ? `v ${e.opponent}` : e.title);
   const total = $derived(counts ? counts.yes + counts.maybe + counts.no : 0);
 </script>
 
 <article class="ev {variant} {e.type}" class:cancelled={!!e.cancelledAt}>
-  <a class="hit" href="/events/{e.id}" aria-label="{EVENT_TYPE_LABELS[e.type]}: {title}, {relDay(e.startsAt, tz)} {time(e.startsAt, tz)}"></a>
+  <a
+    class="hit"
+    href="/events/{e.id}"
+    aria-label="{EVENT_TYPE_LABELS[e.type]}: {title}, {relDay(e.startsAt, tz)} {time(
+      e.startsAt,
+      tz,
+    )}"
+  ></a>
   <div class="when">
     <span class="day">{relDay(e.startsAt, tz)}</span>
     <span class="t tnum">{time(e.startsAt, tz)}</span>
@@ -38,13 +58,23 @@
     {#if counts && total > 0}
       <div class="counts" aria-label="{counts.yes} in, {counts.maybe} maybe, {counts.no} out">
         <div class="bar" aria-hidden="true">
-          <span class="y" style:flex={counts.yes}></span><span class="m" style:flex={counts.maybe}></span><span class="n" style:flex={counts.no}></span>
+          <span class="y" style:flex={counts.yes}></span><span class="m" style:flex={counts.maybe}
+          ></span><span class="n" style:flex={counts.no}></span>
         </div>
-        <span class="tnum"><strong>{counts.yes}</strong> in · {counts.maybe} maybe · {counts.no} out</span>
+        <span class="tnum"
+          ><strong>{counts.yes}</strong> in · {counts.maybe} maybe · {counts.no} out</span
+        >
       </div>
     {/if}
     {#if memberId && !e.cancelledAt}
-      <div class="rs"><RsvpButtons eventId={e.id} {memberId} status={myStatus} size={variant === 'hero' ? 'lg' : 'md'} /></div>
+      <div class="rs">
+        <RsvpButtons
+          eventId={e.id}
+          {memberId}
+          status={myStatus}
+          size={variant === 'hero' ? 'lg' : 'md'}
+        />
+      </div>
     {/if}
   </div>
   {#if variant === 'row'}<IconChevronRight class="chev" />{/if}
@@ -62,7 +92,9 @@
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
     box-shadow: var(--e-1);
-    transition: box-shadow var(--m-fast) var(--ease), transform var(--m-fast) var(--ease);
+    transition:
+      box-shadow var(--m-fast) var(--ease),
+      transform var(--m-fast) var(--ease);
   }
   .ev:hover {
     box-shadow: var(--e-2);
@@ -179,9 +211,7 @@
   .hero {
     grid-template-columns: 1fr;
     padding: var(--s-5);
-    background:
-      linear-gradient(160deg, var(--accent-softer), var(--surface) 55%),
-      var(--surface);
+    background: linear-gradient(160deg, var(--accent-softer), var(--surface) 55%), var(--surface);
   }
   .hero .when {
     flex-direction: row;

@@ -14,7 +14,11 @@
     display: flex;
     flex-direction: column;
     background:
-      radial-gradient(900px 500px at 100% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+      radial-gradient(
+        900px 500px at 100% 0%,
+        color-mix(in srgb, var(--accent) 12%, transparent),
+        transparent 60%
+      ),
       var(--bg);
   }
   header {

@@ -9,7 +9,9 @@ export function matchRoutes(app: Hono<AppEnv>) {
   route(app, 'match.list', async (c) => {
     const me = c.var.member;
     const [ev, rows] = await c.var.db.batch([
-      c.var.db.prepare('SELECT id FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL').bind(c.req.param('eventId'), me.teamId),
+      c.var.db
+        .prepare('SELECT id FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL')
+        .bind(c.req.param('eventId'), me.teamId),
       c.var.db
         .prepare(
           `SELECT m.id, m.seq, m.payload, m.game_ms, m.wall_at, m.created_by, m.created_at FROM match_events m
@@ -54,7 +56,10 @@ export function matchRoutes(app: Hono<AppEnv>) {
       .bind(me.userId, t, JSON.stringify(rows), c.req.param('eventId'), me.teamId)
       .run();
     if (r.meta.changes === 0) {
-      const exists = await c.var.db.prepare('SELECT 1 FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL').bind(c.req.param('eventId'), me.teamId).first();
+      const exists = await c.var.db
+        .prepare('SELECT 1 FROM events WHERE id = ? AND team_id = ? AND deleted_at IS NULL')
+        .bind(c.req.param('eventId'), me.teamId)
+        .first();
       if (!exists) throw notFound('Match not found');
     }
     return c.json({ ok: true, inserted: r.meta.changes });

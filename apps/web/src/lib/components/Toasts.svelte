@@ -6,7 +6,8 @@
 <div class="toasts" role="status" aria-live="polite" aria-atomic="false">
   {#each toasts.items as t (t.id)}
     <div class="toast {t.tone}">
-      {#if t.tone === 'success'}<IconCheck />{:else if t.tone === 'error' || t.tone === 'warn'}<IconAlert />{/if}
+      {#if t.tone === 'success'}<IconCheck
+        />{:else if t.tone === 'error' || t.tone === 'warn'}<IconAlert />{/if}
       <span class="msg">{t.message}</span>
       {#if t.action}
         <button
@@ -17,7 +18,9 @@
           }}>{t.action.label}</button
         >
       {/if}
-      <button class="close" aria-label="Dismiss" onclick={() => toasts.dismiss(t.id)}><IconX /></button>
+      <button class="close" aria-label="Dismiss" onclick={() => toasts.dismiss(t.id)}
+        ><IconX /></button
+      >
     </div>
   {/each}
 </div>

@@ -6,8 +6,7 @@ export function countingDb(db: D1Database, counter: { n: number }): D1Database {
   const wrapStmt = (stmt: D1PreparedStatement): D1PreparedStatement =>
     new Proxy(stmt, {
       get(target, prop, receiver) {
-        if (prop === 'bind')
-          return (...args: unknown[]) => wrapStmt(target.bind(...args));
+        if (prop === 'bind') return (...args: unknown[]) => wrapStmt(target.bind(...args));
         if (prop === 'first' || prop === 'all' || prop === 'run' || prop === 'raw') {
           const fn = Reflect.get(target, prop, target) as (...a: unknown[]) => unknown;
           return (...a: unknown[]) => {
@@ -26,7 +25,7 @@ export function countingDb(db: D1Database, counter: { n: number }): D1Database {
         return (stmts: D1PreparedStatement[]) => {
           counter.n += stmts.length;
           return target.batch(
-            stmts.map((s) => ((s as unknown as { __raw?: D1PreparedStatement }).__raw ?? s)),
+            stmts.map((s) => (s as unknown as { __raw?: D1PreparedStatement }).__raw ?? s),
           );
         };
       const val = Reflect.get(target, prop, target);

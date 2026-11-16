@@ -15,7 +15,15 @@
     children: Snippet;
     footer?: Snippet;
   };
-  let { open = $bindable(), title, description, size = 'md', onclose, children, footer }: Props = $props();
+  let {
+    open = $bindable(),
+    title,
+    description,
+    size = 'md',
+    onclose,
+    children,
+    footer,
+  }: Props = $props();
   let dialog: HTMLDialogElement | undefined = $state();
   const id = `sheet-${Math.random().toString(36).slice(2, 8)}`;
 

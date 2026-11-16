@@ -1,5 +1,10 @@
 <script lang="ts" generics="T extends string">
-  type Props = { value: T; options: { value: T; label: string }[]; label: string; size?: 'sm' | 'md' };
+  type Props = {
+    value: T;
+    options: { value: T; label: string }[];
+    label: string;
+    size?: 'sm' | 'md';
+  };
   let { value = $bindable(), options, label, size = 'md' }: Props = $props();
   function key(e: KeyboardEvent, i: number) {
     const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
@@ -7,7 +12,9 @@
     e.preventDefault();
     const n = options[(i + d + options.length) % options.length]!;
     value = n.value;
-    (e.currentTarget as HTMLElement).parentElement?.querySelectorAll('button')[options.indexOf(n)]?.focus();
+    (e.currentTarget as HTMLElement).parentElement
+      ?.querySelectorAll('button')
+      [options.indexOf(n)]?.focus();
   }
 </script>
 
@@ -41,7 +48,9 @@
     font-weight: 600;
     font-size: var(--t-14);
     color: var(--text-2);
-    transition: background var(--m-fast) var(--ease), color var(--m-fast) var(--ease);
+    transition:
+      background var(--m-fast) var(--ease),
+      color var(--m-fast) var(--ease);
   }
   .sm button {
     min-height: 32px;

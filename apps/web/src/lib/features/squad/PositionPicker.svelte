@@ -2,7 +2,14 @@
 <script lang="ts">
   import { POSITIONS_15 } from '@phaseplay/shared';
   let { value = $bindable(), disabled = false }: { value: number[]; disabled?: boolean } = $props();
-  const rows = [[1, 2, 3], [4, 5], [6, 7, 8], [9, 10], [12, 13], [11, 14, 15]];
+  const rows = [
+    [1, 2, 3],
+    [4, 5],
+    [6, 7, 8],
+    [9, 10],
+    [12, 13],
+    [11, 14, 15],
+  ];
   function toggle(n: number) {
     value = value.includes(n) ? value.filter((x) => x !== n) : [...value, n].slice(0, 6);
   }
@@ -14,13 +21,25 @@
       {#each r as n (n)}
         {@const pos = POSITIONS_15.find((p) => p.n === n)!}
         {@const idx = value.indexOf(n)}
-        <button type="button" {disabled} aria-pressed={idx >= 0} class:primary={idx === 0} onclick={() => toggle(n)} title={pos.name} aria-label="{pos.name}{idx === 0 ? ', primary' : ''}">
+        <button
+          type="button"
+          {disabled}
+          aria-pressed={idx >= 0}
+          class:primary={idx === 0}
+          onclick={() => toggle(n)}
+          title={pos.name}
+          aria-label="{pos.name}{idx === 0 ? ', primary' : ''}"
+        >
           <span class="n tnum">{n}</span><span class="s">{pos.short}</span>
         </button>
       {/each}
     </div>
   {/each}
-  <p class="subtle">{value.length ? `Primary: ${POSITIONS_15.find((p) => p.n === value[0])?.name}` : 'Tap positions in order of preference.'}</p>
+  <p class="subtle">
+    {value.length
+      ? `Primary: ${POSITIONS_15.find((p) => p.n === value[0])?.name}`
+      : 'Tap positions in order of preference.'}
+  </p>
 </div>
 
 <style>

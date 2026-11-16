@@ -10,19 +10,31 @@ function fmt(tz: string, opts: Intl.DateTimeFormatOptions) {
   return f;
 }
 
-export const time = (ms: number, tz: string) => fmt(tz, { hour: 'numeric', minute: '2-digit' }).format(ms);
-export const day = (ms: number, tz: string) => fmt(tz, { weekday: 'short', day: 'numeric', month: 'short' }).format(ms);
-export const longDay = (ms: number, tz: string) => fmt(tz, { weekday: 'long', day: 'numeric', month: 'long' }).format(ms);
+export const time = (ms: number, tz: string) =>
+  fmt(tz, { hour: 'numeric', minute: '2-digit' }).format(ms);
+export const day = (ms: number, tz: string) =>
+  fmt(tz, { weekday: 'short', day: 'numeric', month: 'short' }).format(ms);
+export const longDay = (ms: number, tz: string) =>
+  fmt(tz, { weekday: 'long', day: 'numeric', month: 'long' }).format(ms);
 export const dateTime = (ms: number, tz: string) => `${day(ms, tz)}, ${time(ms, tz)}`;
-export const monthYear = (ms: number, tz: string) => fmt(tz, { month: 'long', year: 'numeric' }).format(ms);
+export const monthYear = (ms: number, tz: string) =>
+  fmt(tz, { month: 'long', year: 'numeric' }).format(ms);
 
 export function tzName(tz: string, at = Date.now()) {
-  return fmt(tz, { timeZoneName: 'short' }).formatToParts(at).find((p) => p.type === 'timeZoneName')?.value ?? tz;
+  return (
+    fmt(tz, { timeZoneName: 'short' })
+      .formatToParts(at)
+      .find((p) => p.type === 'timeZoneName')?.value ?? tz
+  );
 }
 
 /** YYYY-MM-DD in tz (for grouping). */
 export function ymd(ms: number, tz: string) {
-  const p = Object.fromEntries(fmt(tz, { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(ms).map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(
+    fmt(tz, { year: 'numeric', month: '2-digit', day: '2-digit' })
+      .formatToParts(ms)
+      .map((x) => [x.type, x.value]),
+  );
   return `${p.year}-${p.month}-${p.day}`;
 }
 
@@ -71,11 +83,22 @@ export function fromLocalInput(value: string, tz: string): number {
   const guess = Date.parse(`${date}T${t}:00Z`);
   const offset = (at: number) => {
     const p = Object.fromEntries(
-      fmt(tz, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+      fmt(tz, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23',
+      })
         .formatToParts(at)
         .map((x) => [x.type, x.value]),
     );
-    return Date.UTC(+p.year!, +p.month! - 1, +p.day!, +p.hour!, +p.minute!, +p.second!) - Math.floor(at / 1000) * 1000;
+    return (
+      Date.UTC(+p.year!, +p.month! - 1, +p.day!, +p.hour!, +p.minute!, +p.second!) -
+      Math.floor(at / 1000) * 1000
+    );
   };
   const first = guess - offset(guess);
   return guess - offset(first);
@@ -84,7 +107,14 @@ export function fromLocalInput(value: string, tz: string): number {
 /** UTC ms → value for <input type="datetime-local"> in tz. */
 export function toLocalInput(ms: number, tz: string): string {
   const p = Object.fromEntries(
-    fmt(tz, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    fmt(tz, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
       .formatToParts(ms)
       .map((x) => [x.type, x.value]),
   );

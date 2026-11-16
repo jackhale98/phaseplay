@@ -106,28 +106,55 @@ export const DrillUpdate = v.partial(DrillInput.pipe[0]);
 export type DrillUpdate = v.InferOutput<typeof DrillUpdate>;
 
 /** Equipment derived from a diagram's entities (docs/diagrams.md §Drill mode). */
-export function equipmentFromDiagram(diagram: v.InferOutput<typeof PlayData> | null | undefined): EquipmentList {
+export function equipmentFromDiagram(
+  diagram: v.InferOutput<typeof PlayData> | null | undefined,
+): EquipmentList {
   const out: EquipmentList = {};
   if (!diagram) return out;
   const add = (k: EquipmentItem, n = 1) => (out[k] = (out[k] ?? 0) + n);
   for (const e of diagram.entities) {
     switch (e.kind) {
-      case 'ball': add('balls'); break;
-      case 'cone': add('cones'); break;
-      case 'gate': add('cones', 2); break;
-      case 'marker': add('markers'); break;
-      case 'pole': add('poles'); break;
-      case 'shield': add('tackle_shields'); break;
-      case 'bag': add('tackle_bags'); break;
-      case 'tube': add('tackle_tubes'); break;
-      case 'ladder': add('ladders'); break;
-      case 'hurdle': add('hurdles'); break;
-      case 'scrum_machine': add('scrum_machine'); break;
-      default: break;
+      case 'ball':
+        add('balls');
+        break;
+      case 'cone':
+        add('cones');
+        break;
+      case 'gate':
+        add('cones', 2);
+        break;
+      case 'marker':
+        add('markers');
+        break;
+      case 'pole':
+        add('poles');
+        break;
+      case 'shield':
+        add('tackle_shields');
+        break;
+      case 'bag':
+        add('tackle_bags');
+        break;
+      case 'tube':
+        add('tackle_tubes');
+        break;
+      case 'ladder':
+        add('ladders');
+        break;
+      case 'hurdle':
+        add('hurdles');
+        break;
+      case 'scrum_machine':
+        add('scrum_machine');
+        break;
+      default:
+        break;
     }
   }
   if (diagram.entities.some((e) => e.kind === 'player' && e.group)) {
-    const groups = new Set(diagram.entities.filter((e) => e.kind === 'player' && e.group).map((e) => e.group));
+    const groups = new Set(
+      diagram.entities.filter((e) => e.kind === 'player' && e.group).map((e) => e.group),
+    );
     if (groups.size > 1) add('bibs', diagram.entities.filter((e) => e.kind === 'player').length);
   }
   return out;

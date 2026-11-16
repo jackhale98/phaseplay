@@ -15,7 +15,9 @@ export async function requireMember(c: Context<AppEnv>, teamId: string, action: 
   const user = requireUser(c);
   const row = await c.var.db
     .prepare(
-      `SELECT ${MEMBER_COLS.split(', ').map((x) => 'm.' + x).join(', ')} FROM memberships m
+      `SELECT ${MEMBER_COLS.split(', ')
+        .map((x) => 'm.' + x)
+        .join(', ')} FROM memberships m
        JOIN teams t ON t.id = m.team_id
        WHERE m.team_id = ? AND m.user_id = ? AND m.status = 'active' AND t.deleted_at IS NULL`,
     )

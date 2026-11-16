@@ -16,7 +16,9 @@
   let shortcuts = $state(false);
 
   const path = $derived(page.url.pathname);
-  const team = $derived(app.team ?? app.me?.memberships.find((m) => m.team.id === app.teamId)?.team ?? null);
+  const team = $derived(
+    app.team ?? app.me?.memberships.find((m) => m.team.id === app.teamId)?.team ?? null,
+  );
   const teams = $derived(app.me?.memberships ?? []);
   const mobileNav = $derived(NAV.filter((n) => !n.desktopOnly));
   /** Full-screen modes hide navigation (match mode, practice runner, editors). */
@@ -30,7 +32,15 @@
       palette = !palette;
     } else if (!typing && e.key === '?' && !immersive) {
       shortcuts = true;
-    } else if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && !immersive && /^[1-5]$/.test(e.key) && !e.shiftKey) {
+    } else if (
+      !typing &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !immersive &&
+      /^[1-5]$/.test(e.key) &&
+      !e.shiftKey
+    ) {
       const n = NAV[Number(e.key) - 1];
       if (n) void goto(n.href);
     }
@@ -43,7 +53,11 @@
 <div class="shell" class:immersive>
   {#if !immersive}
     <aside class="side" aria-label="Main">
-      <button class="team" onclick={() => (switcher = true)} aria-label="Switch team, current {team?.name ?? 'none'}">
+      <button
+        class="team"
+        onclick={() => (switcher = true)}
+        aria-label="Switch team, current {team?.name ?? 'none'}"
+      >
         {#if team}<Crest colors={team.colors} text={team.shortName} size={32} />{/if}
         <span class="tn truncate">{team?.name ?? 'Phaseplay'}</span>
         <IconChevronDown />
@@ -74,7 +88,11 @@
     </aside>
 
     <header class="top">
-      <button class="team-m" onclick={() => (switcher = true)} aria-label="Switch team, current {team?.name ?? 'none'}">
+      <button
+        class="team-m"
+        onclick={() => (switcher = true)}
+        aria-label="Switch team, current {team?.name ?? 'none'}"
+      >
         {#if team}<Crest colors={team.colors} text={team.shortName} size={28} />{/if}
         <span class="truncate">{team?.shortName ?? 'Phaseplay'}</span>
         <IconChevronDown />
@@ -111,14 +129,18 @@
           }}
         >
           <Crest colors={m.team.colors} text={m.team.shortName} size={36} />
-          <span class="grow"><strong>{m.team.name}</strong><small class="muted">{m.member.role}</small></span>
+          <span class="grow"
+            ><strong>{m.team.name}</strong><small class="muted">{m.member.role}</small></span
+          >
           {#if m.team.id === app.teamId}<IconCheck />{/if}
         </button>
       </li>
     {/each}
     <li>
       <a class="trow" href="/welcome" onclick={() => (switcher = false)}>
-        <span class="plus"><IconPlus /></span><span class="grow"><strong>Create a team</strong></span>
+        <span class="plus"><IconPlus /></span><span class="grow"
+          ><strong>Create a team</strong></span
+        >
       </a>
     </li>
   </ul>
@@ -128,10 +150,14 @@
 
 <Sheet bind:open={shortcuts} title="Keyboard shortcuts" size="sm">
   <dl class="keys">
-    <dt><kbd>⌘</kbd> <kbd>K</kbd></dt><dd>Search and jump anywhere</dd>
-    <dt><kbd>1</kbd>–<kbd>5</kbd></dt><dd>Home, Schedule, Squad, Playbook, Practice</dd>
-    <dt><kbd>?</kbd></dt><dd>This list</dd>
-    <dt><kbd>Esc</kbd></dt><dd>Close a sheet or dialog</dd>
+    <dt><kbd>⌘</kbd> <kbd>K</kbd></dt>
+    <dd>Search and jump anywhere</dd>
+    <dt><kbd>1</kbd>–<kbd>5</kbd></dt>
+    <dd>Home, Schedule, Squad, Playbook, Practice</dd>
+    <dt><kbd>?</kbd></dt>
+    <dd>This list</dd>
+    <dt><kbd>Esc</kbd></dt>
+    <dd>Close a sheet or dialog</dd>
   </dl>
   <p class="subtle">The play editor has its own shortcuts. Press <kbd>?</kbd> inside it.</p>
 </Sheet>

@@ -8,7 +8,15 @@
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
   import { relDay, time, ago } from '#lib/format';
-  import { IconCalendarPlus, IconShirt, IconPlaybook, IconCopy, IconWarn, IconUserPlus, IconChevronRight } from '#lib/icons';
+  import {
+    IconCalendarPlus,
+    IconShirt,
+    IconPlaybook,
+    IconCopy,
+    IconWarn,
+    IconUserPlus,
+    IconChevronRight,
+  } from '#lib/icons';
 
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
@@ -16,8 +24,18 @@
   const staff = $derived(isStaff(me?.role));
   const next = $derived(upcoming(s).filter((e) => !e.cancelledAt));
   const hero = $derived(next[0]);
-  const awaiting = $derived(next.slice(1).filter((e) => e.startsAt < Date.now() + 21 * 86400e3 && !myRsvp(s, e.id)).slice(0, 4));
-  const later = $derived(next.slice(1).filter((e) => !awaiting.includes(e)).slice(0, 3));
+  const awaiting = $derived(
+    next
+      .slice(1)
+      .filter((e) => e.startsAt < Date.now() + 21 * 86400e3 && !myRsvp(s, e.id))
+      .slice(0, 4),
+  );
+  const later = $derived(
+    next
+      .slice(1)
+      .filter((e) => !awaiting.includes(e))
+      .slice(0, 3),
+  );
   const nextMatch = $derived(next.find((e) => e.type === 'match' || e.type === 'tournament'));
   const sheet = $derived(nextMatch ? sheetFor(s, nextMatch.id) : undefined);
   const showSheet = $derived(sheet && (sheet.publishedAt || staff));
@@ -36,7 +54,9 @@
     if (!hero || !avail) return;
     const names = avail.none.map((m) => m.displayName.split(' ')[0]).join(', ');
     const text = `${hero.type === 'match' && hero.opponent ? `${s?.team.shortName} v ${hero.opponent}` : hero.title}, ${relDay(hero.startsAt, tz)} ${time(hero.startsAt, tz)}. Still need a reply from ${names}. Tap in on Phaseplay: https://phaseplay.app/events/${hero.id}`;
-    toasts.show((await copyText(text)) ? 'Nudge copied. Paste it in the group chat' : "Couldn't copy");
+    toasts.show(
+      (await copyText(text)) ? 'Nudge copied. Paste it in the group chat' : "Couldn't copy",
+    );
   }
 </script>
 
@@ -53,7 +73,12 @@
   {#if !s}
     <div class="sk" aria-busy="true"></div>
   {:else if !hero}
-    <EmptyState title={staff ? 'Add your first training' : 'Nothing scheduled yet'} body={staff ? 'Set up a weekly training and your squad can start replying straight away.' : "When your coach adds sessions and matches, they'll show up here."}>
+    <EmptyState
+      title={staff ? 'Add your first training' : 'Nothing scheduled yet'}
+      body={staff
+        ? 'Set up a weekly training and your squad can start replying straight away.'
+        : "When your coach adds sessions and matches, they'll show up here."}
+    >
       {#snippet icon()}<IconCalendarPlus />{/snippet}
       {#snippet action()}
         {#if staff}<Button variant="primary" href="/schedule?new=1">Add an event</Button>{/if}
@@ -61,7 +86,15 @@
     </EmptyState>
   {:else}
     <section aria-label="Next up">
-      <EventCard event={hero} {tz} variant="hero" counts={s.rows.counts[hero.id]} myStatus={myRsvp(s, hero.id)} memberId={me?.id} teamShort={s.team.shortName} />
+      <EventCard
+        event={hero}
+        {tz}
+        variant="hero"
+        counts={s.rows.counts[hero.id]}
+        myStatus={myRsvp(s, hero.id)}
+        memberId={me?.id}
+        teamShort={s.team.shortName}
+      />
     </section>
 
     {#if avail}
@@ -74,7 +107,11 @@
           {#each avail.byGroup as g (g.group)}
             <li>
               <span class="gl">{GROUP_LABELS[g.group]}</span>
-              <span class="tnum"><strong>{g.yes}</strong>{#if g.maybe}<small> +{g.maybe}?</small>{/if}<small> / {g.total}</small></span>
+              <span class="tnum"
+                ><strong>{g.yes}</strong>{#if g.maybe}<small> +{g.maybe}?</small>{/if}<small>
+                  / {g.total}</small
+                ></span
+              >
             </li>
           {/each}
         </ul>
@@ -84,7 +121,9 @@
         {#if avail.none.length}
           <div class="row nr">
             <span class="grow muted">{avail.none.length} still to reply</span>
-            <Button size="sm" onclick={nudge}>{#snippet icon()}<IconCopy />{/snippet}Copy a nudge</Button>
+            <Button size="sm" onclick={nudge}
+              >{#snippet icon()}<IconCopy />{/snippet}Copy a nudge</Button
+            >
           </div>
         {/if}
       </section>
@@ -94,7 +133,14 @@
       <h2 class="section-title">Waiting for your reply</h2>
       <div class="stack">
         {#each awaiting as e (e.id)}
-          <EventCard event={e} {tz} counts={s.rows.counts[e.id]} myStatus={myRsvp(s, e.id)} memberId={me?.id} teamShort={s.team.shortName} />
+          <EventCard
+            event={e}
+            {tz}
+            counts={s.rows.counts[e.id]}
+            myStatus={myRsvp(s, e.id)}
+            memberId={me?.id}
+            teamShort={s.team.shortName}
+          />
         {/each}
       </div>
     {/if}
@@ -105,7 +151,13 @@
         <span class="ic"><IconShirt /></span>
         <span class="grow">
           <strong>{nextMatch.opponent ? `v ${nextMatch.opponent}` : nextMatch.title}</strong>
-          <small class="muted">{sheet.publishedAt ? `Published ${ago(sheet.publishedAt)}` : 'Draft, only coaches can see it'}{sheet.captainId ? ` · Captain ${memberName(s, sheet.captainId)}` : ''}</small>
+          <small class="muted"
+            >{sheet.publishedAt
+              ? `Published ${ago(sheet.publishedAt)}`
+              : 'Draft, only coaches can see it'}{sheet.captainId
+              ? ` · Captain ${memberName(s, sheet.captainId)}`
+              : ''}</small
+          >
         </span>
         <IconChevronRight />
       </a>
@@ -118,7 +170,11 @@
           <li>
             <a class="card link" href="/plays/{p.id}">
               <span class="ic"><IconPlaybook /></span>
-              <span class="grow"><strong>{p.title}</strong><small class="muted">{p.frameCount} frames · {ago(p.updatedAt)}</small></span>
+              <span class="grow"
+                ><strong>{p.title}</strong><small class="muted"
+                  >{p.frameCount} frames · {ago(p.updatedAt)}</small
+                ></span
+              >
               <IconChevronRight />
             </a>
           </li>
@@ -130,7 +186,14 @@
       <h2 class="section-title">Coming up <a href="/schedule">Schedule</a></h2>
       <div class="stack">
         {#each later as e (e.id)}
-          <EventCard event={e} {tz} counts={s.rows.counts[e.id]} myStatus={myRsvp(s, e.id)} memberId={me?.id} teamShort={s.team.shortName} />
+          <EventCard
+            event={e}
+            {tz}
+            counts={s.rows.counts[e.id]}
+            myStatus={myRsvp(s, e.id)}
+            memberId={me?.id}
+            teamShort={s.team.shortName}
+          />
         {/each}
       </div>
     {/if}
@@ -138,7 +201,11 @@
     {#if staff && Object.keys(s.rows.members).length < 3}
       <a class="card link invite" href="/squad?invite=1">
         <span class="ic"><IconUserPlus /></span>
-        <span class="grow"><strong>Invite your squad</strong><small class="muted">Share a link or QR code in the group chat</small></span>
+        <span class="grow"
+          ><strong>Invite your squad</strong><small class="muted"
+            >Share a link or QR code in the group chat</small
+          ></span
+        >
         <IconChevronRight />
       </a>
     {/if}

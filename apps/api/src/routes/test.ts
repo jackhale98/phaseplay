@@ -12,12 +12,20 @@ import { newSession } from '../auth/session';
  */
 export function testRoutes(app: Hono<AppEnv>) {
   route(app, 'auth.test.login', async (c) => {
-    if (c.env.ENV === 'production') return c.json({ error: { code: 'not_found', message: 'Not found' } }, 404);
-    const input = await body(c, v.object({ userId: v.optional(v.string()), displayName: v.optional(text(40, 1)) }));
+    if (c.env.ENV === 'production')
+      return c.json({ error: { code: 'not_found', message: 'Not found' } }, 404);
+    const input = await body(
+      c,
+      v.object({ userId: v.optional(v.string()), displayName: v.optional(text(40, 1)) }),
+    );
     const id = input.userId ?? uuidv7();
     const name = input.displayName ?? 'Test Player';
     await c.var.db.batch([
-      c.var.db.prepare('INSERT INTO users (id, display_name, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').bind(id, name, Date.now()),
+      c.var.db
+        .prepare(
+          'INSERT INTO users (id, display_name, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+        )
+        .bind(id, name, Date.now()),
       await newSession(c, id),
     ]);
     c.header('x-pp-test-login', '1');

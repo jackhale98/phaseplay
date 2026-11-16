@@ -55,6 +55,7 @@ export function addDays(date: string, n: number): string {
 /** Expand a weekly rule to occurrence dates (inclusive). */
 export function weeklyDates(startsOn: string, until: string, weekdays: number[]): string[] {
   const out: string[] = [];
-  for (let d = startsOn; d <= until; d = addDays(d, 1)) if (weekdays.includes(weekdayOf(d))) out.push(d);
+  for (let d = startsOn; d <= until; d = addDays(d, 1))
+    if (weekdays.includes(weekdayOf(d))) out.push(d);
   return out;
 }
