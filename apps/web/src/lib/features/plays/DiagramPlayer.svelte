@@ -156,7 +156,7 @@
 
 <div class="player" class:has-controls={controls}>
   <div class="stage" bind:this={box} style:aspect-ratio={ratio}>
-    <canvas bind:this={canvas} role="img" aria-label={label}></canvas>
+    <div class="art" role="img" aria-label={label}><canvas bind:this={canvas}></canvas></div>
     {#if controls && !playing && t === 0 && total > 0}
       <button class="big-play" onclick={start} aria-label="Play {play.title}">
         <IconPlay />
@@ -238,6 +238,10 @@
     border-radius: var(--r-md);
     overflow: hidden;
     background: #2f6b3a;
+  }
+  .art {
+    position: absolute;
+    inset: 0;
   }
   canvas {
     display: block;
