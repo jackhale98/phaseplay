@@ -1,0 +1,27 @@
+{
+  "name": "@phaseplay/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p ../web/build && wrangler dev --port 8787 --local",
+    "dev:test": "wrangler dev --env test --port 8787 --local",
+    "build": "wrangler deploy --dry-run --env production --outdir dist",
+    "check": "tsc -p tsconfig.json",
+    "db:migrate:local": "wrangler d1 migrations apply phaseplay --local",
+    "db:migrate:test": "wrangler d1 migrations apply phaseplay --local --env test",
+    "db:seed": "node scripts/seed.mjs > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --file .wrangler/seed.sql",
+    "db:seed:test": "node scripts/seed.mjs > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --env test --file .wrangler/seed.sql"
+  },
+  "dependencies": {
+    "@phaseplay/shared": "workspace:*",
+    "@simplewebauthn/server": "^14.1.0",
+    "hono": "^4.13.19",
+    "valibot": "^1.5.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.8.3",
+    "@cloudflare/workers-types": "^5.20261116.1",
+    "@simplewebauthn/browser": "^14.0.0",
+    "wrangler": "^4.163.0"
+  }
+}

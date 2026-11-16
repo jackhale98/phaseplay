@@ -106,8 +106,10 @@ export const AttendancePut = v.object({
   ),
 });
 
+/** D1 allows 50 queries per invocation (free plan); clients send imports in chunks. */
+export const IMPORT_CHUNK = 40;
 export const ImportInput = v.object({
-  events: v.pipe(v.array(v.object({ id: Id, ...eventFields })), v.maxLength(400)),
+  events: v.pipe(v.array(v.object({ id: Id, ...eventFields })), v.maxLength(IMPORT_CHUNK)),
   members: v.pipe(
     v.array(
       v.object({
@@ -117,7 +119,7 @@ export const ImportInput = v.object({
         positions: v.optional(v.array(v.number()), []),
       }),
     ),
-    v.maxLength(150),
+    v.maxLength(IMPORT_CHUNK),
   ),
 });
 export type ImportInput = v.InferOutput<typeof ImportInput>;

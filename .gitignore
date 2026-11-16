@@ -11,3 +11,4 @@ blob-report
 coverage
 .lighthouseci
 .DS_Store
+.claude/worktrees
