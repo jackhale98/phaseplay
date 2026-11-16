@@ -32,6 +32,9 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm i --frozen-lockfile
 
+      - name: Resolve the production D1 database (created on first deploy)
+        run: node scripts/ensure-d1.mjs
+
       # 1. Migrations are expand/contract: the code being deployed works with old and new schema.
       - name: Migrate D1
         working-directory: apps/api

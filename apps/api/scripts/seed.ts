@@ -207,7 +207,7 @@ for (let w = -4; w <= 8; w++) {
       team_id: TEAM,
       season_id: season,
       type: 'training',
-      title: 'Training',
+      title: 'Practice',
       starts_at: startsAt,
       meet_at: startsAt - 15 * 60e3,
       ends_at: startsAt + 90 * 60e3,
@@ -276,19 +276,64 @@ for (let w = -3; w <= 6; w++) {
     updated_at: now,
   });
 }
-{
-  const date = addDays(monday, 12);
-  const startsAt = zonedToUtc(date, '19:30', TZ);
+const extras: [
+  number,
+  string,
+  'social' | 'fundraiser' | 'meeting',
+  string,
+  number,
+  string,
+  string,
+][] = [
+  [
+    12,
+    '19:30',
+    'social',
+    'Quiz night',
+    3,
+    'The Lock Keeper',
+    'Teams of six. £3 entry for the kitty.',
+  ],
+  [
+    20,
+    '09:00',
+    'fundraiser',
+    'Bag-pack fundraiser',
+    6,
+    'Riverside Superstore',
+    'Two-hour shifts in club kit. Raising money for the new scrum machine.',
+  ],
+  [
+    27,
+    '18:30',
+    'meeting',
+    'Season planning meeting',
+    1.5,
+    'Clubhouse',
+    'Captains and committee. Agenda in the group chat.',
+  ],
+  [
+    34,
+    '12:00',
+    'social',
+    'End-of-season BBQ',
+    4,
+    'Clubhouse lawn',
+    'Families welcome. Bring a side dish.',
+  ],
+];
+for (const [day, at, type, title, hours, place, notes] of extras) {
+  const startsAt = zonedToUtc(addDays(monday, day), at, TZ);
   insert('events', {
     id: id('e'),
     team_id: TEAM,
     season_id: season,
-    type: 'social',
-    title: 'Quiz night',
+    type,
+    title,
     starts_at: startsAt,
-    ends_at: startsAt + 3 * 3600e3,
-    location_name: 'The Lock Keeper',
-    notes: 'Teams of six. £3 entry for the kitty.',
+    ends_at: startsAt + hours * 3600e3,
+    location_name: place,
+    notes,
     version: 1,
     created_by: owner.userId,
     updated_at: now,
@@ -700,6 +745,16 @@ insert('practice_plans', {
 out.push(
   `INSERT INTO audit_log (id, team_id, actor_id, action, target_type, target_id, at) VALUES ('${id('ad')}', '${TEAM}', '${owner.userId}', 'team.created', 'team', '${TEAM}', ${now - 90 * 86400e3});`,
 );
+// Production demo: hand the seeded team to a real account (who signed up with a passkey) instead
+// of the placeholder coach, who has no passkey and can never sign in.
+const demoOwner = process.env.DEMO_OWNER;
+if (demoOwner) {
+  const who = `(SELECT id FROM users WHERE display_name = ${q(demoOwner)} AND id NOT LIKE 'b0000000-%' AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1)`;
+  out.push(
+    `UPDATE memberships SET user_id = ${who}, display_name = ${q(demoOwner)} WHERE id = '${owner.id}' AND ${who} IS NOT NULL;`,
+  );
+  out.push(`UPDATE teams SET owner_id = ${who} WHERE id = '${TEAM}' AND ${who} IS NOT NULL;`);
+}
 console.log(out.join('\n'));
 console.error(
   `seeded Phaseplay RFC: ${members.length} members, ${evs.length + 1} events. Dev sign-in user id: ${owner.userId}`,

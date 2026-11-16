@@ -15,7 +15,9 @@
     "build": "pnpm --filter @phaseplay/web build && pnpm --filter @phaseplay/api build",
     "size": "node scripts/size-check.mjs",
     "db:migrate:local": "pnpm --filter @phaseplay/api db:migrate:local",
-    "db:seed": "pnpm --filter @phaseplay/api db:seed"
+    "db:seed": "pnpm --filter @phaseplay/api db:seed",
+    "deploy": "node scripts/deploy.mjs",
+    "demo:prod": "node scripts/demo-prod.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
