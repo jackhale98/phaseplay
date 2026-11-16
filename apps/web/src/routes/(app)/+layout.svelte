@@ -14,6 +14,9 @@
       await goto(`/signin?next=${encodeURIComponent(page.url.pathname + page.url.search)}`, { replaceState: true });
       return;
     }
+    // Deep links can pick the team: /events/x?team=<id>
+    const want = page.url.searchParams.get('team');
+    if (want && want !== app.teamId && app.me?.memberships.some((m) => m.team.id === want)) await app.selectTeam(want);
     checked = true;
   });
 

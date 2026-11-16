@@ -30,6 +30,7 @@ const monday = addDays(today, -dow);
 const TEAM = 'a0000000-0000-7000-8000-000000000001';
 out.push(`DELETE FROM teams WHERE id = '${TEAM}';`);
 out.push(`DELETE FROM users WHERE id LIKE 'b0000000-%';`);
+out.push(`DELETE FROM audit_log WHERE team_id = '${TEAM}';`);
 
 // People
 const staff = [

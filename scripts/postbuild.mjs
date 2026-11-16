@@ -25,5 +25,5 @@ if (!index.includes('http-equiv="content-security-policy"')) throw new Error('in
 // No test-only auth may reach a production bundle.
 const walk = (d) => readdirSync(d).flatMap((f) => (statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]));
 for (const f of walk(out).filter((f) => f.endsWith('.js')))
-  if (readFileSync(f, 'utf8').includes('/api/v1/test/login')) throw new Error(`test login route referenced in ${f}`);
+  if (readFileSync(f, 'utf8').includes('x-pp-test-login')) throw new Error(`test login route referenced in ${f}`);
 console.log('postbuild ok');

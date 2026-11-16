@@ -35,7 +35,7 @@
   --border-strong: var(--n-300);
   --text: var(--n-900);
   --text-2: var(--n-600);
-  --text-3: #6b766e;
+  --text-3: #5d685f;
   --scrim: rgb(12 16 13 / 0.45);
 
   /* Team accent (overridden at runtime from team colours, AA-checked) */

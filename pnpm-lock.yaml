@@ -59,6 +59,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@phaseplay/diagram':
+        specifier: workspace:*
+        version: link:../../packages/diagram
       '@phaseplay/shared':
         specifier: workspace:*
         version: link:../../packages/shared

@@ -29,7 +29,7 @@
       <span class="badge">{EVENT_TYPE_LABELS[e.type]}{e.format ? ` · ${e.format}` : ''}</span>
       {#if e.cancelledAt}<span class="badge cx">Cancelled</span>{/if}
     </div>
-    <h3>{#if e.type === 'match' && teamShort && e.opponent}{teamShort} {/if}{title}</h3>
+    <h3>{e.type === 'match' && teamShort && e.opponent ? `${teamShort} ${title}` : title}</h3>
     <div class="meta">
       {#if e.meetAt}<span><IconClock />Meet {time(e.meetAt, tz)}</span>{/if}
       {#if e.locationName}<span class="truncate"><IconMapPin />{e.locationName}</span>{/if}
@@ -54,7 +54,8 @@
   .ev {
     position: relative;
     display: grid;
-    grid-template-columns: 64px 1fr auto;
+    grid-template-columns: 76px 1fr auto;
+    align-items: start;
     gap: var(--s-3);
     padding: var(--s-4);
     background: var(--surface);
@@ -93,6 +94,7 @@
   .t {
     font-weight: 800;
     font-size: var(--t-16);
+    white-space: nowrap;
   }
   .main {
     min-width: 0;

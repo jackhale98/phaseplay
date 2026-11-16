@@ -10,9 +10,11 @@
     "db:migrate:local": "wrangler d1 migrations apply phaseplay --local",
     "db:migrate:test": "wrangler d1 migrations apply phaseplay --local --env test",
     "db:seed": "mkdir -p .wrangler && tsx scripts/seed.ts > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --file .wrangler/seed.sql",
-    "db:seed:test": "mkdir -p .wrangler && tsx scripts/seed.ts > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --env test --file .wrangler/seed.sql"
+    "db:seed:test": "mkdir -p .wrangler && tsx scripts/seed.ts > .wrangler/seed.sql && wrangler d1 execute phaseplay --local --env test --file .wrangler/seed.sql",
+    "e2e:serve": "rm -rf .wrangler/state/v3/d1 && wrangler d1 migrations apply phaseplay --local --env test && pnpm db:seed:test && wrangler dev --env test --port 8787 --local"
   },
   "dependencies": {
+    "@phaseplay/diagram": "workspace:*",
     "@phaseplay/shared": "workspace:*",
     "@simplewebauthn/server": "^14.1.0",
     "hono": "^4.13.19",

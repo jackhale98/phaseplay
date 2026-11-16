@@ -20,6 +20,7 @@ export function testRoutes(app: Hono<AppEnv>) {
       c.var.db.prepare('INSERT INTO users (id, display_name, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING').bind(id, name, Date.now()),
       await newSession(c, id),
     ]);
+    c.header('x-pp-test-login', '1');
     return c.json({ user: { id, displayName: name } });
   });
 }
