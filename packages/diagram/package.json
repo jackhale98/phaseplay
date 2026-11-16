@@ -1,0 +1,15 @@
+{
+  "name": "@phaseplay/diagram",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@phaseplay/shared": "workspace:*"
+  }
+}

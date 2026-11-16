@@ -1,0 +1,15 @@
+pnpm-lock.yaml
+**/build
+**/.svelte-kit
+**/.wrangler
+**/dist
+**/node_modules
+**/test-results
+**/playwright-report
+**/coverage
+apps/api/migrations/meta
+*.woff2
+PLAN.md
+CLAUDE.md
+docs/*.md
+.claude/agents

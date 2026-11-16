@@ -1,0 +1,13 @@
+node_modules
+.svelte-kit
+build
+dist
+.wrangler
+.dev.vars
+*.local
+test-results
+playwright-report
+blob-report
+coverage
+.lighthouseci
+.DS_Store
