@@ -18,3 +18,4 @@ One line per decision: date — decision — why.
 - 2026-11-16 — Front-row cover default follows World Rugby Law 3: 15 or fewer players → 3, 16–18 → 4, 19–22 → 5, 23 → 6 front-row-capable players (7s: 3); configurable per event (`settings.frontRowCover`).
 - 2026-11-16 — Test-only login is behind a build-time `__TEST_AUTH__` define (true for local dev and `--env test`, false for production) and refuses ENV=production at runtime; CI and the post-deploy smoke test both assert it's absent.
 - 2026-11-16 — A 7s tournament event records consecutive games as period pairs (1–2 = game 1, 3–4 = game 2) in one append-only log.
+- 2026-11-16 — Deploys run on Cloudflare Workers Builds (Git integration), not GitHub Actions — no Cloudflare token in GitHub; the D1 database is auto-provisioned by name on first deploy; Actions stays CI-only plus a nightly production smoke test.

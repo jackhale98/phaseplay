@@ -71,9 +71,9 @@ ORIGINS = "https://phaseplay.app"
 VERSION = "dev"
 [[env.production.d1_databases]]
 binding = "DB"
+# No database_id: the first `wrangler deploy` (Cloudflare Workers Builds) creates "phaseplay"
+# automatically and later deploys find it by name.
 database_name = "phaseplay"
-# Set by the human setup checklist (docs/runbook.md): `wrangler d1 create phaseplay`
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
 migrations_dir = "migrations"
 [[env.production.ratelimits]]
 name = "RL_AUTH"
