@@ -288,6 +288,9 @@
     margin: 0 -2px;
     scrollbar-width: none;
   }
+  .chips > :global(*) {
+    flex: none;
+  }
   .filters {
     display: flex;
     flex-wrap: wrap;

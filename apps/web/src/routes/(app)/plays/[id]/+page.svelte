@@ -211,6 +211,7 @@
   }
   .layout {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--s-5);
   }
   @media (min-width: 1000px) {
@@ -220,6 +221,7 @@
     }
   }
   .main {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: var(--s-3);

@@ -1491,6 +1491,7 @@
     position: fixed;
     inset: 0;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     grid-template-areas: 'bar' 'canvas' 'frames' 'tools';
     background: var(--bg);
@@ -1560,6 +1561,8 @@
     min-height: 0;
   }
   canvas {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;

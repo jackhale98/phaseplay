@@ -8,7 +8,7 @@
   import type { Play } from '@phaseplay/shared';
   import { overviewScene, totalDuration } from '@phaseplay/diagram/sample';
   import { app } from '#lib/data/app.svelte';
-  import { Stage, prefersReducedMotion } from './stage';
+  import { Stage, contentViewport, prefersReducedMotion } from './stage';
 
   let { play, active = false }: { play: Play | null; active?: boolean } = $props();
   let canvas: HTMLCanvasElement | undefined = $state();
@@ -16,8 +16,12 @@
   let raf = 0;
   let t0 = 0;
 
+  function frame() {
+    if (stage && play) stage.viewport = contentViewport(play);
+  }
   function still() {
     if (!stage || !play) return;
+    frame();
     stage.paintScene(play, overviewScene(play), {});
   }
   function loop(now: number) {
@@ -51,6 +55,7 @@
     cancelAnimationFrame(raf);
     raf = 0;
     if (on) {
+      frame();
       t0 = 0;
       raf = requestAnimationFrame(loop);
     } else still();

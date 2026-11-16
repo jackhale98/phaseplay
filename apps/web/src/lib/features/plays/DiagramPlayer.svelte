@@ -8,10 +8,9 @@
   import { onMount } from 'svelte';
   import type { Play } from '@phaseplay/shared';
   import { frameTimes, totalDuration } from '@phaseplay/diagram/sample';
-  import { playViewport } from '@phaseplay/diagram/viewport';
-  import { app } from '#lib/data/app.svelte';
+    import { app } from '#lib/data/app.svelte';
   import { IconPlay, IconPause, IconRepeat, IconChevronLeft, IconChevronRight } from '#lib/icons';
-  import { Stage, prefersReducedMotion, type StageTheme } from './stage';
+  import { Stage, fitViewport, prefersReducedMotion, type StageTheme } from './stage';
 
   type Props = {
     play: Play;
@@ -51,7 +50,7 @@
   const caption = $derived(play.frames[frame]?.caption ?? '');
   const accent = $derived(app.team?.colors.primary);
 
-  const vp = $derived(playViewport(play));
+  const vp = $derived(fitViewport(play));
   const landscape = $derived(width >= 560 && vp.h > vp.w * 1.1);
   const ratio = $derived(Math.min(2.2, Math.max(0.62, landscape ? vp.h / vp.w : vp.w / vp.h)));
 

@@ -11,6 +11,7 @@ import { resolveTheme, type Theme, type ThemeName } from '@phaseplay/diagram/the
 import {
   bestOrientation,
   makeTransform,
+  playBounds,
   playViewport,
   type Orientation,
   type Transform,
@@ -70,7 +71,7 @@ export class Stage {
   }
 
   baseViewport(play: Play): Viewport {
-    return playViewport(play);
+    return fitViewport(play);
   }
 
   orientationFor(play: Play): Orientation {
@@ -145,3 +146,53 @@ export class Stage {
 
 export const prefersReducedMotion = () =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** The play's viewport, grown to include every token in every frame so nothing is off-screen. */
+export function fitViewport(play: Play): Viewport {
+  const base = playViewport(play);
+  const bounds = playBounds(play);
+  let x0 = base.x;
+  let y0 = base.y;
+  let x1 = base.x + base.w;
+  let y1 = base.y + base.h;
+  for (const f of play.frames)
+    for (const p of Object.values(f.pos)) {
+      x0 = Math.min(x0, p.x - 3);
+      y0 = Math.min(y0, p.y - 3);
+      x1 = Math.max(x1, p.x + 3);
+      y1 = Math.max(y1, p.y + 3);
+    }
+  x0 = Math.max(x0, bounds.x);
+  y0 = Math.max(y0, bounds.y);
+  x1 = Math.min(x1, bounds.x + bounds.w);
+  y1 = Math.min(y1, bounds.y + bounds.h);
+  if (x0 === base.x && y0 === base.y && x1 === base.x + base.w && y1 === base.y + base.h) return base;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * A viewport framing everything that happens in the play (all frames' positions plus margin),
+ * inside the play's own viewport — so thumbnails show the action, not an empty pitch.
+ */
+export function contentViewport(play: Play, margin = 6): Viewport {
+  const base = playViewport(play);
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const f of play.frames)
+    for (const p of Object.values(f.pos)) {
+      x0 = Math.min(x0, p.x);
+      y0 = Math.min(y0, p.y);
+      x1 = Math.max(x1, p.x);
+      y1 = Math.max(y1, p.y);
+    }
+  if (!Number.isFinite(x0)) return base;
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  const w = Math.min(base.w, Math.max(24, x1 - x0 + 2 * margin));
+  const h = Math.min(base.h, Math.max(18, y1 - y0 + 2 * margin));
+  const x = Math.min(base.x + base.w - w, Math.max(base.x, cx - w / 2));
+  const y = Math.min(base.y + base.h - h, Math.max(base.y, cy - h / 2));
+  return { x, y, w, h };
+}

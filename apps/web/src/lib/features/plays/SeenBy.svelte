@@ -11,6 +11,8 @@
   let { play, members }: { play: PlayMeta; members: Member[] } = $props();
   let data = $state<SeenBy | null>(null);
   let failed = $state(false);
+  let all = $state(false);
+  const CAP = 8;
 
   $effect(() => {
     const id = play.id;
@@ -52,12 +54,17 @@
     {#if notSeen.length}
       <h3 class="eyebrow">Not seen yet · {notSeen.length}</h3>
       <ul class="list people">
-        {#each notSeen as m (m.id)}
+        {#each all ? notSeen : notSeen.slice(0, CAP) as m (m.id)}
           <li>
             <Avatar name={m.displayName} jersey={m.jersey} size={28} /> <span>{m.displayName}</span>
           </li>
         {/each}
       </ul>
+      {#if notSeen.length > CAP}
+        <button class="more" aria-expanded={all} onclick={() => (all = !all)}>
+          {all ? 'Show fewer' : `Show all ${notSeen.length}`}
+        </button>
+      {/if}
     {:else}
       <p class="all"><IconCheck /> The whole squad has seen it.</p>
     {/if}
@@ -100,14 +107,21 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 320px;
-    overflow: auto;
   }
   .people li {
     display: flex;
     align-items: center;
     gap: var(--s-2);
     font-size: var(--t-14);
+  }
+  .more {
+    margin-top: var(--s-2);
+    min-height: 44px;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font-weight: 650;
+    padding: 0;
   }
   .all {
     display: flex;
