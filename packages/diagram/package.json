@@ -10,6 +10,9 @@
     "check": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@phaseplay/shared": "workspace:*"
+    "@phaseplay/shared": "workspace:*",
+    "gifenc": "^1.0.3",
+    "mp4-muxer": "^5.2.2",
+    "valibot": "^1.5.0"
   }
 }
