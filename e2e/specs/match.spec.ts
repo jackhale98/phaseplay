@@ -65,9 +65,6 @@ async function setup(team: TeamFixture, kind: 'match' | 'tournament' = 'match') 
   return { eventId, members };
 }
 
-// The service worker's first claim reloads the page; it isn't what these specs test.
-test.use({ serviceWorkers: 'block' });
-
 const timer = (page: Page) => page.getByRole('timer');
 /** Freeze the page clock so fast-forwards are exact. */
 async function freeze(page: Page) {
@@ -180,10 +177,7 @@ test('a full match recorded in airplane mode syncs exactly once on reconnect', a
   await expect(viewer.page.getByRole('region', { name: 'Final score' })).toContainText('7');
 });
 
-test('game clock is derived from timestamps (10 minutes fast-forward)', async ({
-  page,
-  team,
-}) => {
+test('game clock is derived from timestamps (10 minutes fast-forward)', async ({ page, team }) => {
   const { eventId } = await setup(team);
   await page.clock.install();
   await openRecorder(page, team, eventId);

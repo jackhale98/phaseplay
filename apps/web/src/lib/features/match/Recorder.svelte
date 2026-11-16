@@ -207,6 +207,7 @@
   }
 
   // Sin-bin alerts: 1 minute left, then due back. Already-passed thresholds at load stay quiet.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- bookkeeping only, never rendered
   const alerted = new Set<string>();
   let primed = false;
   $effect(() => {

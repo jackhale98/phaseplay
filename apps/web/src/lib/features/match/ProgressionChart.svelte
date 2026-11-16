@@ -109,8 +109,12 @@
           onpointerleave={() => (hover = null)}
         />
       {/each}
-      <text class="end" x={w - M.r + 8} y={labelY.us} dy="0.32em">{narrow ? '' : `${short(us)} `}{final.us}</text>
-      <text class="end" x={w - M.r + 8} y={labelY.them} dy="0.32em">{narrow ? '' : `${short(them)} `}{final.them}</text>
+      <text class="end" x={w - M.r + 8} y={labelY.us} dy="0.32em"
+        >{narrow ? '' : `${short(us)} `}{final.us}</text
+      >
+      <text class="end" x={w - M.r + 8} y={labelY.them} dy="0.32em"
+        >{narrow ? '' : `${short(them)} `}{final.them}</text
+      >
       {#if hp}
         <line class="cross" x1={x(hp.gameMs)} x2={x(hp.gameMs)} y1={M.t} y2={H - M.b} />
       {/if}

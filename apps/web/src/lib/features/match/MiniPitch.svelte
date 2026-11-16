@@ -156,6 +156,5 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text);
-
   }
 </style>

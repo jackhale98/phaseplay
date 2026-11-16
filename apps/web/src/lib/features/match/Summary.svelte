@@ -67,6 +67,7 @@
     penalty_try: 'Pen try',
   };
   const scorers = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local to this derived
     const rows = new Map<
       string,
       { team: 'us' | 'them'; name: string; pts: number; items: string[] }
@@ -137,6 +138,7 @@
   });
   const maxMin = $derived(Math.max(60e3, ...minutes.map((m) => m.ms)));
   const tackles = $derived.by(() => {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local to this derived
     const by = new Map<string, number>();
     for (const e of s.log)
       if (e.payload.kind === 'tally' && e.payload.tally === 'tackle' && e.payload.playerId)

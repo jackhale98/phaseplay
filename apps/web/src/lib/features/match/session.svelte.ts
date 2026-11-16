@@ -57,6 +57,7 @@ export const browserDeps: MatchSyncDeps = {
   },
   async pendingIds(eventId) {
     const path = matchPath(eventId);
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- plain return value
     const out = new Set<string>();
     for (const e of await (await db()).getAll('outbox')) {
       if (e.method !== 'POST' || e.path !== path) continue;
