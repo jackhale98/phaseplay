@@ -47,7 +47,7 @@
   --accent-softer: color-mix(in srgb, var(--accent) 6%, var(--surface));
   --secondary: #f2c230;
 
-  --ok: #1a7f45;
+  --ok: #156a3a;
   --ok-soft: #e3f3e8;
   --warn: #9a5b00;
   --warn-soft: #fdf0d9;
