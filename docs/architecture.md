@@ -26,7 +26,7 @@ packages/shared/     valibot schemas + inferred types, permissions.ts, rugby.ts,
 packages/diagram/    play model, migrations, sampling/interpolation, Canvas renderer, exporters
 e2e/                 Playwright specs, fixtures, visual snapshots
 docs/                specs, decisions.md, runbooks
-.github/workflows/   ci.yml, deploy.yml, nightly.yml
+.github/workflows/   ci.yml, nightly.yml (deploys run on Cloudflare Workers Builds)
 .claude/agents/      reviewer.md, qa-tester.md
 ```
 
