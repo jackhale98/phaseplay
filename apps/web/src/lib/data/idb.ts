@@ -79,6 +79,14 @@ export const kv = {
   },
 };
 
+/** The `teams` store uses out-of-line keys: always write snapshots through these helpers. */
+export async function saveSnapshot(s: TeamSnapshot): Promise<void> {
+  await (await db()).put('teams', s, s.teamId);
+}
+export async function loadSnapshot(teamId: string): Promise<TeamSnapshot | undefined> {
+  return (await db()).get('teams', teamId);
+}
+
 export async function clearAll() {
   const d = await db();
   await Promise.all(

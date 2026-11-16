@@ -26,7 +26,7 @@ packages/shared/     valibot schemas + inferred types, permissions.ts, rugby.ts,
 packages/diagram/    play model, migrations, sampling/interpolation, Canvas renderer, exporters
 e2e/                 Playwright specs, fixtures, visual snapshots
 docs/                specs, decisions.md, runbooks
-.github/workflows/   ci.yml, deploy.yml, nightly.yml
+.github/workflows/   ci.yml, nightly.yml (deploys run on Cloudflare Workers Builds)
 .claude/agents/      reviewer.md, qa-tester.md
 ```
 
@@ -52,6 +52,7 @@ docs/                specs, decisions.md, runbooks
   - The API is same-origin, so fetches use `credentials: 'same-origin'`.
 - **CORS:** none. Cross-origin pages can neither send credentialed state changes (Origin check) nor read responses.
 - **CSRF:** state-changing requests must send an allowlisted `Origin` and `Content-Type: application/json`.
+- **Public demo:** `POST /api/v1/demo` creates a session for the fixed demo account (no passkey). A middleware in `app.ts` rejects every non-GET request from it with `403 demo`, except logout. `/me` returns `demo: true`, and the client keeps demo edits on-device.
 - **Recovery:** 10 single-use recovery codes, hashed and shown once. Coaches can also issue a device re-link link (single use, 24 hours).
 - **Rate limits:** the Workers Rate Limiting binding guards auth, invite redemption and recovery, per IP and per token.
 - **Test-only login** (`POST /api/v1/test/login`) exists only when built with `__TEST_AUTH__=true` (local dev and `--env test`) and refuses `ENV=production`. CI and the post-deploy smoke test fail if it is reachable or present in a prod bundle.

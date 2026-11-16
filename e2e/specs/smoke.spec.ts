@@ -37,3 +37,29 @@ test('RSVP from Home is one tap and survives a reload', async ({ page, team }) =
     page.getByRole('group', { name: 'Are you in?' }).first().getByRole('button', { name: 'In' }),
   ).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('Home opens offline from the on-device cache', async ({ page, context, team }) => {
+  const id = crypto.randomUUID();
+  await team.post(`/teams/${team.teamId}/events`, {
+    id,
+    type: 'social',
+    title: 'Offline quiz night',
+    startsAt: Date.now() + 3 * 86400e3,
+  });
+  await openTeam(page, team.teamId, '/home');
+  await expect(page.getByText('Offline quiz night').first()).toBeVisible();
+  // Wait for the service worker to take control so the app shell itself is available offline.
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page.evaluate(async () => {
+    if (!navigator.serviceWorker.controller)
+      await new Promise((r) =>
+        navigator.serviceWorker.addEventListener('controllerchange', r, { once: true }),
+      );
+  });
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByText('Offline quiz night').first()).toBeVisible();
+  await expect(page.getByText('Offline').first()).toBeVisible();
+  await context.setOffline(false);
+});

@@ -42,6 +42,8 @@ export type MeResponse = {
   user: User;
   memberships: { member: Member; team: Team }[];
   env: 'production' | 'development' | 'test';
+  /** Signed in to the public demo: the server refuses writes; the app keeps changes on-device. */
+  demo: boolean;
 };
 
 export type Season = {

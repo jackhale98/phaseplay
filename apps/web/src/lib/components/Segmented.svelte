@@ -12,9 +12,8 @@
     e.preventDefault();
     const n = options[(i + d + options.length) % options.length]!;
     value = n.value;
-    (e.currentTarget as HTMLElement).parentElement
-      ?.querySelectorAll('button')
-      [options.indexOf(n)]?.focus();
+    const buttons = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll('button');
+    buttons?.item(options.indexOf(n))?.focus();
   }
 </script>
 

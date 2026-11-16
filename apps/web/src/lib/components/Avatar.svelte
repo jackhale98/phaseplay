@@ -34,7 +34,12 @@
       color: hsl(var(--hue) 60% 85%);
     }
   }
+  /* Not joined yet: dashed outline instead of fading, so the initials keep AA contrast. */
   .muted {
-    opacity: 0.55;
+    background: var(--surface) !important;
+    color: var(--text-2) !important;
+    box-shadow: inset 0 0 0 1.5px var(--border-strong);
+    outline: 1.5px dashed var(--border-strong);
+    outline-offset: -1.5px;
   }
 </style>

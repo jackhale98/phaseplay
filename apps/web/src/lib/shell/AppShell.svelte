@@ -7,6 +7,7 @@
   import SyncDot from '#lib/components/SyncDot.svelte';
   import Sheet from '#lib/components/Sheet.svelte';
   import CommandPalette from './CommandPalette.svelte';
+  import DemoBanner from './DemoBanner.svelte';
   import { NAV, DESKTOP_EXTRA } from './nav';
   import { IconChevronDown, IconPlus, IconCheck, IconSearch, IconMore } from '#lib/icons';
 
@@ -102,6 +103,7 @@
   {/if}
 
   <main id="main" tabindex="-1">
+    {#if app.demo && !immersive}<DemoBanner />{/if}
     {@render children()}
   </main>
 

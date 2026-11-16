@@ -15,7 +15,10 @@
     "build": "pnpm --filter @phaseplay/web build && pnpm --filter @phaseplay/api build",
     "size": "node scripts/size-check.mjs",
     "db:migrate:local": "pnpm --filter @phaseplay/api db:migrate:local",
-    "db:seed": "pnpm --filter @phaseplay/api db:seed"
+    "db:seed": "pnpm --filter @phaseplay/api db:seed",
+    "deploy": "bash scripts/cf-deploy.sh",
+    "demo:prod": "node scripts/demo-prod.mjs",
+    "cf:build": "bash scripts/cf-build.sh"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
@@ -26,6 +29,7 @@
     "@vitest/snapshot": "^4.1.12",
     "eslint": "^10.15.0",
     "eslint-plugin-svelte": "^3.24.1",
+    "fake-indexeddb": "^6.2.8",
     "fast-check": "^4.10.2",
     "globals": "^17.14.0",
     "prettier": "^3.10.1",

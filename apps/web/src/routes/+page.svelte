@@ -79,9 +79,12 @@
         </p>
         <div class="actions">
           <a class="cta" href="/signup">Create your team</a>
-          <a class="ghost" href="/signin">I have an account</a>
+          <a class="ghost" href="/demo">Explore the demo</a>
         </div>
-        <p class="fine">No email or phone number. You sign in with a passkey.</p>
+        <p class="fine">
+          Try the demo with no account. When you're ready, sign up with just your name and a
+          passkey: no email, no password.
+        </p>
       </div>
       <div class="visual">
         <div class="phone">
@@ -131,21 +134,22 @@
       </ul>
     </section>
 
-    <section class="soon" aria-label="Coming soon">
+    <section class="soon" aria-labelledby="demo-h">
       <Crest
         colors={{ primary: '#1f6f43', secondary: '#f2c230' }}
         text="PRFC"
         size={64}
         label="Phaseplay RFC crest"
       />
-      <div>
-        <p class="eyebrow">Phaseplay RFC</p>
-        <h2>Your team is coming soon.</h2>
+      <div class="grow">
+        <p class="eyebrow">Live demo</p>
+        <h2 id="demo-h">Spend a week with Phaseplay RFC.</h2>
         <p class="muted">
-          The squad, the schedule and the playbook are being set up. Got an invite link? Open it on
-          your phone to join.
+          A demo squad of 30 with practices, games, a 7s tournament, a fundraiser, team sheets,
+          plays and a recorded match. Look around as their coach. Nothing you do is saved.
         </p>
       </div>
+      <a class="cta" href="/demo">Explore the demo</a>
     </section>
   </main>
 
@@ -434,6 +438,18 @@
     padding: var(--s-6);
     border-radius: var(--r-lg);
     border: 1px dashed var(--border-strong);
+  }
+  .soon {
+    flex-wrap: wrap;
+    border-style: solid;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, #1f6f43 8%, var(--surface)),
+      var(--surface)
+    );
+  }
+  .soon .grow {
+    flex: 1 1 280px;
   }
   .soon h2 {
     font-size: var(--t-24);

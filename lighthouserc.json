@@ -3,7 +3,11 @@
     "collect": {
       "url": ["http://localhost:8787/", "http://localhost:8787/privacy"],
       "numberOfRuns": 3,
-      "settings": { "preset": "perf", "formFactor": "mobile", "screenEmulation": { "mobile": true } }
+      "settings": {
+        "preset": "perf",
+        "formFactor": "mobile",
+        "screenEmulation": { "mobile": true }
+      }
     },
     "assert": {
       "assertions": {
