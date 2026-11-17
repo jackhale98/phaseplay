@@ -18,6 +18,10 @@ import {
   PLAN_COLS,
   PLAY_META_COLS,
   SHEET_COLS,
+  ITEM_COLS,
+  HANDOFF_COLS,
+  itemFromRow,
+  handoffFromRow,
   TEAM_COLS,
   drillMetaFromRow,
   eventFromRow,
@@ -71,7 +75,9 @@ const SYNC_SQL = `SELECT
   ${arr(ROLE_COLS, `team_roles WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS roles,
   ${arr(PLAY_META_COLS, `plays WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?7 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plays,
   ${arr(DRILL_META_COLS, `drills WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?8 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS drills,
-  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?9 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plans`;
+  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?9 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plans,
+  ${arr(ITEM_COLS, `inventory_items WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS items,
+  ${arr(HANDOFF_COLS, `inventory_handoffs WHERE team_id = ?1 AND (resolved_at IS NULL OR (?2 > 0 AND updated_at > ?2))`)} AS handoffs`;
 
 /**
  * A row a player can no longer see (made coach-only since their last sync) is sent as a bare
@@ -106,6 +112,7 @@ export function syncRoutes(app: Hono<AppEnv>) {
     const plays = can(p, 'plays.view_private');
     const drills = can(p, 'drills.view_private');
     const plans = can(p, 'practice.view_private');
+    const kit = can(p, 'inventory.manage');
     const row = await c.var.db
       .prepare(SYNC_SQL)
       .bind(
@@ -148,9 +155,11 @@ export function syncRoutes(app: Hono<AppEnv>) {
       plays: list('plays').map(playMetaFromRow).map(hidden(plays)),
       drills: list('drills').map(drillMetaFromRow).map(hidden(drills)),
       plans: list('plans').map(planFromRow).map(hidden(plans)),
-      // Kit and inventory (M9) join the sync query when the handlers land.
-      items: [],
-      handoffs: [],
+      // Item notes are for kit managers; a handover's note for the two people involved.
+      items: list('items').map((r) => itemFromRow(r, kit)),
+      handoffs: list('handoffs').map((r) =>
+        handoffFromRow(r, kit || r.from_member_id === me.id || r.to_member_id === me.id),
+      ),
     };
     return c.json(res);
   });

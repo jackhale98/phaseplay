@@ -11,6 +11,12 @@ import { registered } from '../src/lib/router';
 /** Routes whose handler adds rules beyond the matrix action, and the roles it narrows. */
 const REFINED: Partial<Record<RouteId, string[]>> = {
   'members.update': ['manager'],
+  // Kit: holders act on what they hold; everyone else needs inventory.manage (403 by design).
+  'inventory.return': ['player'],
+  'inventory.lost': ['player'],
+  'inventory.handoff.create': ['player'],
+  'inventory.handoff.accept': ['player'],
+  'inventory.handoff.decline': ['player'],
 };
 
 const teamRoutes = (Object.keys(ROUTES) as RouteId[]).filter((id) => ROUTES[id].auth === 'team');
