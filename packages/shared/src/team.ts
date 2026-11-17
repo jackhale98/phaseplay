@@ -3,6 +3,7 @@ import { HexColor, Id, Timezone, text } from './common';
 import { FORMATS } from './rugby';
 import { GRANTABLE, ROLES } from './permissions';
 import { RSVP_VISIBILITY } from './events';
+import { ProposalTargets } from './proposals';
 
 export const TeamColors = v.object({ primary: HexColor, secondary: HexColor });
 export type TeamColors = v.InferOutput<typeof TeamColors>;
@@ -21,6 +22,8 @@ export const TeamUpdate = v.partial(
   v.object({
     ...v.omit(TeamCreate, ['id']).entries,
     rsvpVisibility: v.picklist(RSVP_VISIBILITY),
+    /** Default "players needed" for proposed games, per format. */
+    proposalTargets: ProposalTargets,
   }),
 );
 export type TeamUpdate = v.InferOutput<typeof TeamUpdate>;

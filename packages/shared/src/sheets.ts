@@ -72,3 +72,55 @@ export function scaledFrontRowCover(format: Format, replacements: number): numbe
   if (squad >= 16) return 4;
   return 3;
 }
+
+/** Front-row cover of a group of players (who's in for a date, or available for a game). */
+export type FrontRowCover = {
+  /** Players who can play prop (1 or 3) / hooker (2); someone who can do both counts in each. */
+  props: number;
+  hookers: number;
+  /** Front-row-capable players. */
+  capable: number;
+  need: number;
+  hookersNeeded: number;
+  propsNeeded: number;
+  /** Enough players to fill the props and hookers needed, each person used once. */
+  ok: boolean;
+  /** What's missing, e.g. "Only 1 hooker", or null when covered. */
+  short: string | null;
+};
+
+const onlyN = (n: number, w: string) =>
+  n === 0 ? `No ${w}` : `Only ${n} ${w}${n === 1 ? '' : 's'}`;
+
+/**
+ * Can these players cover the front row? `need` front-rowers in all (Law 3: `RULES[f].frontRowCover`
+ * or `scaledFrontRowCover`), of which 2 hookers once there's a bench to cover (need ≥ 4), else 1.
+ */
+export function frontRowCover(positions: number[][], need: number): FrontRowCover {
+  let propOnly = 0;
+  let hookOnly = 0;
+  let both = 0;
+  for (const p of positions) {
+    if (!isFrontRowCapable(p)) continue;
+    const prop = p.includes(1) || p.includes(3);
+    const hook = p.includes(2);
+    if (prop && hook) both++;
+    else if (prop) propOnly++;
+    else hookOnly++;
+  }
+  const hookersNeeded = need >= 4 ? 2 : need > 0 ? 1 : 0;
+  const propsNeeded = Math.max(0, need - hookersNeeded);
+  const props = propOnly + both;
+  const hookers = hookOnly + both;
+  const capable = propOnly + hookOnly + both;
+  // Two roles: enough of each, and enough people overall to fill both at once.
+  const ok = hookers >= hookersNeeded && props >= propsNeeded && capable >= need;
+  const short = ok
+    ? null
+    : hookers < hookersNeeded
+      ? onlyN(hookers, 'hooker')
+      : props < propsNeeded
+        ? onlyN(props, 'prop')
+        : `${onlyN(capable, 'front-rower')} (need ${need})`;
+  return { props, hookers, capable, need, hookersNeeded, propsNeeded, ok, short };
+}

@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import { HHMM, Id, IsoDate, Millis, OptionalText, Url, text } from './common';
 import { FORMATS } from './rugby';
+import { canPropose, proposalFields } from './proposals';
 
 export const EVENT_TYPES = [
   'training',
@@ -98,15 +99,28 @@ const eventFields = {
 };
 
 export const EventCreate = v.pipe(
-  v.object({ id: Id, ...eventFields }),
+  v.object({
+    id: Id,
+    ...eventFields,
+    /** "Not confirmed yet": a tentative item (one date) or a date poll (2–4), see proposals.ts. */
+    status: v.optional(v.picklist(['confirmed', 'proposed']), 'confirmed'),
+    ...proposalFields,
+  }),
   v.check((e) => !e.endsAt || e.endsAt >= e.startsAt, 'Finish must be after the start'),
   v.check((e) => !e.meetAt || e.meetAt <= e.startsAt, 'Meet time must be before the start'),
+  v.check(
+    (e) => e.status !== 'proposed' || (canPropose(e.type) && !!e.options?.length),
+    'Only games and events can be proposed, with at least one date',
+  ),
+  v.check((e) => e.status === 'proposed' || !e.options, 'Only proposals have dates to pick from'),
 );
 export type EventCreate = v.InferOutput<typeof EventCreate>;
 
 export const EventUpdate = v.object({
   ...v.partial(v.object(eventFields)).entries,
   cancelled: v.optional(v.boolean()),
+  /** Proposals only: the full list of dates (kept ids keep their answers), deadline and target. */
+  ...proposalFields,
 });
 export type EventUpdate = v.InferOutput<typeof EventUpdate>;
 

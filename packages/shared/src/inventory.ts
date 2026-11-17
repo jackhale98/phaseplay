@@ -4,6 +4,7 @@
  */
 import * as v from 'valibot';
 import { Id, OptionalText, text } from './common';
+import { isConfirmed, type EventStatus } from './proposals';
 
 export const ITEM_KINDS = [
   'balls',
@@ -190,6 +191,7 @@ type KitEvent = {
   startsAt: number;
   cancelledAt?: number | null;
   deletedAt?: number | null;
+  status?: EventStatus | null;
 };
 type KitReply = { eventId: string; memberId: string; status: 'yes' | 'no' | 'maybe' | null };
 
@@ -226,7 +228,12 @@ export function atRiskKit(
   const replies = replyIndex(rsvps);
   const soon = [...events]
     .filter(
-      (e) => !e.deletedAt && !e.cancelledAt && e.startsAt > now && e.startsAt <= now + windowMs,
+      (e) =>
+        !e.deletedAt &&
+        !e.cancelledAt &&
+        isConfirmed(e) &&
+        e.startsAt > now &&
+        e.startsAt <= now + windowMs,
     )
     .sort((a, b) => a.startsAt - b.startsAt);
   const out: KitRisk[] = [];

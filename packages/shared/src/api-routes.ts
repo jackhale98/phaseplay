@@ -280,6 +280,27 @@ export const ROUTES = {
     auth: 'team',
     action: 'rsvp.self',
   },
+  /** Answer a proposal's dates for yourself ("in" / "can't" per date). */
+  'proposals.answer': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/events/:eventId/answers',
+    auth: 'team',
+    action: 'rsvp.self',
+  },
+  /** Pick a date: the event goes on the schedule and everyone who was in is asked to reconfirm. */
+  'proposals.confirm': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/events/:eventId/confirm',
+    auth: 'team',
+    action: 'events.manage',
+  },
+  /** Not going ahead: hidden everywhere; people who answered hear about it. */
+  'proposals.drop': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/events/:eventId/drop',
+    auth: 'team',
+    action: 'events.manage',
+  },
   'attendance.put': {
     method: 'PUT',
     path: '/api/v1/teams/:teamId/events/:eventId/attendance',

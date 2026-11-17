@@ -10,6 +10,7 @@ import type { PlanData, RunEvent } from './practice';
 import type { MatchEvent } from './match';
 import type { InventoryEventKind, ItemCondition, ItemKind, ItemStatus } from './inventory';
 import type { NotifyPrefs } from './notify';
+import type { EventStatus, ProposalAnswer, ProposalTargets } from './proposals';
 
 export type User = { id: string; displayName: string; createdAt: number };
 
@@ -29,6 +30,8 @@ export type Team = {
   crestVersion: number | null;
   /** What players see of each other's replies. */
   rsvpVisibility: RsvpVisibility;
+  /** Default "players needed" for proposed games, per format. */
+  proposalTargets: ProposalTargets;
   /** Built-in templates/presets hidden from this team's pickers (`drill:<id>`, `preset:<id>`). */
   hiddenTemplates: string[];
   createdAt: number;
@@ -101,10 +104,41 @@ export type TeamEvent = {
   recurrenceId: string | null;
   cancelledAt: number | null;
   settings: MatchSettings | null;
+  /** `proposed` = not confirmed yet (dates in `options`); `dropped` = not going ahead (hidden). */
+  status: EventStatus;
+  /** Proposals: when answers are due. */
+  answerBy: number | null;
+  /** Proposals: players needed (null = the team default for the format). */
+  target: number | null;
+  /** Proposed games: check front-row cover per date. */
+  checkPositions: boolean;
   version: number;
   updatedAt: number;
   deletedAt: number | null;
 };
+
+/** A candidate date of a proposal. */
+export type EventOption = {
+  id: string;
+  eventId: string;
+  teamId: string;
+  startsAt: number;
+  meetAt: number | null;
+  endsAt: number | null;
+  updatedAt: number;
+  deletedAt: number | null;
+};
+
+/** One member's answer for one date of a proposal. */
+export type OptionAnswer = {
+  optionId: string;
+  eventId: string;
+  memberId: string;
+  teamId: string;
+  answer: ProposalAnswer;
+  updatedAt: number;
+};
+export type AnswerCounts = { in: number; cant: number };
 
 export type Rsvp = {
   eventId: string;
@@ -114,6 +148,8 @@ export type Rsvp = {
   /** Only sent to staff and to the member themself. */
   note: string | null;
   attended: boolean | null;
+  /** Marked yes when a proposal was confirmed: waiting for the member's "Still in?". */
+  reconfirm?: boolean;
   updatedAt: number;
 };
 
@@ -224,6 +260,12 @@ export type SyncResponse = {
   rsvps: Rsvp[];
   /** Players get counts instead of everyone's RSVPs. */
   rsvpCounts: Record<string, RsvpCounts>;
+  /** Proposal dates (tombstones when removed). */
+  options: EventOption[];
+  /** Proposal answers: my own; everyone's for staff, or when players see replies for the event. */
+  answers: OptionAnswer[];
+  /** Per-date counts, for everyone. */
+  answerCounts: Record<string, AnswerCounts>;
   sheets: TeamSheet[];
   plays: PlayMeta[];
   drills: DrillMeta[];

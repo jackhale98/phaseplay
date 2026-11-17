@@ -4,6 +4,7 @@ export * from './permissions';
 export * from './rugby';
 export * from './team';
 export * from './events';
+export * from './proposals';
 export * from './sheets';
 export * from './play';
 export * from './drills';
