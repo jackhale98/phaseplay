@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import { cubicInOut } from 'svelte/easing';
-  import { slide } from 'svelte/transition';
+  import { fade, slide } from 'svelte/transition';
   import type { ProposalAnswer, TeamEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { proposalView } from '#lib/data/selectors';
@@ -75,17 +75,29 @@
 <article
   class="prop {variant}"
   class:poll
+  class:folded={!open}
   id={anchor ? `p-${e.id}` : undefined}
-  aria-labelledby="pt-{e.id}-{variant}"
+  aria-labelledby={variant === 'card' ? `pt-${e.id}` : undefined}
+  aria-label={variant === 'card' ? undefined : `Your answer for ${title}`}
 >
+  <!-- One line once answered: "Date poll · v Harlequins? · ✓ Works: Sat 12, Sat 19 · Change". -->
   <div class="top">
-    <span class="chip">{poll ? 'Date poll' : 'Tentative'}</span>
+    {#if variant === 'card'}
+      <span class="chip">{poll ? 'Date poll' : 'Tentative'}</span>
+      <h3 id="pt-{e.id}"><a href="/events/{e.id}">{title}?</a></h3>
+    {/if}
     {#if v.newDate && !changing}<span class="new">New date added</span>{/if}
-    {#if open}<span class="sub">Not confirmed yet</span>{/if}
+    {#if open}
+      {#if variant === 'card'}<span class="sub">Not confirmed yet</span>{/if}
+    {:else}
+      <span class="line" in:fade={{ duration: d, delay: d / 2 }}>
+        <span class="ok"><IconCheck />{summary}</span>
+        <button type="button" class="change" onclick={() => (changing = true)}
+          >Change<span class="sr-only"> your answer for {title}</span></button
+        >
+      </span>
+    {/if}
   </div>
-  <h3 id="pt-{e.id}-{variant}">
-    {#if variant === 'card'}<a href="/events/{e.id}">{title}?</a>{:else}{title}?{/if}
-  </h3>
 
   {#if open}
     <div class="body" transition:slide={{ duration: d, easing: cubicInOut }}>
@@ -151,13 +163,6 @@
         </div>
       {/if}
     </div>
-  {:else}
-    <p class="line" transition:slide={{ duration: d, easing: cubicInOut }}>
-      <span class="ok"><IconCheck />{summary}</span>
-      <button type="button" class="change" onclick={() => (changing = true)}
-        >Change<span class="sr-only"> your answer for {title}</span></button
-      >
-    </p>
   {/if}
   <p class="sr-only" role="status" aria-live="polite">{said}</p>
 </article>
@@ -182,7 +187,10 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--s-2);
+    gap: var(--s-1) var(--s-3);
+  }
+  .folded {
+    padding-block: var(--s-2);
   }
   .chip {
     display: inline-flex;
@@ -321,10 +329,10 @@
     color: var(--accent-text);
   }
   .line {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--s-1) var(--s-3);
+    gap: 0 var(--s-3);
     font-size: var(--t-14);
   }
   .ok {

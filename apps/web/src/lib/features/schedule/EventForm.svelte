@@ -848,7 +848,7 @@
                     />
                   {/snippet}
                 </Field>
-                <Field label={game ? 'Kickoff' : 'Starts'} hint={tzName(tz)}>
+                <Field label={game ? 'Kickoff' : 'Starts'}>
                   {#snippet children({ id, describedby })}
                     <input {id} type="time" aria-describedby={describedby} bind:value={x.start} />
                   {/snippet}

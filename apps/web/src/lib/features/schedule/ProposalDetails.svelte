@@ -12,7 +12,7 @@
   import Field from '#lib/components/Field.svelte';
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { dateTime, longDay, plural, shortDay, time, tzName } from '#lib/format';
+  import { longDay, plural, shortDay, time, tzName } from '#lib/format';
   import {
     IconCheck,
     IconCopy,
@@ -20,7 +20,6 @@
     IconMapPin,
     IconStar,
     IconTrash,
-    IconWarn,
     IconLock,
   } from '#lib/icons';
   import ProposalCard from './ProposalCard.svelte';
@@ -93,7 +92,7 @@
     {#if e.answerBy}
       <div>
         <dt><IconLock /><span>Answers by</span></dt>
-        <dd>{dateTime(e.answerBy, tz)} <span class="tz">{tzName(tz, e.answerBy)}</span></dd>
+        <dd>{longDay(e.answerBy, tz)}</dd>
       </div>
     {/if}
     {#if game}
@@ -107,7 +106,8 @@
         <dt><IconMapPin /><span>Where</span></dt>
         <dd>
           {e.locationName}{#if map}
-            · <a href={map} target="_blank" rel="noopener noreferrer"
+            <span aria-hidden="true">&nbsp;·</span>
+            <a href={map} target="_blank" rel="noopener noreferrer"
               >Map<span class="sr-only"> (opens in a new tab)</span></a
             >{/if}
         </dd>
@@ -150,12 +150,9 @@
         {#if o.cover}
           <p class="cover" class:ok={o.cover.ok}>
             {#if o.cover.ok}
-              <IconCheck />Front row ✓ ({plural(o.cover.props, 'prop')}, {plural(
-                o.cover.hookers,
-                'hooker',
-              )})
+              Front row ✓ ({plural(o.cover.props, 'prop')}, {plural(o.cover.hookers, 'hooker')})
             {:else}
-              <IconWarn />⚠ {o.cover.short}
+              ⚠ {o.cover.short}
             {/if}
           </p>
         {/if}
@@ -296,10 +293,6 @@
   }
   dd {
     margin: 0;
-  }
-  .tz {
-    color: var(--text-3);
-    font-size: var(--t-12);
   }
   .pad {
     padding: var(--s-4) var(--s-5);
