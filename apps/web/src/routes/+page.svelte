@@ -295,8 +295,8 @@
       <div>
         <h2>Made for the touchline</h2>
         <p>
-          No ads, no trackers, no feeds. It opens instantly from your home screen, keeps working
-          with no signal at the ground, and never asks for anyone's medical details.
+          No ads, no trackers, no feeds. It opens instantly from your home screen and keeps working
+          with no signal at the ground.
         </p>
       </div>
       <ul class="ticks">
