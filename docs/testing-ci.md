@@ -33,8 +33,8 @@
 `pnpm db:seed` creates the team "Phaseplay RFC":
 - 30 players with positions, plus a coach, an assistant coach and a manager
 - a season of trainings and matches, including a 7s tournament day
-- RSVPs, two team sheets, 8 plays and 12 drills across categories
-- two practice plans (one with a forwards/backs split and rotations) and one recorded match log with cards, subs and time off
+- RSVPs and attendance (the latest practice has no register, so stats show the RSVP fallback), published team sheets for every past game, 8 plays and 12 drills across categories
+- practice plans on every past practice plus a split session with rotations and a template, and recorded match logs (a win, a draw, a loss and a past 7s day) with cards, subs, penalties and time off, so season stats have something to show
 
 Local dev, e2e, screenshots and the landing page's demo visuals all use it.
 

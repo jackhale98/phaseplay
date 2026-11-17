@@ -415,6 +415,15 @@ export const ROUTES = {
     action: 'match.record',
   },
 
+  // Season stats: what the sync doesn't carry (match logs, full attendance history, turnout).
+  // Everyone's attendance marks need availability.view; the handler narrows to your own otherwise.
+  'stats.feed': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/stats',
+    auth: 'team',
+    action: 'team.view',
+  },
+
   // Kit and inventory (items and open handoffs ride the team sync)
   /** Append-only history of one item. */
   'inventory.history': {

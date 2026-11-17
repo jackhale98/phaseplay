@@ -157,6 +157,7 @@ type Block = {
 - **Data layer:** each team's data is cached in IndexedDB. Screens render from cache straight away, then delta-sync on load, on focus, on reconnect, and every 60 s while visible.
 - **Outbox:** mutations are queued in IndexedDB with client IDs and applied to the cache optimistically. Versioned edits pin the version they were based on when made (`baseVersion`) and send it as `If-Match`, advancing only through this device's own successful writes, so another person's change always surfaces as a 409. Entries failing with 5xx are discarded after 6 tries so they can't block the queue. Signing in as a different account clears the device cache. They retry with backoff (and Background Sync where supported), and the UI shows a small sync status that is announced through `aria-live`.
 - **Match mode** writes append-only `match_events`, so the server merge is a union by ID.
+- **Season stats** compute on the device; see §Season stats for the one extra read they need.
 
 ## Push notifications (M7)
 
@@ -167,6 +168,17 @@ type Block = {
 - **Crypto** (`lib/push/`): RFC 8291 `aes128gcm` and RFC 8292 VAPID (ES256 JWT) with WebCrypto only, tested against the RFC 8291 §5 vector. The VAPID key pair is generated on first use into `server_keys`; signed JWTs are cached in memory per push-service origin for 12 h.
 - **Safety:** endpoints must be a known push service (FCM, Mozilla, WNS, Apple) so the server never posts to arbitrary hosts. Payloads carry only names and titles the team already sees, never RSVP notes. Signing out everywhere or deleting the account removes every device. With `ENV=test` sends are faked. Redirects from a push service aren't followed. Signing out on a device removes its subscription first; a re-published team sheet only notifies when the line-up changed.
 - **Web:** `/settings/notifications` turns push on per device, sets topics, sends a test and lists devices. On iPhone/iPad in Safari it shows how to add the app to the Home Screen first (iOS only allows Web Push for installed web apps, 16.4+). The service worker shows the notification and, on tap, focuses an open window and navigates it, or opens one.
+
+## Season stats (M7)
+
+- **Where the numbers come from:** pure functions in `packages/shared/stats.ts`, unit-tested, run on the device over the snapshot rows plus the stats feed. Nothing is stored or pre-aggregated on the server.
+  - **Attendance** (`attendanceStats`): practices and games attended vs held (held = over, not cancelled or deleted, in the window). Where a register was taken (any `rsvps.attended` set for the event) it counts; otherwise an RSVP "yes" counts and the UI says how many sessions that was. An event counts for someone once they've joined, or whenever they have a mark for it. Team turnout averages cover events with any replies or a register.
+  - **Minutes, results, scorers, cards** (`matchLine`, `seasonTallies`): each game's log goes through `reduceMatch` (and `reduceDay` for 7s tournaments, each game its own result) with the lineup from its **published** team sheet (`sheetLineup` in `match-day.ts`, shared with match mode), reduced at its last recorded entry so an unfinished log never keeps counting. Games with no kick-off in the log count as "not recorded".
+  - **Penalty trend** (`penaltyTrend`): penalties conceded per recorded game, the average, and top offences.
+  - **Training load** (`planLoad`, `trainingLoad`, `loadByGroup`): per week (Monday start, team timezone), from the practice plans attached to held practices: contact = drill contact level shields/full, high intensity = drill intensity ≥ 4, × block minutes (rotations count all stations). The team figure is the planner's (the busiest lane per slot); split sessions also count per group, and a whole-squad block counts for every group. Team-level only.
+- **Stats feed** `GET /api/v1/teams/:teamId/stats?from=&to=` (`stats.feed`, action `team.view`): one membership query plus one batch of three indexed statements (events by `(team_id, starts_at)` joined to `rsvps` / `match_events` by event). It returns what the snapshot lacks: match logs of games in the window (capped at 10,000 rows; a partly cut match is left out and `truncated` set), attendance marks older than the 120-day sync window, and per-event team turnout (taken, present, yes). Marks are everyone's with `availability.view`, otherwise only the caller's. RSVP notes are never selected.
+- **Web:** `/stats` (desktop sidebar, More on phones, key 7). It renders from the snapshot and match mode's local logs at once, then the last feed cached in IndexedDB (`kv`), then a fresh feed. The season picker defaults to the season running today (`currentSeason`) and offers "All time".
+- **Who sees what:** results, scoring, cards, penalties, training load and team turnout are for every member. Other people's attendance and minutes need `availability.view` (staff, or a Captain-style role); players see their own line. No health data: stoppage reasons and RSVP notes are never read.
 
 ## Security and privacy
 

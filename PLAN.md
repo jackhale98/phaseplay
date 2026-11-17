@@ -222,7 +222,7 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
   - team sheet published
   - new play or practice plan shared
 - On iOS, guide players through installing the app to the home screen first, because Web Push only works after install.
-- **Season stats:** attendance, minutes played, match tallies and penalty trends, and training load (contact and high-intensity minutes from the practice plans).
+- ~~**Season stats:** attendance, minutes played, match tallies and penalty trends, and training load (contact and high-intensity minutes from the practice plans).~~ Done: `/stats`, computed on the device (`packages/shared/stats.ts`) plus one `stats.feed` read. See `docs/architecture.md` §Season stats.
 - ~~Team crest upload~~ Done early: emblems are resized in the browser (256 px, PNG/WebP) and stored in D1 (`team_crests`, ≤ 200 KB), not R2. See `docs/decisions.md`.
 
 ### M8 — Cloudflare hardening (hosting itself moved into M0)
