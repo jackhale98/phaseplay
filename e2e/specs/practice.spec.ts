@@ -108,7 +108,8 @@ test('a coach builds a 90-minute split session on a phone', async ({
   await setMinutes(page, 'Ruck-clearing lanes', 20);
   await setMinutes(page, '3 v 2 overload', 20);
   await setMinutes(page, 'Defensive line speed', 19);
-  await setMinutes(page, 'Touch rugby game', 25);
+  // The RAMP warm-up defaults to 12 min, so the game gets 23 to fill the 90.
+  await setMinutes(page, 'Touch rugby game', 23);
 
   const totals = page.getByRole('status', { name: 'Session totals' });
   await expect(totals).toContainText('1 h 30 min');
@@ -119,7 +120,7 @@ test('a coach builds a 90-minute split session on a phone', async ({
   await expect(totals).toContainText('High intensity 20 min');
 
   // One more minute of warm-up runs over the slot.
-  const warm = page.getByRole('group', { name: 'Dynamic warm-up minutes' });
+  const warm = page.getByRole('group', { name: 'Dynamic warm-up (RAMP) minutes' });
   await warm.getByRole('button', { name: 'More' }).click();
   await expect(totals).toContainText('Over by 1 min');
   await warm.getByRole('button', { name: 'Less' }).click();
@@ -150,7 +151,7 @@ test('desktop planner: library side panel, reorder by keyboard, accessible', asy
   const planId = await planViaApi(
     team,
     [
-      ['Dynamic warm-up', 10],
+      ['Dynamic warm-up (RAMP)', 10],
       ['Touch rugby game', 15],
     ],
     ev.id,
@@ -177,7 +178,7 @@ test('runner: block 2 is current 16 minutes in, with the right countdown', async
   const planId = await planViaApi(
     team,
     [
-      ['Dynamic warm-up', 10],
+      ['Dynamic warm-up (RAMP)', 10],
       ['Channel passing lines', 10],
       ['Water', 3],
       ['Touch rugby game', 15],
@@ -191,7 +192,7 @@ test('runner: block 2 is current 16 minutes in, with the right countdown', async
   await page.clock.pauseAt(Date.now() + 60_000);
   await start.click();
   await expect(page.getByTestId('countdown')).toHaveText('10:00');
-  await expect(page.locator('.now-title')).toHaveText('Dynamic warm-up');
+  await expect(page.locator('.now-title')).toHaveText('Dynamic warm-up (RAMP)');
   await page.clock.fastForward('16:00');
   await expect(page.getByText('Block 2 of 4')).toBeVisible();
   await expect(page.locator('.now-title')).toHaveText('Channel passing lines');
@@ -210,7 +211,7 @@ test('runner: block 2 is current 16 minutes in, with the right countdown', async
 
 test('runner is accessible before and during a session', async ({ page, team, axe }) => {
   const planId = await planViaApi(team, [
-    ['Dynamic warm-up', 10],
+    ['Dynamic warm-up (RAMP)', 10],
     ['Touch rugby game', 15],
   ]);
   await openTeam(page, team.teamId, `/practice/${planId}/run`);
