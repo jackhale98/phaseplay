@@ -36,4 +36,4 @@ Anyone can try Phaseplay without an account: **Explore the demo** on the landing
 ## Data
 
 - Backups: D1 Time Travel (`wrangler d1 time-travel restore phaseplay --env production --timestamp <iso>`), 7 days on the free plan, 30 on Workers Paid.
-- Switch to Workers Paid ($5/month) once a second team joins, so daily D1 limits can't take the app down on match day.
+- Free plan: fine for a handful of teams. Move to Workers Paid ($5/month) when D1 reads pass about half the 5M/day cap (roughly 5–8 active teams) or before a big tournament weekend; free limits are hard daily caps.
