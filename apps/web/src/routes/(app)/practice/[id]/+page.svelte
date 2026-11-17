@@ -68,7 +68,6 @@
     IconWarn,
     IconChecklist,
     IconTrash,
-    IconEye,
     IconRepeat,
     IconMore,
     IconChevronLeft,
@@ -522,9 +521,6 @@
               >{#snippet icon()}<IconPlay />{/snippet}Run session</Button
             >
           {/if}
-          <Button href="/practice/{id}/today"
-            >{#snippet icon()}<IconEye />{/snippet}Players' view</Button
-          >
           {#if canEdit}
             <Button variant="ghost" onclick={() => (moreOpen = true)}
               >{#snippet icon()}<IconMore />{/snippet}More</Button

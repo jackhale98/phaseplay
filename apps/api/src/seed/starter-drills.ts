@@ -288,35 +288,33 @@ export const STARTER_DRILLS: StarterDrill[] = [
   },
 ];
 
-export function starterDrillStatements(db: D1Database, teamId: string, t: number) {
+/** Starter drill rows for a new team (inserted with one bulk statement). */
+export function starterDrillRows(teamId: string, t: number): Record<string, unknown>[] {
   return STARTER_DRILLS.map((d, i) => {
     const diagram: Play | null = starterDiagram(d.key);
-    return db
-      .prepare(
-        `INSERT INTO drills (id, team_id, title, category, contact_level, intensity, players_min, players_max, area,
-          equipment, default_duration_min, description, coaching_points, setup, variations, diagram, visibility, source,
-          version, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'team', 'starter', 1, NULL, ?, ?)`,
-      )
-      .bind(
-        uuidv7(t + i),
-        teamId,
-        d.title,
-        d.category,
-        d.contactLevel,
-        d.intensity,
-        d.players[0],
-        d.players[1],
-        JSON.stringify({ w: d.area[0], h: d.area[1] }),
-        JSON.stringify(d.equipment),
-        d.minutes,
-        d.description,
-        JSON.stringify(d.coachingPoints),
-        d.setup,
-        JSON.stringify(d.variations),
-        diagram ? JSON.stringify(diagram) : null,
-        t,
-        t,
-      );
+    return {
+      id: uuidv7(t + i),
+      team_id: teamId,
+      title: d.title,
+      category: d.category,
+      contact_level: d.contactLevel,
+      intensity: d.intensity,
+      players_min: d.players[0],
+      players_max: d.players[1],
+      area: JSON.stringify({ w: d.area[0], h: d.area[1] }),
+      equipment: JSON.stringify(d.equipment),
+      default_duration_min: d.minutes,
+      description: d.description,
+      coaching_points: JSON.stringify(d.coachingPoints),
+      setup: d.setup,
+      variations: JSON.stringify(d.variations),
+      diagram: diagram ? JSON.stringify(diagram) : null,
+      visibility: 'team',
+      source: 'starter',
+      version: 1,
+      created_by: null,
+      created_at: t,
+      updated_at: t,
+    };
   });
 }

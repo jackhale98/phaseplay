@@ -262,8 +262,11 @@
     <div class="center"><EmptyState title="Plan not found" body="It may have been deleted." /></div>
   {:else if !allowed}
     <div class="center">
-      <EmptyState title="Coaches run the clock" body="Follow along in Today's session instead.">
-        {#snippet action()}<Button href="/practice/{id}/today">Today's session</Button>{/snippet}
+      <EmptyState
+        title="Coaches run the clock"
+        body="Your coach runs the session timer on their device."
+      >
+        {#snippet action()}<Button href="/practice/{id}">View the plan</Button>{/snippet}
       </EmptyState>
     </div>
   {:else if !plan.data.slots.length}

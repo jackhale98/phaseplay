@@ -100,6 +100,16 @@ export async function verifyRegistration(c: Context<AppEnv>, challenge: string, 
   }
   if (!result.verified) throw new HttpError(400, 'bad_request', 'Passkey could not be verified');
   const info = result.registrationInfo;
+  const dup = await c.var.db
+    .prepare('SELECT 1 FROM credentials WHERE id = ?')
+    .bind(info.credential.id)
+    .first();
+  if (dup)
+    throw new HttpError(
+      409,
+      'conflict',
+      'This passkey is already registered. Try signing in instead.',
+    );
   return {
     id: info.credential.id,
     publicKey: bytesToBase64Url(info.credential.publicKey),

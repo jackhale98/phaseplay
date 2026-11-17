@@ -4,7 +4,7 @@
   import type { InvitePreview } from '@phaseplay/shared';
   import { api, ApiError, v1 } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
-  import { fragmentToken, friendlyWebAuthnError, signUp } from '#lib/auth';
+  import { fragmentToken, friendlyWebAuthnError, signOut, signUp } from '#lib/auth';
   import Button from '#lib/components/Button.svelte';
   import Field from '#lib/components/Field.svelte';
   import Crest from '#lib/components/Crest.svelte';
@@ -38,6 +38,11 @@
       return;
     }
     signedIn = await app.init();
+    // The read-only demo account can't join teams: start fresh as yourself.
+    if (app.demo) {
+      await signOut();
+      signedIn = false;
+    }
   });
 
   async function accept() {

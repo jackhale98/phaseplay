@@ -55,9 +55,27 @@ const SYNC_SQL = `SELECT
      WHERE team_id = ?1 AND event_id IN (SELECT event_id FROM rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5))
      GROUP BY event_id)) AS counts,
   ${arr(SHEET_COLS, `team_sheets WHERE team_id = ?1 AND updated_at > ?2 AND (?6 = 1 OR published IS NOT NULL)`)} AS sheets,
-  ${arr(PLAY_META_COLS, `plays WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL)`)} AS plays,
-  ${arr(DRILL_META_COLS, `drills WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL)`)} AS drills,
-  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL)`)} AS plans`;
+  ${arr(PLAY_META_COLS, `plays WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plays,
+  ${arr(DRILL_META_COLS, `drills WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS drills,
+  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plans`;
+
+/**
+ * A row a player can no longer see (made coach-only since their last sync) is sent as a bare
+ * tombstone, so it disappears from their cache without leaking its contents.
+ */
+const hidden =
+  (coach: boolean) =>
+  <T extends { id: string; visibility: string; deletedAt: number | null; updatedAt: number }>(
+    r: T,
+  ): T =>
+    coach || r.visibility === 'team' || r.deletedAt
+      ? r
+      : ({
+          id: r.id,
+          visibility: r.visibility,
+          deletedAt: r.updatedAt,
+          updatedAt: r.updatedAt,
+        } as T);
 
 export function syncRoutes(app: Hono<AppEnv>) {
   /** The main read path: one membership check + one statement returning every changed row. */
@@ -65,8 +83,9 @@ export function syncRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const t = Date.now();
     const sinceRaw = Number(c.req.query('since') ?? 0);
-    const since =
-      Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.max(1, sinceRaw - OVERLAP_MS) : 0;
+    let since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.max(1, sinceRaw - OVERLAP_MS) : 0;
+    // A role change (e.g. coach → player) changes what you may see: start from a full sync.
+    if (since && me.updatedAt > sinceRaw) since = 0;
     const staff = isStaff(me.role);
     const coach = isCoach(me.role);
     const row = await c.var.db
@@ -96,9 +115,9 @@ export function syncRoutes(app: Hono<AppEnv>) {
       sheets: list('sheets')
         .map((r) => sheetFromRow(r, !coach))
         .filter((s) => s !== null),
-      plays: list('plays').map(playMetaFromRow),
-      drills: list('drills').map(drillMetaFromRow),
-      plans: list('plans').map(planFromRow),
+      plays: list('plays').map(playMetaFromRow).map(hidden(coach)),
+      drills: list('drills').map(drillMetaFromRow).map(hidden(coach)),
+      plans: list('plans').map(planFromRow).map(hidden(coach)),
     };
     return c.json(res);
   });

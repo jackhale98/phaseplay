@@ -14,8 +14,8 @@ import { HttpError, body, notFound, now, parseJson } from '../lib/http';
 import { TEAM_COLS, teamFromRow, memberFromRow, MEMBER_COLS } from '../db/rows';
 import { requireUser } from '../auth/session';
 import { auditStmt } from '../lib/audit';
-import { starterDrillStatements } from '../seed/starter-drills';
-import { insertEventStmt } from './events';
+import { starterDrillRows } from '../seed/starter-drills';
+import { bulkInsert } from '../lib/bulk';
 
 export function teamRoutes(app: Hono<AppEnv>) {
   route(app, 'teams.create', async (c) => {
@@ -51,7 +51,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
            VALUES (?, ?, ?, ?, 'owner', '[]', 'active', ?, ?)`,
         )
         .bind(memberId, input.id, u.id, u.displayName, t, t),
-      ...starterDrillStatements(c.var.db, input.id, t),
+      bulkInsert(c.var.db, 'drills', starterDrillRows(input.id, t))!,
       auditStmt(c.var.db, {
         teamId: input.id,
         actorId: u.id,
@@ -206,23 +206,40 @@ export function teamRoutes(app: Hono<AppEnv>) {
       throw new HttpError(400, 'bad_request', `Send at most ${IMPORT_CHUNK} rows per request`);
     const me = c.var.member;
     const t = now();
+    const eventRows = input.events.map((e) => ({
+      id: e.id,
+      team_id: me.teamId,
+      season_id: e.seasonId ?? null,
+      type: e.type,
+      format: e.format ?? null,
+      title: e.title,
+      starts_at: e.startsAt,
+      meet_at: e.meetAt ?? null,
+      ends_at: e.endsAt ?? null,
+      location_name: e.locationName ?? null,
+      location_url: e.locationUrl ?? null,
+      opponent: e.opponent ?? null,
+      notes: e.notes ?? null,
+      rsvp_deadline: e.rsvpDeadline ?? null,
+      settings: e.settings ? JSON.stringify(e.settings) : null,
+      version: 1,
+      created_by: me.userId,
+      updated_at: t,
+    }));
+    const memberRows = input.members.map((m) => ({
+      id: m.id,
+      team_id: me.teamId,
+      user_id: null,
+      display_name: m.displayName,
+      role: 'player',
+      jersey: m.jersey ?? null,
+      positions: JSON.stringify(m.positions ?? []),
+      status: 'pending',
+      updated_at: t,
+    }));
     const stmts = [
-      ...input.events.map((e) => insertEventStmt(c.var.db, me.teamId, me.userId, e, null, t)),
-      ...input.members.map((m) =>
-        c.var.db
-          .prepare(
-            `INSERT INTO memberships (id, team_id, user_id, display_name, role, jersey, positions, status, updated_at)
-             VALUES (?, ?, NULL, ?, 'player', ?, ?, 'pending', ?) ON CONFLICT DO NOTHING`,
-          )
-          .bind(
-            m.id,
-            me.teamId,
-            m.displayName,
-            m.jersey ?? null,
-            JSON.stringify(m.positions ?? []),
-            t,
-          ),
-      ),
+      bulkInsert(c.var.db, 'events', eventRows, { ignoreConflicts: true }),
+      bulkInsert(c.var.db, 'memberships', memberRows, { ignoreConflicts: true }),
       auditStmt(c.var.db, {
         teamId: me.teamId,
         actorId: me.userId,
@@ -231,8 +248,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
         targetId: me.teamId,
         meta: { events: input.events.length, members: input.members.length },
       }),
-    ];
-    // Imports are the one bulk path; D1 batches are a single round trip.
+    ].filter((x): x is D1PreparedStatement => x !== null);
     await c.var.db.batch(stmts);
     return c.json({ ok: true, events: input.events.length, members: input.members.length });
   });

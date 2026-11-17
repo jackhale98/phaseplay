@@ -43,7 +43,13 @@ export function sheetRoutes(app: Hono<AppEnv>) {
         null,
         version,
       )
-      .first();
+      .first()
+      // Another coach already made this match's sheet under a different id (UNIQUE event_id):
+      // fall through to the 409 below so the client adopts theirs.
+      .catch((e: unknown) => {
+        if (String(e).includes('UNIQUE')) return null;
+        throw e;
+      });
     if (row) return c.json({ sheet: sheetFromRow(row, false) });
     const current = await c.var.db
       .prepare(
@@ -82,21 +88,23 @@ export function sheetRoutes(app: Hono<AppEnv>) {
         )
         .bind(snapshot, t, nextVersion, t, id, me.teamId, cur.version),
       c.var.db
+        // Only record the version if the publish above won (same batch, same transaction).
         .prepare(
-          'INSERT OR REPLACE INTO team_sheet_versions (sheet_id, version, snapshot, created_at) VALUES (?, ?, ?, ?)',
+          `INSERT OR REPLACE INTO team_sheet_versions (sheet_id, version, snapshot, created_at)
+           SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM team_sheets WHERE id = ? AND version = ? AND published_at = ?)`,
         )
-        .bind(id, nextVersion, snapshot, t),
-      auditStmt(c.var.db, {
-        teamId: me.teamId,
-        actorId: me.userId,
-        action: 'sheet.published',
-        targetType: 'sheet',
-        targetId: id,
-      }),
+        .bind(id, nextVersion, snapshot, t, id, nextVersion, t),
     ]);
     const row = res?.results[0] as Record<string, unknown> | undefined;
     if (!row)
       throw new HttpError(409, 'conflict', 'The sheet changed while publishing. Try again.');
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: 'sheet.published',
+      targetType: 'sheet',
+      targetId: id,
+    }).run();
     return c.json({ sheet: sheetFromRow(row, false) });
   });
 

@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- ambient types for the optional GIF encoder must travel with this module
 /// <reference path="../types/gifenc.d.ts" />
 /**
  * Video export (docs/diagrams.md §Exports — Video). Feature-detected at runtime, encoders lazy:

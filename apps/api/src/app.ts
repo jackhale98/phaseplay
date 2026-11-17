@@ -26,7 +26,7 @@ export function origins(env: AppEnv['Bindings']) {
 }
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
-const DEMO_ALLOWED = new Set(['/api/v1/auth/logout', '/api/v1/demo']);
+const DEMO_ALLOWED = new Set(['/api/v1/demo', '/api/v1/invites/preview']);
 
 export function createApp() {
   const app = new Hono<AppEnv>();
@@ -47,7 +47,13 @@ export function createApp() {
     }
     if (c.req.path.startsWith('/api/')) c.set('user', await loadSession(c));
     // The public demo account is read-only on the server; the app keeps demo edits on-device.
-    if (c.var.user?.id === DEMO_USER_ID && !SAFE.has(c.req.method) && !DEMO_ALLOWED.has(c.req.path))
+    if (
+      c.var.user?.id === DEMO_USER_ID &&
+      !SAFE.has(c.req.method) &&
+      !DEMO_ALLOWED.has(c.req.path) &&
+      // Signing in/up/out, recovery and device links replace the demo session; they're fine.
+      !c.req.path.startsWith('/api/v1/auth/')
+    )
       throw new HttpError(
         403,
         'demo',

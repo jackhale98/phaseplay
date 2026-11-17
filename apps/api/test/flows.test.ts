@@ -409,3 +409,123 @@ describe('public demo', () => {
     expect((await sync('a0000000-0000-7000-8000-000000000001', a.owner.cookie)).status).toBe(404);
   });
 });
+
+describe('review fixes', () => {
+  it('coaches cannot make device links for the owner or other coaches', async () => {
+    const a = await fixtureTeam();
+    const relink = (cookie: string, memberId: string) =>
+      call('POST', `/api/v1/teams/${a.teamId}/members/${memberId}/relink`, {
+        cookie,
+        body: { id: uuidv7(), memberId },
+      });
+    expect((await relink(a.coach.cookie, a.owner.memberId)).status).toBe(403);
+    expect((await relink(a.coach.cookie, a.player.memberId)).status).toBe(201);
+    expect((await relink(a.owner.cookie, a.coach.memberId)).status).toBe(201);
+    // A player who coaches another team can't be re-linked from here either.
+    const b = await fixtureTeam('Team B');
+    const inv = await call('POST', `/api/v1/teams/${b.teamId}/invites`, {
+      cookie: b.owner.cookie,
+      body: { id: uuidv7(), role: 'coach' },
+    });
+    await call('POST', '/api/v1/invites/accept', {
+      cookie: a.player.cookie,
+      body: { token: inv.body.token },
+    });
+    expect((await relink(a.coach.cookie, a.player.memberId)).status).toBe(403);
+  });
+
+  it('a second sheet for the same match is a 409 with the existing sheet, not a 500', async () => {
+    const a = await fixtureTeam();
+    const r = await call('PUT', `/api/v1/teams/${a.teamId}/sheets/${uuidv7()}`, {
+      cookie: a.coach.cookie,
+      body: {
+        eventId: a.eventId,
+        format: '15s',
+        replacements: 8,
+        slots: {},
+        captainId: null,
+        viceId: null,
+      },
+    });
+    expect(r.status).toBe(409);
+    expect(r.body.error.latest.id).toBe(a.sheetId);
+  });
+
+  it('a failed name claim does not use up the invite', async () => {
+    const a = await fixtureTeam();
+    const inv = await call('POST', `/api/v1/teams/${a.teamId}/invites`, {
+      cookie: a.owner.cookie,
+      body: { id: uuidv7(), role: 'player', maxUses: 1 },
+    });
+    const u1 = await login('U1');
+    const bad = await call('POST', '/api/v1/invites/accept', {
+      cookie: u1.cookie,
+      body: { token: inv.body.token, claimMemberId: uuidv7() },
+    });
+    expect(bad.status).toBe(409);
+    const u2 = await login('U2');
+    expect(
+      (
+        await call('POST', '/api/v1/invites/accept', {
+          cookie: u2.cookie,
+          body: { token: inv.body.token },
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it('a play made coach-only disappears from players on their next delta sync', async () => {
+    const a = await fixtureTeam();
+    const s0 = await sync(a.teamId, a.player.cookie);
+    expect(s0.body.plays.map((p) => p.id)).toContain(a.playId);
+    await call('PATCH', `/api/v1/teams/${a.teamId}/plays/${a.playId}`, {
+      cookie: a.coach.cookie,
+      ifMatch: 1,
+      body: { visibility: 'coaches', title: 'Secret' },
+    });
+    const s1 = await sync(a.teamId, a.player.cookie, s0.body.cursor);
+    const p = s1.body.plays.find((x) => x.id === a.playId)!;
+    expect(p.deletedAt).toBeTruthy();
+    expect(JSON.stringify(s1.body)).not.toContain('Secret');
+  });
+
+  it('a role change forces a full sync', async () => {
+    const a = await fixtureTeam();
+    const s0 = await sync(a.teamId, a.player.cookie);
+    await call('PATCH', `/api/v1/teams/${a.teamId}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { role: 'coach' },
+    });
+    const s1 = await sync(a.teamId, a.player.cookie, s0.body.cursor);
+    expect(s1.body.full).toBe(true);
+  });
+
+  it('a demo cookie does not block signing in, recovering or previewing an invite', async () => {
+    const d = await call('POST', '/api/v1/demo', { body: {} });
+    const cookie = d.headers.get('set-cookie')!.split(';')[0]!;
+    expect((await call('POST', '/api/v1/auth/login/options', { cookie, body: {} })).status).toBe(
+      200,
+    );
+    expect(
+      (await call('POST', '/api/v1/invites/accept', { cookie, body: { token: 'x'.repeat(22) } }))
+        .status,
+    ).toBe(403);
+  });
+
+  it('creating a team stays within the query budget', async () => {
+    const u = await login();
+    const r = await call('POST', '/api/v1/teams', {
+      cookie: u.cookie,
+      body: {
+        id: uuidv7(),
+        name: 'Budget RFC',
+        shortName: 'BRFC',
+        colors: { primary: '#1f6f43', secondary: '#f2c230' },
+        defaultFormat: '15s',
+        timezone: 'Europe/London',
+      },
+    });
+    expect(r.status).toBe(201);
+    expect(r.queries).toBeLessThanOrEqual(6);
+  });
+});

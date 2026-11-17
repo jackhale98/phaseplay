@@ -150,6 +150,25 @@ export function memberRoutes(app: Hono<AppEnv>) {
     if (target.status !== 'active' || !target.userId)
       throw new HttpError(400, 'bad_request', 'Only joined members can re-link a device');
     if (input.memberId !== target.id) throw new HttpError(400, 'bad_request', 'Mismatched member');
+    // A device link adds a passkey to the target's whole account. Owners may re-link coaches,
+    // managers and players; coaches only managers and players. Nobody can re-link an owner, or
+    // anyone who is a coach or owner of another team (they must use their recovery codes).
+    const allowed =
+      me.role === 'owner'
+        ? target.role !== 'owner'
+        : target.role === 'manager' || target.role === 'player';
+    if (!allowed)
+      throw forbidden(
+        "You can't make a device link for that member. They can use a recovery code.",
+      );
+    const elsewhere = await c.var.db
+      .prepare(
+        `SELECT 1 FROM memberships WHERE user_id = ? AND team_id != ? AND status = 'active' AND role IN ('owner', 'coach') LIMIT 1`,
+      )
+      .bind(target.userId, me.teamId)
+      .first();
+    if (elsewhere)
+      throw forbidden('They coach another team, so they need to use a recovery code instead.');
     const token = randomToken(16);
     const t = now();
     await c.var.db.batch([
@@ -308,6 +327,13 @@ export function memberRoutes(app: Hono<AppEnv>) {
       .bind(teamId, u.id)
       .first<{ id: string; status: string }>();
     if (existing?.status === 'active') return c.json({ ok: true, teamId, memberId: existing.id });
+    if (!existing && input.claimMemberId) {
+      const pending = await c.var.db
+        .prepare(`SELECT 1 FROM memberships WHERE id = ? AND team_id = ? AND status = 'pending'`)
+        .bind(input.claimMemberId, teamId)
+        .first();
+      if (!pending) throw new HttpError(409, 'conflict', 'That name has already been claimed');
+    }
 
     const used = await c.var.db
       .prepare('UPDATE invites SET uses = uses + 1 WHERE id = ? AND uses < max_uses RETURNING id')

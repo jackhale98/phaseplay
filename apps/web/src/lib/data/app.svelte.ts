@@ -10,6 +10,7 @@ import {
   kv,
   clearAll,
   saveSnapshot,
+  loadSnapshot,
   type OutboxEntry,
   type Optimistic,
   type VersionedEntity,
@@ -21,6 +22,8 @@ import { theme } from '#lib/stores/theme.svelte';
 export type SyncStatus = 'synced' | 'syncing' | 'pending' | 'offline' | 'error';
 
 const SYNC_EVERY = 60_000;
+/** After this many 5xx/429 failures an entry is discarded so it can't block the queue. */
+const MAX_SERVER_RETRIES = 6;
 const VERSIONED_RESPONSE_KEYS: Record<string, VersionedEntity> = {
   event: 'events',
   sheet: 'sheets',
@@ -205,7 +208,9 @@ class AppState {
     this.syncing = (async () => {
       this.status = 'syncing';
       try {
-        const prev = this.snap?.teamId === teamId ? this.snap : null;
+        // Merge onto the stored server-confirmed snapshot (never onto optimistic/demo state),
+        // so a rejected write can still be rolled back.
+        const prev = (await loadSnapshot(teamId).catch(() => undefined)) ?? null;
         const res = await api<SyncResponse>(v1(`/teams/${teamId}/sync?since=${prev?.cursor ?? 0}`));
         const merged = mergeSync(prev, res);
         await saveSnapshot(merged).catch((e) => console.warn('Could not cache team data', e));
@@ -249,12 +254,15 @@ class AppState {
 
   async signedIn() {
     // Never let the demo's cached data or on-device edits leak into a real account (or vice versa).
-    const wasDemo = this.demo;
+    // The previous user may only be known from IndexedDB (e.g. /signin on a fresh page load).
+    const prev = this.me ?? (await kv.get<MeResponse>('me'));
+    const next = await api<MeResponse>(v1('/me')).catch(() => null);
     this.demoOps = [];
-    if (wasDemo || this.me) {
+    if (prev && (!next || prev.user.id !== next.user.id || prev.demo || next.demo)) {
       await clearAll().catch(() => {});
       this.snap = null;
       this.teamId = null;
+      this.me = null;
     }
     try {
       localStorage.setItem('pp:session', '1');
@@ -391,6 +399,7 @@ class AppState {
       )?.[e.versionOf.id];
       ifMatch = row?.version ?? null;
     }
+    this.sending = e.id;
     try {
       const res = await api<Record<string, unknown>>(e.path, {
         method: e.method,
@@ -409,6 +418,12 @@ class AppState {
           return false;
         }
         const attempts = e.attempts + 1;
+        if (attempts >= MAX_SERVER_RETRIES) {
+          await drop();
+          toasts.error(`${e.label} couldn't be saved after several tries, so it was discarded.`);
+          void this.resync(e.teamId);
+          return true;
+        }
         const backoff = Math.min(60_000, 1000 * 2 ** attempts) * (0.75 + Math.random() * 0.5);
         if (e.seq !== undefined)
           await d?.put('outbox', { ...e, attempts, nextAt: Date.now() + backoff });
@@ -423,10 +438,22 @@ class AppState {
       if (err.status === 409 && err.extra.latest && e.versionOf) {
         const latest = err.extra.latest as { id: string };
         await this.putRow(e.teamId, e.versionOf.entity, latest.id, latest);
-        toasts.show(`${e.label}: someone else changed this, so you're seeing their version.`, {
-          tone: 'warn',
-          timeout: 7000,
-        });
+        // Later queued edits were based on our stale copy: drop them rather than overwrite theirs.
+        const vo = e.versionOf;
+        for (const later of await this.outbox(e.teamId))
+          if (
+            later.seq !== undefined &&
+            later.versionOf?.entity === vo.entity &&
+            later.versionOf.id === vo.id
+          )
+            await d?.delete('outbox', later.seq);
+        // Screens that offer their own choice (e.g. the play editor's Keep mine / Take theirs)
+        // register a listener; otherwise tell the user what happened.
+        if (!this.conflictListeners.size)
+          toasts.show(`${e.label}: someone else changed this, so you're seeing their version.`, {
+            tone: 'warn',
+            timeout: 7000,
+          });
         for (const fn of this.conflictListeners) fn(e.versionOf.entity, latest);
       } else {
         toasts.error(`${e.label} didn't save: ${err.message}`);

@@ -1,3 +1,4 @@
+import { bulkInsert } from '../lib/bulk';
 import { buildDemo, DEMO_TABLE_ORDER, DEMO_TEAM_ID } from './demo';
 
 /** Refresh the demo at most this often so its dates always look current. */
@@ -27,18 +28,8 @@ export async function ensureDemo(
     db.prepare('DELETE FROM audit_log WHERE team_id = ?').bind(DEMO_TEAM_ID),
   ];
   for (const t of DEMO_TABLE_ORDER) {
-    const rows = tables[t];
-    if (!rows.length) continue;
-    const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
-    const full = rows.map((r) => Object.fromEntries(cols.map((c) => [c, r[c] ?? null])));
-    stmts.push(
-      db
-        .prepare(
-          `INSERT ${t === 'users' ? 'OR IGNORE ' : ''}INTO ${t} (${cols.join(', ')})
-           SELECT ${cols.map((c) => `j.value ->> '$.${c}'`).join(', ')} FROM json_each(?) j`,
-        )
-        .bind(JSON.stringify(full)),
-    );
+    const st = bulkInsert(db, t, tables[t], { ignoreConflicts: t === 'users' });
+    if (st) stmts.push(st);
   }
   await db.batch(stmts);
   return true;

@@ -81,9 +81,7 @@
               >{#snippet icon()}<IconPlay />{/snippet}Run session</Button
             >
           {/if}
-          <Button href="/practice/{p.id}/today"
-            >{#snippet icon()}<IconEye />{/snippet}Today's session</Button
-          >
+          <Button href="/practice/{p.id}">{#snippet icon()}<IconEye />{/snippet}View plan</Button>
         </div>
       </section>
     {/if}
@@ -119,7 +117,7 @@
               <p class="t">{e.title || EVENT_TYPE_LABELS.training}</p>
               <p class="muted small">{relDay(e.startsAt, tz)} · {span(e)}</p>
               {#if p}
-                <a class="plan-link" href="/practice/{p.id}{coach ? '' : '/today'}">
+                <a class="plan-link" href="/practice/{p.id}">
                   <IconClipboard /><span class="truncate">{p.title}</span><small class="tnum"
                     >{fmtMin(p.plannedTotalMin)}</small
                   >
@@ -135,7 +133,7 @@
                     >{#snippet icon()}<IconPlay />{/snippet}Run</Button
                   >
                 {:else}
-                  <Button size="sm" href="/practice/{p.id}/today">Follow</Button>
+                  <Button size="sm" href="/practice/{p.id}">View</Button>
                 {/if}
               {:else if coach}
                 <Button size="sm" variant="primary" href="/practice/new?event={e.id}"

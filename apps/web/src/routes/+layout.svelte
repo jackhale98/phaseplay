@@ -29,6 +29,11 @@
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing || !hadController) return;
+      // Another tab applied an update: never reload under a live match or practice session.
+      if (app.busy) {
+        toasts.show('Phaseplay was updated. Reload when your session is over.', { timeout: 0 });
+        return;
+      }
       refreshing = true;
       location.reload();
     });
