@@ -303,7 +303,7 @@ See `docs/runbook.md` §First deploy for the exact steps.
 - [x] Connect GitHub to Cloudflare.
 - [ ] Import the repo in Workers & Pages with the build settings in `docs/runbook.md` (the D1 database is created automatically on first deploy).
 - [ ] Turn on branch protection for `main` and require the CI checks.
-- [ ] Switch to the Workers Paid plan ($5/month) once a second team joins, so daily limits can't take the app down on match day.
+- [ ] Watch usage in the Cloudflare dashboard (Workers & D1 metrics). The free plan comfortably covers a handful of teams; switch to Workers Paid ($5/month) when daily D1 reads pass about half of the 5M limit (roughly 5–8 active teams) or before a big tournament weekend, because free-plan limits are hard daily caps.
 
 ## 8. Open questions (don't block on these; use sensible defaults)
 
