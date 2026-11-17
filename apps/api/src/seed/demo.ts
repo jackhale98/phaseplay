@@ -756,6 +756,354 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     add(80, { kind: 'period_end', period: 2 }, 15 * 60e3);
   }
 
+  // Season stats (PLAN.md M7): earlier league games and a 7s day with published sheets and match
+  // logs, practice plans on past practices, and the latest practice with no register taken.
+  {
+    const squad = members.slice(3);
+    type Entry = [minute: number, payload: MatchPayload, wallOffset?: number, rowId?: string];
+    const logMatch = (eventId: string, ko: number, entries: Entry[]) =>
+      entries.forEach(([minute, payload, wallOffset = 0, rowId], i) =>
+        insert('match_events', {
+          id: rowId ?? id('3e'),
+          event_id: eventId,
+          team_id: TEAM,
+          seq: i,
+          kind: payload.kind,
+          payload: JSON.stringify(payload),
+          game_ms: Math.round(minute * 60e3),
+          wall_at: ko + Math.round((minute + wallOffset) * 60e3),
+          supersedes_id: null,
+          created_by: owner.userId,
+          created_at: ko,
+        }),
+      );
+    const publishSheet = (
+      ev: { id: string; startsAt: number },
+      format: '15s' | '7s',
+      replacements: number,
+      slots: Record<string, string | null>,
+    ) => {
+      const captain = slots[format === '15s' ? '8' : '4'] ?? null;
+      const publishedAt = ev.startsAt - 2 * 86400e3;
+      insert('team_sheets', {
+        id: id('5e'),
+        event_id: ev.id,
+        team_id: TEAM,
+        format,
+        replacements,
+        slots: JSON.stringify(slots),
+        captain_id: captain,
+        vice_id: null,
+        status: 'published',
+        published: JSON.stringify({
+          format,
+          replacements,
+          slots,
+          captainId: captain,
+          viceId: null,
+          publishedAt,
+        }),
+        version: 2,
+        published_at: publishedAt,
+        created_by: owner.userId,
+        updated_at: publishedAt,
+      });
+    };
+    /** The usual XV with a few changes (slot ↔ slot swaps). */
+    const rotated = (swaps: [number, number][]) => {
+      const s = pickSheet();
+      for (const [a, b] of swaps)
+        [s[String(a)], s[String(b)]] = [s[String(b)] ?? null, s[String(a)] ?? null];
+      return s;
+    };
+    type Slots = Record<string, string | null>;
+    const sub = (s: Slots, off: number, on: number): MatchPayload => ({
+      kind: 'sub',
+      team: 'us',
+      offId: s[String(off)]!,
+      onId: s[String(on)]!,
+      type: 'tactical',
+    });
+    const us = (
+      type: 'try' | 'conversion' | 'conversion_miss' | 'penalty_goal' | 'drop_goal',
+      s: Slots,
+      slot: number,
+    ): MatchPayload => ({
+      kind: 'score',
+      team: 'us',
+      type,
+      playerId: s[String(slot)],
+    });
+    const them = (type: 'try' | 'conversion' | 'penalty_goal'): MatchPayload => ({
+      kind: 'score',
+      team: 'them',
+      type,
+    });
+    const pen = (
+      offence: 'offside' | 'ruck' | 'scrum' | 'high_tackle' | 'not_releasing',
+      x: number,
+      y: number,
+    ): MatchPayload => ({
+      kind: 'penalty',
+      side: 'against',
+      offence,
+      zone: { x, y },
+      outcome: 'kick_to_touch',
+    });
+    const HT = 15; // wall minutes of half time
+
+    const [first, second] = matches.filter((m) => m.startsAt < now && m.id !== lastMatch.id);
+    if (first) {
+      // A bruising 12–17 loss, with penalties piling up at the breakdown.
+      const s = rotated([
+        [1, 16],
+        [12, 22],
+      ]);
+      publishSheet(first, '15s', 8, s);
+      logMatch(first.id, first.startsAt, [
+        [0, { kind: 'period_start', period: 1 }],
+        [4, pen('offside', 0.5, 0.4)],
+        [9, them('try')],
+        [10, them('conversion')],
+        [16, pen('ruck', 0.35, 0.55)],
+        [21, us('try', s, 11)],
+        [22, us('conversion_miss', s, 10)],
+        [28, pen('not_releasing', 0.6, 0.3)],
+        [33, pen('ruck', 0.45, 0.62)],
+        [40, { kind: 'period_end', period: 1 }],
+        [40, { kind: 'period_start', period: 2 }, HT],
+        [47, them('try'), HT],
+        [50, sub(s, 1, 16), HT],
+        [52, pen('high_tackle', 0.3, 0.45), HT],
+        [55, sub(s, 9, 21), HT],
+        [58, us('try', s, 7), HT],
+        [59, us('conversion', s, 10), HT],
+        [62, pen('offside', 0.55, 0.5), HT],
+        [64, sub(s, 6, 20), HT],
+        [70, them('try'), HT],
+        [74, pen('ruck', 0.4, 0.7), HT],
+        [80, { kind: 'period_end', period: 2 }, HT],
+      ]);
+    }
+    if (second) {
+      // A 15–15 draw, with a yellow card at the breakdown.
+      const s = rotated([
+        [9, 21],
+        [4, 19],
+      ]);
+      publishSheet(second, '15s', 8, s);
+      const yc = id('3e');
+      logMatch(second.id, second.startsAt, [
+        [0, { kind: 'period_start', period: 1 }],
+        [7, us('try', s, 14)],
+        [8, us('conversion_miss', s, 10)],
+        [12, pen('scrum', 0.5, 0.35)],
+        [19, them('try')],
+        [20, them('conversion')],
+        [26, pen('ruck', 0.42, 0.58)],
+        [31, us('try', s, 2)],
+        [32, us('conversion_miss', s, 10)],
+        [40, { kind: 'period_end', period: 1 }],
+        [40, { kind: 'period_start', period: 2 }, HT],
+        [46, them('penalty_goal'), HT],
+        [52, sub(s, 3, 18), HT],
+        [55, pen('offside', 0.6, 0.48), HT],
+        [57, { kind: 'card', team: 'us', colour: 'yellow', playerId: s['7'] }, HT, yc],
+        [60, sub(s, 15, 23), HT],
+        [66, them('try'), HT],
+        [67, { kind: 'card_return', cardId: yc }, HT],
+        [72, us('try', s, 13), HT],
+        [73, us('conversion_miss', s, 10), HT],
+        [80, { kind: 'period_end', period: 2 }, HT],
+      ]);
+    }
+
+    // An autumn 7s day four weeks back: three pool games, two wins.
+    const day7 = zonedToUtc(addDays(monday, -4 * 7 + 6), '10:00', TZ);
+    const tid = id('e');
+    insert('events', {
+      id: tid,
+      team_id: TEAM,
+      season_id: season,
+      type: 'tournament',
+      format: '7s',
+      title: 'Autumn 7s',
+      starts_at: day7,
+      meet_at: day7 - 60 * 60e3,
+      ends_at: day7 + 6 * 3600e3,
+      location_name: 'Castle Park',
+      notes: 'Pool games at 10:20, 11:40 and 13:00.',
+      version: 1,
+      created_by: owner.userId,
+      updated_at: now,
+    });
+    const sevens = [13, 15, 21, 16, 18, 20, 22, 9, 0, 4, 11, 24].map((i) => squad[i]!.id);
+    const s7: Slots = Object.fromEntries(sevens.map((m, i) => [String(i + 1), m]));
+    publishSheet({ id: tid, startsAt: day7 }, '7s', 5, s7);
+    for (const m of squad) {
+      const picked = sevens.includes(m.id);
+      insert('rsvps', {
+        event_id: tid,
+        member_id: m.id,
+        team_id: TEAM,
+        status: picked || rand() < 0.3 ? 'yes' : 'no',
+        note: null,
+        note_expires_at: null,
+        attended: picked ? 1 : 0,
+        updated_at: day7,
+      });
+    }
+    const H = 7;
+    const day: Entry[] = [];
+    /** Game g on the shared clock starts at (g − 1) × 2 halves; `at` is its wall start in minutes. */
+    const game = (g: number, at: number, plays: [number, MatchPayload][]) => {
+      const base = (g - 1) * 2 * H;
+      const w1 = at - base;
+      const w2 = w1 + 2;
+      day.push([base, { kind: 'period_start', period: 2 * g - 1 }, w1]);
+      for (const [m, p] of plays) if (m < H) day.push([base + m, p, w1]);
+      day.push([base + H, { kind: 'period_end', period: 2 * g - 1 }, w1]);
+      day.push([base + H, { kind: 'period_start', period: 2 * g }, w2]);
+      for (const [m, p] of plays) if (m >= H) day.push([base + m, p, w2]);
+      day.push([base + 2 * H, { kind: 'period_end', period: 2 * g }, w2]);
+    };
+    game(1, 20, [
+      [2, us('try', s7, 6)],
+      [2.5, us('conversion', s7, 5)],
+      [9, them('try')],
+      [10, them('conversion')],
+      [11, us('try', s7, 7)],
+      [11.5, us('conversion', s7, 5)],
+      [13, us('try', s7, 4)],
+    ]);
+    game(2, 100, [
+      [3, them('try')],
+      [4, pen('offside', 0.5, 0.4)],
+      [8, sub(s7, 1, 8)],
+      [10, us('try', s7, 6)],
+      [12, them('try')],
+      [12.5, them('conversion')],
+    ]);
+    game(3, 180, [
+      [1, us('try', s7, 7)],
+      [1.5, us('conversion', s7, 5)],
+      [5, them('try')],
+      [8, sub(s7, 3, 9)],
+      [9, pen('ruck', 0.45, 0.6)],
+      [10, them('try')],
+      [13, us('try', s7, 11)],
+      [13.5, us('conversion', s7, 5)],
+    ]);
+    logMatch(tid, day7, day);
+
+    // Practice plans on every past practice, so training load has a few weeks to show.
+    const drill = (bid: string, key: string, durationMin: number, lane = 'all') => ({
+      id: bid,
+      kind: 'drill' as const,
+      drillId: drillIds[key],
+      durationMin,
+      lane,
+    });
+    const water = (bid: string) => ({
+      id: bid,
+      kind: 'water' as const,
+      durationMin: 3,
+      lane: 'all',
+    });
+    const SESSIONS: { title: string; data: PlanData }[] = [
+      {
+        title: 'Contact and breakdown',
+        data: {
+          lanes: ['forwards', 'backs'],
+          waterEveryMin: 22,
+          slots: [
+            { id: 's1', blocks: [drill('b1', 'dynamic-warmup', 12)] },
+            { id: 's2', blocks: [drill('b2', 'tackle-tubes', 12)] },
+            { id: 's3', blocks: [water('b3')] },
+            {
+              id: 's4',
+              blocks: [drill('b4', 'ruck-lanes', 15, 'forwards'), drill('b5', '3v2', 15, 'backs')],
+            },
+            {
+              id: 's5',
+              blocks: [
+                drill('b6', 'tackle-box', 10, 'forwards'),
+                drill('b7', 'line-speed', 10, 'backs'),
+              ],
+            },
+            { id: 's6', blocks: [water('b8')] },
+            { id: 's7', blocks: [drill('b9', 'touch-game', 15)] },
+          ],
+        },
+      },
+      {
+        title: 'Handling and fitness',
+        data: {
+          lanes: ['all'],
+          waterEveryMin: 22,
+          slots: [
+            { id: 's1', blocks: [drill('b1', 'dynamic-warmup', 12)] },
+            { id: 's2', blocks: [drill('b2', 'square-grid', 10)] },
+            { id: 's3', blocks: [drill('b3', 'channel-passing', 10)] },
+            { id: 's4', blocks: [water('b4')] },
+            { id: 's5', blocks: [drill('b5', '2v1', 10)] },
+            { id: 's6', blocks: [drill('b6', 'shuttles', 8)] },
+            { id: 's7', blocks: [drill('b7', 'touch-game', 15)] },
+          ],
+        },
+      },
+      {
+        title: 'Set piece and defence',
+        data: {
+          lanes: ['forwards', 'backs'],
+          waterEveryMin: 22,
+          slots: [
+            { id: 's1', blocks: [drill('b1', 'dynamic-warmup', 12)] },
+            {
+              id: 's2',
+              blocks: [
+                drill('b2', 'lineout-pod', 15, 'forwards'),
+                drill('b3', 'box-kick-chase', 15, 'backs'),
+              ],
+            },
+            { id: 's3', blocks: [water('b4')] },
+            {
+              id: 's4',
+              blocks: [
+                drill('b5', 'jackal', 10, 'forwards'),
+                drill('b6', 'channel-passing', 10, 'backs'),
+              ],
+            },
+            { id: 's5', blocks: [drill('b7', 'line-speed', 15)] },
+            { id: 's6', blocks: [drill('b8', 'shuttles', 8)] },
+          ],
+        },
+      },
+    ];
+    const pastPractices = evs
+      .filter((e) => e.type === 'training' && e.startsAt + 90 * 60e3 < now)
+      .sort((a, b) => a.startsAt - b.startsAt);
+    pastPractices.forEach((e, i) => {
+      const sess = SESSIONS[i % SESSIONS.length]!;
+      insert('practice_plans', {
+        id: id('9a'),
+        team_id: TEAM,
+        event_id: e.id,
+        title: sess.title,
+        is_template: 0,
+        visibility: 'team',
+        blocks: JSON.stringify(sess.data),
+        planned_total_min: 90,
+        version: 1,
+        created_by: owner.userId,
+        created_at: e.startsAt - 3 * 86400e3,
+        updated_at: e.startsAt - 3 * 86400e3,
+      });
+    });
+    // Nobody took the register at the latest practice: stats fall back to RSVPs there.
+    const latest = pastPractices.at(-1);
+    if (latest) for (const r of tables.rsvps) if (r.event_id === latest.id) r.attended = null;
+  }
   insert('audit_log', {
     id: id('ad'),
     team_id: TEAM,
