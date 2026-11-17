@@ -1110,22 +1110,6 @@ export function touchGame(id = 'drill-touch'): Play {
 }
 
 /** Templates offered in the "New drill" picker, by id. */
-export const DRILL_TEMPLATES = {
-  squareGrid: { label: 'Square grid (4 corners)', build: squareGrid },
-  channels: { label: 'Channels', build: channels },
-  trianglePassing: { label: 'Triangle passing', build: trianglePassing },
-  gates: { label: 'Gates', build: gates },
-  tackleBox: { label: 'Tackle box', build: tackleBox },
-  overload2v1: { label: '2v1 overload', build: overload2v1 },
-  overload3v2: { label: '3v2 overload', build: overload3v2 },
-  ruckLanes: { label: 'Ruck-clearing lanes', build: ruckLanes },
-  conditioningShuttle: {
-    label: 'Conditioning shuttle',
-    build: conditioningShuttle,
-  },
-  touchGame: { label: 'Touch / flag game', build: touchGame },
-} as const satisfies Record<string, { label: string; build: (id?: string) => Play }>;
-export type DrillTemplateId = keyof typeof DRILL_TEMPLATES;
 
 /**
  * Further templates behind the starter-pack diagrams. Not in the picker yet: it also needs a
@@ -1143,3 +1127,21 @@ export const EXTRA_DRILL_TEMPLATES = {
   },
   boxKickChase: { label: 'Box kick and chase', build: boxKickChase },
 } as const satisfies Record<string, { label: string; build: (id?: string) => Play }>;
+
+export const DRILL_TEMPLATES = {
+  squareGrid: { label: 'Square grid (4 corners)', build: squareGrid },
+  channels: { label: 'Channels', build: channels },
+  trianglePassing: { label: 'Triangle passing', build: trianglePassing },
+  gates: { label: 'Gates', build: gates },
+  tackleBox: { label: 'Tackle box', build: tackleBox },
+  overload2v1: { label: '2v1 overload', build: overload2v1 },
+  overload3v2: { label: '3v2 overload', build: overload3v2 },
+  ruckLanes: { label: 'Ruck-clearing lanes', build: ruckLanes },
+  conditioningShuttle: {
+    label: 'Conditioning shuttle',
+    build: conditioningShuttle,
+  },
+  touchGame: { label: 'Touch / flag game', build: touchGame },
+  ...EXTRA_DRILL_TEMPLATES,
+} as const satisfies Record<string, { label: string; build: (id?: string) => Play }>;
+export type DrillTemplateId = keyof typeof DRILL_TEMPLATES;

@@ -31,6 +31,13 @@
     ruckLanes: { category: 'breakdown', contact: 'shields', players: [6, 18] },
     conditioningShuttle: { category: 'conditioning', contact: 'none', players: [4, 30] },
     touchGame: { category: 'game', contact: 'touch', players: [8, 20] },
+    dynamicWarmup: { category: 'warmup', contact: 'none', players: [6, 40] },
+    tackleTubes: { category: 'contact', contact: 'shields', players: [4, 16] },
+    jackalClearOut: { category: 'breakdown', contact: 'shields', players: [6, 18] },
+    lineSpeed: { category: 'defence', contact: 'touch', players: [8, 20] },
+    lineoutPod: { category: 'set_piece', contact: 'shields', players: [4, 9] },
+    lineoutThrowing: { category: 'set_piece', contact: 'none', players: [2, 6] },
+    boxKickChase: { category: 'kicking', contact: 'none', players: [4, 12] },
   };
 
   let title = $state('');
