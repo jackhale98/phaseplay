@@ -22,6 +22,9 @@ export type TeamSnapshot = {
   teamId: string;
   cursor: number;
   syncedAt: number;
+  /** When this copy was last rebuilt from a full sync, and by which app build (self-healing). */
+  fullAt?: number;
+  appVersion?: string;
   team: Team;
   me: Member;
   rows: {

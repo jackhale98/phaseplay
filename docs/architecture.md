@@ -155,6 +155,7 @@ type Block = {
 
 - The service worker precaches the app shell and static assets. API responses are not cached by the service worker.
 - **Data layer:** each team's data is cached in IndexedDB. Screens render from cache straight away, then delta-sync on load, on focus, on reconnect, and every 60 s while visible.
+- **Self-healing:** a device rebuilds its copy with a full sync (`since=0`) once a day and after each app update, so rows the server never accepted (e.g. a write that half-failed in an older build) drop out; change-only syncs can't correct those.
 - **Outbox:** mutations are queued in IndexedDB with client IDs and applied to the cache optimistically. Versioned edits pin the version they were based on when made (`baseVersion`) and send it as `If-Match`, advancing only through this device's own successful writes, so another person's change always surfaces as a 409. Entries failing with 5xx are discarded after 6 tries so they can't block the queue. Signing in as a different account clears the device cache. They retry with backoff (and Background Sync where supported), and the UI shows a small sync status that is announced through `aria-live`.
 - **Match mode** writes append-only `match_events`, so the server merge is a union by ID.
 - **Season stats** compute on the device; see §Season stats for the one extra read they need.

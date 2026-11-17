@@ -144,9 +144,18 @@ function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
     me: res.me,
     cursor: res.cursor,
     syncedAt: Date.now(),
+    fullAt: res.full ? Date.now() : base.fullAt,
+    appVersion: res.full ? __APP_VERSION__ : base.appVersion,
     rows,
   };
 }
+
+/** Rebuild the local copy from scratch once a day and after each app update, so anything a
+ * device has that the server doesn't (e.g. a write that half-failed in an older build) drops out
+ * instead of lingering forever, which change-only syncs would never correct. */
+const FULL_SYNC_EVERY_MS = 24 * 3600e3;
+const needsFullSync = (s: TeamSnapshot | null) =>
+  !s || !s.fullAt || Date.now() - s.fullAt > FULL_SYNC_EVERY_MS || s.appVersion !== __APP_VERSION__;
 
 class AppState {
   me = $state.raw<MeResponse | null>(null);
@@ -261,7 +270,8 @@ class AppState {
         // Merge onto the stored server-confirmed snapshot (never onto optimistic/demo state),
         // so a rejected write can still be rolled back.
         const prev = (await loadSnapshot(teamId).catch(() => undefined)) ?? null;
-        const res = await api<SyncResponse>(v1(`/teams/${teamId}/sync?since=${prev?.cursor ?? 0}`));
+        const since = needsFullSync(prev) ? 0 : (prev?.cursor ?? 0);
+        const res = await api<SyncResponse>(v1(`/teams/${teamId}/sync?since=${since}`));
         const merged = mergeSync(prev, res);
         await saveSnapshot(merged).catch((e) => console.warn('Could not cache team data', e));
         if (this.teamId === teamId) {

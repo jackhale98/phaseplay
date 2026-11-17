@@ -199,3 +199,32 @@ test('a player asks before marking kit lost, and hand-over suggests the coaches'
   await confirm.getByRole('button', { name: 'Mark lost' }).click();
   await expect(page.getByText(/Marked the .* lost/)).toBeVisible();
 });
+
+test('a device drops kit the server never got (self-healing full refresh)', async ({
+  page,
+  team,
+}) => {
+  await addItem(team, { kind: 'cones', name: 'Cones', quantity: 20 });
+  await openTeam(page, team.teamId, '/kit');
+  await expect(page.getByRole('link', { name: /Cones × 20/ })).toBeVisible();
+  // Plant a ghost item in this device's saved copy, as a half-failed write in an older build
+  // could, and make the copy look like it was last rebuilt two days ago.
+  await page.evaluate(async (teamId) => {
+    const open = indexedDB.open('phaseplay');
+    const d: IDBDatabase = await new Promise((r) => (open.onsuccess = () => r(open.result)));
+    const tx = d.transaction('teams', 'readwrite');
+    const store = tx.objectStore('teams');
+    const snap = await new Promise<any>((r) => {
+      const g = store.get(teamId);
+      g.onsuccess = () => r(g.result);
+    });
+    const id = '01a1eaf1-0000-7000-8000-00000000dead';
+    snap.rows.items[id] = { ...Object.values(snap.rows.items)[0]!, id, name: 'Ghost shields' };
+    snap.fullAt = Date.now() - 2 * 86400e3;
+    store.put(snap, teamId);
+    await new Promise((r) => (tx.oncomplete = r));
+  }, team.teamId);
+  await page.reload();
+  await expect(page.getByRole('link', { name: /Cones × 20/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Ghost shields/ })).toHaveCount(0);
+});
