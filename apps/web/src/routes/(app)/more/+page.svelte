@@ -9,6 +9,7 @@
     IconShield,
     IconClipboard,
     IconCalendar,
+    IconBell,
     IconChevronRight,
     IconInfo,
   } from '#lib/icons';
@@ -19,6 +20,7 @@
     { href: '/practice', label: 'Practice plans', icon: IconTimer, show: true },
     { href: '/kit', label: 'Kit', icon: IconClipboard, show: true },
     { href: '/settings/calendar', label: 'Calendar feed', icon: IconCalendar, show: true },
+    { href: '/settings/notifications', label: 'Notifications', icon: IconBell, show: true },
     { href: '/settings/account', label: 'Account and passkeys', icon: IconKey, show: true },
     { href: '/settings/team', label: 'Team settings', icon: IconSettings, show: true },
     { href: '/settings/roles', label: 'Roles and permissions', icon: IconShield, show: true },

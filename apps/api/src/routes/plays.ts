@@ -6,6 +6,8 @@ import { HttpError, body, notFound, now } from '../lib/http';
 import { PLAY_META_COLS, playFullFromRow } from '../db/rows';
 import { auditStmt } from '../lib/audit';
 import { setsFrom, versionedUpdate } from '../lib/versioned';
+import { flushNotifications, notifyStmt } from '../lib/notify';
+import { playShared } from '../lib/push/messages';
 
 const visibleTo = (perms: Perms) =>
   can(perms, 'plays.view_private') ? '' : `AND visibility = 'team'`;
@@ -55,12 +57,33 @@ export function playRoutes(app: Hono<AppEnv>) {
         .first<{ team_id: string }>();
       if (owner?.team_id !== me.teamId)
         throw new HttpError(409, 'conflict', 'Play id already used');
+    } else if (input.visibility === 'team') {
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'plays',
+        playShared(me.teamId, input.id, input.title),
+        me.userId,
+      ).run();
+      flushNotifications(c);
     }
     return c.json({ ok: true, id: input.id }, 201);
   });
 
   route(app, 'plays.update', async (c) => {
+    const me = c.var.member;
     const input = await body(c, PlayUpdate);
+    // Shared with the team just now? Then the squad hears about it.
+    const before =
+      input.visibility === 'team'
+        ? await c.var.db
+            .prepare(
+              'SELECT visibility FROM plays WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+            )
+            .bind(c.req.param('playId'), me.teamId)
+            .first<{ visibility: string }>()
+        : null;
     const { sets, vals } = setsFrom(
       input as Record<string, unknown>,
       {
@@ -91,6 +114,17 @@ export function playRoutes(app: Hono<AppEnv>) {
       map: playFullFromRow,
       what: 'Play',
     });
+    if (before && before.visibility !== 'team') {
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'plays',
+        playShared(me.teamId, play.id, play.title),
+        me.userId,
+      ).run();
+      flushNotifications(c);
+    }
     return c.json({ play });
   });
 
