@@ -22,7 +22,7 @@ const V = {
     'pK4Mqgkf1CXztLVBSt2Ks3oZwbuwXPXLWyouBWLVWGNWQexSgSxsj_Qulcy4a-fN',
 };
 
-async function keyPair(pub: string, priv: string, usages: KeyUsage[]): Promise<CryptoKeyPair> {
+async function keyPair(pub: string, priv: string, usages: string[]): Promise<CryptoKeyPair> {
   const raw = fromB64u(pub);
   const jwk = {
     kty: 'EC',

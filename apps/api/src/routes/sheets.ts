@@ -5,6 +5,8 @@ import { route } from '../lib/router';
 import { HttpError, body, ifMatch, notFound, now, parseJson } from '../lib/http';
 import { SHEET_COLS, sheetFromRow } from '../db/rows';
 import { auditStmt } from '../lib/audit';
+import { flushNotifications, notifyStmt } from '../lib/notify';
+import { sheetPublished } from '../lib/push/messages';
 
 export function sheetRoutes(app: Hono<AppEnv>) {
   route(app, 'sheets.put', async (c) => {
@@ -66,45 +68,58 @@ export function sheetRoutes(app: Hono<AppEnv>) {
   route(app, 'sheets.publish', async (c) => {
     const me = c.var.member;
     const id = c.req.param('sheetId')!;
-    const cur = await c.var.db
-      .prepare(`SELECT ${SHEET_COLS} FROM team_sheets WHERE id = ? AND team_id = ?`)
-      .bind(id, me.teamId)
-      .first<Record<string, unknown>>();
-    if (!cur) throw notFound('Team sheet not found');
     const t = now();
-    const snapshot = JSON.stringify({
-      format: cur.format,
-      replacements: cur.replacements,
-      slots: parseJson(cur.slots as string, {}),
-      captainId: cur.captain_id,
-      viceId: cur.vice_id,
-      publishedAt: t,
-    });
-    const nextVersion = (cur.version as number) + 1;
+    // The snapshot is built in SQL from the row being published, so it can't race an edit.
     const [res] = await c.var.db.batch([
       c.var.db
         .prepare(
-          `UPDATE team_sheets SET status = 'published', published = ?, published_at = ?, version = ?, updated_at = ? WHERE id = ? AND team_id = ? AND version = ? RETURNING ${SHEET_COLS}`,
+          `UPDATE team_sheets SET status = 'published',
+             published = json_object('format', format, 'replacements', replacements, 'slots', json(slots),
+               'captainId', captain_id, 'viceId', vice_id, 'publishedAt', ?1),
+             published_at = ?1, version = version + 1, updated_at = ?1
+           WHERE id = ?2 AND team_id = ?3
+           RETURNING ${SHEET_COLS},
+             (SELECT json_object('id', e.id, 'title', e.title, 'type', e.type, 'opponent', e.opponent,
+                'short_name', (SELECT short_name FROM teams WHERE id = e.team_id))
+              FROM events e WHERE e.id = team_sheets.event_id) AS event`,
         )
-        .bind(snapshot, t, nextVersion, t, id, me.teamId, cur.version),
+        .bind(t, id, me.teamId),
       c.var.db
         // Only record the version if the publish above won (same batch, same transaction).
         .prepare(
           `INSERT OR REPLACE INTO team_sheet_versions (sheet_id, version, snapshot, created_at)
-           SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM team_sheets WHERE id = ? AND version = ? AND published_at = ?)`,
+           SELECT id, version, published, ?1 FROM team_sheets WHERE id = ?2 AND team_id = ?3 AND published_at = ?1`,
         )
-        .bind(id, nextVersion, snapshot, t, id, nextVersion, t),
+        .bind(t, id, me.teamId),
     ]);
     const row = res?.results[0] as Record<string, unknown> | undefined;
-    if (!row)
-      throw new HttpError(409, 'conflict', 'The sheet changed while publishing. Try again.');
-    await auditStmt(c.var.db, {
-      teamId: me.teamId,
-      actorId: me.userId,
-      action: 'sheet.published',
-      targetType: 'sheet',
-      targetId: id,
-    }).run();
+    if (!row) throw notFound('Team sheet not found');
+    const event = parseJson<Parameters<typeof sheetPublished>[1] | null>(
+      row.event as string | null,
+      null,
+    );
+    await c.var.db.batch([
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'sheet.published',
+        targetType: 'sheet',
+        targetId: id,
+      }),
+      ...(event
+        ? [
+            notifyStmt(
+              c.var.db,
+              me.teamId,
+              { team: true },
+              'sheets',
+              sheetPublished(me.teamId, event),
+              me.userId,
+            ),
+          ]
+        : []),
+    ]);
+    if (event) flushNotifications(c);
     return c.json({ sheet: sheetFromRow(row, false) });
   });
 

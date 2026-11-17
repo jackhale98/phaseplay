@@ -16,12 +16,24 @@ import {
   weeklyDates,
   zonedToUtc,
   type EventCreate as EventCreateT,
+  type TeamEvent,
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
-import { HttpError, body, forbidden, ifMatch, notFound, now } from '../lib/http';
+import { HttpError, body, forbidden, ifMatch, notFound, now, parseJson } from '../lib/http';
 import { EVENT_COLS, eventFromRow } from '../db/rows';
 import { auditStmt } from '../lib/audit';
+import { flushNotifications, notifyStmt } from '../lib/notify';
+import {
+  eventCancelled,
+  eventChanged,
+  eventCreated,
+  eventRestored,
+  seriesChanged,
+  seriesCreated,
+  seriesRemoved,
+  type EventInfo,
+} from '../lib/push/messages';
 
 type EventFields = Omit<EventCreateT, 'id'> & { id: string };
 
@@ -32,12 +44,13 @@ export function insertEventStmt(
   e: EventFields,
   recurrenceId: string | null,
   t: number,
+  returning = '',
 ) {
   return db
     .prepare(
       `INSERT INTO events (id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name,
         location_url, opponent, notes, rsvp_deadline, recurrence_id, settings, version, created_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT DO NOTHING`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT DO NOTHING ${returning}`,
     )
     .bind(
       e.id,
@@ -76,6 +89,45 @@ const FIELD_COLS: Record<string, string> = {
   rsvpDeadline: 'rsvp_deadline',
 };
 
+/** RETURNING / SELECT columns: the team's timezone and short name, for notification text. */
+const TEAM_INFO = `(SELECT timezone FROM teams WHERE id = events.team_id) AS timezone,
+  (SELECT short_name FROM teams WHERE id = events.team_id) AS short_name`;
+
+const eventSnake = (e: EventFields) => ({
+  starts_at: e.startsAt,
+  location_name: e.locationName ?? null,
+  opponent: e.opponent ?? null,
+});
+
+type CurrentEvent = EventInfo & {
+  ends_at: number | null;
+  meet_at: number | null;
+  cancelled_at: number | null;
+};
+
+/** What the squad hears about an edit: cancelled, back on, or a new time or place. */
+function changeMessage(teamId: string, cur: CurrentEvent, ev: TeamEvent) {
+  const next: EventInfo = {
+    ...cur,
+    title: ev.title,
+    type: ev.type,
+    opponent: ev.opponent,
+    starts_at: ev.startsAt,
+    location_name: ev.locationName,
+  };
+  if (Math.max(cur.starts_at, ev.startsAt) <= now()) return null;
+  if (!cur.cancelled_at && ev.cancelledAt) return eventCancelled(teamId, next);
+  if (cur.cancelled_at && !ev.cancelledAt) return eventRestored(teamId, next);
+  if (ev.cancelledAt) return null;
+  if (
+    cur.starts_at !== ev.startsAt ||
+    cur.meet_at !== ev.meetAt ||
+    (cur.location_name ?? null) !== (ev.locationName ?? null)
+  )
+    return eventChanged(teamId, next);
+  return null;
+}
+
 export function eventRoutes(app: Hono<AppEnv>) {
   route(app, 'seasons.put', async (c) => {
     const me = c.var.member;
@@ -98,8 +150,29 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const input = await body(c, EventCreate);
     const t = now();
-    const r = await insertEventStmt(c.var.db, me.teamId, me.userId, input, null, t).run();
-    if (!r.meta.changes) {
+    // Returns a row only when this request inserted it (a retried outbox write returns none).
+    const team = await insertEventStmt(
+      c.var.db,
+      me.teamId,
+      me.userId,
+      input,
+      null,
+      t,
+      `RETURNING ${TEAM_INFO}`,
+    ).first<{ timezone: string; short_name: string }>();
+    if (team && input.startsAt > t) {
+      const info: EventInfo = { ...input, ...team, ...eventSnake(input) };
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'events',
+        eventCreated(me.teamId, info),
+        me.userId,
+      ).run();
+      flushNotifications(c);
+    }
+    if (!team) {
       const owner = await c.var.db
         .prepare('SELECT team_id FROM events WHERE id = ?')
         .bind(input.id)
@@ -132,11 +205,23 @@ export function eventRoutes(app: Hono<AppEnv>) {
       vals.push(input.cancelled ? now() : null);
     }
     const version = ifMatch(c);
-    if (input.startsAt !== undefined || input.endsAt !== undefined || input.meetAt !== undefined) {
-      const cur = await c.var.db
-        .prepare('SELECT starts_at, ends_at, meet_at FROM events WHERE id = ? AND team_id = ?')
+    // The current row: to check times, and to tell the team what changed (time, place, cancelled).
+    let cur: CurrentEvent | null = null;
+    if (
+      input.startsAt !== undefined ||
+      input.endsAt !== undefined ||
+      input.meetAt !== undefined ||
+      input.locationName !== undefined ||
+      input.cancelled !== undefined
+    ) {
+      cur = await c.var.db
+        .prepare(
+          `SELECT e.id, e.title, e.type, e.opponent, e.starts_at, e.ends_at, e.meet_at, e.location_name, e.cancelled_at,
+             t.timezone, t.short_name
+           FROM events e JOIN teams t ON t.id = e.team_id WHERE e.id = ? AND e.team_id = ?`,
+        )
         .bind(id, me.teamId)
-        .first<{ starts_at: number; ends_at: number | null; meet_at: number | null }>();
+        .first<CurrentEvent>();
       if (cur) {
         const start = input.startsAt ?? cur.starts_at;
         const end = input.endsAt === undefined ? cur.ends_at : input.endsAt;
@@ -156,15 +241,23 @@ export function eventRoutes(app: Hono<AppEnv>) {
       .first();
     if (row) {
       const ev = eventFromRow(row);
+      const stmts: D1PreparedStatement[] = [];
       if (input.cancelled !== undefined)
-        await auditStmt(c.var.db, {
-          teamId: me.teamId,
-          actorId: me.userId,
-          action: input.cancelled ? 'event.cancelled' : 'event.restored',
-          targetType: 'event',
-          targetId: id,
-          meta: { title: ev.title },
-        }).run();
+        stmts.push(
+          auditStmt(c.var.db, {
+            teamId: me.teamId,
+            actorId: me.userId,
+            action: input.cancelled ? 'event.cancelled' : 'event.restored',
+            targetType: 'event',
+            targetId: id,
+            meta: { title: ev.title },
+          }),
+        );
+      const msg = cur && changeMessage(me.teamId, cur, ev);
+      if (msg)
+        stmts.push(notifyStmt(c.var.db, me.teamId, { team: true }, 'events', msg, me.userId));
+      if (stmts.length) await c.var.db.batch(stmts);
+      if (msg) flushNotifications(c);
       return c.json({ event: ev });
     }
     const current = await c.var.db
@@ -184,19 +277,37 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const t = now();
     const row = await c.var.db
       .prepare(
-        'UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL RETURNING title',
+        `UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL
+         RETURNING id, title, type, opponent, starts_at, location_name, cancelled_at, ${TEAM_INFO}`,
       )
       .bind(t, t, c.req.param('eventId'), me.teamId)
-      .first<{ title: string }>();
+      .first<EventInfo & { cancelled_at: number | null }>();
     if (!row) throw notFound('Event not found');
-    await auditStmt(c.var.db, {
-      teamId: me.teamId,
-      actorId: me.userId,
-      action: 'event.deleted',
-      targetType: 'event',
-      targetId: c.req.param('eventId')!,
-      meta: { title: row.title },
-    }).run();
+    // Removing an upcoming event is a cancellation for the squad (unless it was already called off).
+    const tell = row.starts_at > t && !row.cancelled_at;
+    await c.var.db.batch([
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'event.deleted',
+        targetType: 'event',
+        targetId: c.req.param('eventId')!,
+        meta: { title: row.title },
+      }),
+      ...(tell
+        ? [
+            notifyStmt(
+              c.var.db,
+              me.teamId,
+              { team: true },
+              'events',
+              eventCancelled(me.teamId, row, true),
+              me.userId,
+            ),
+          ]
+        : []),
+    ]);
+    if (tell) flushNotifications(c);
     return c.json({ ok: true });
   });
 
@@ -255,7 +366,21 @@ export function eventRoutes(app: Hono<AppEnv>) {
           t,
           JSON.stringify(rows),
         ),
+      // Only when this request made the series (an outbox retry inserts nothing).
+      notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'events',
+        seriesCreated(me.teamId, { ...input, count: rows.length }),
+        me.userId,
+        {
+          sql: '? > 0 AND EXISTS (SELECT 1 FROM recurrences WHERE id = ? AND team_id = ? AND created_at = ?)',
+          params: [rows.length, input.id, me.teamId, t],
+        },
+      ),
     ]);
+    if (rows.length) flushNotifications(c);
     return c.json({ ok: true, count: rows.length, ids: rows.map((r) => r.id) }, 201);
   });
 
@@ -340,58 +465,66 @@ export function eventRoutes(app: Hono<AppEnv>) {
       locationUrl: input.locationUrl ?? null,
       notes: input.notes ?? null,
     };
+    // Tell the squad when days, time or place change (or sessions go), not for a tweak to the notes.
+    const notifySeries =
+      s.upcoming.length + added.length > 0 &&
+      (rule.time !== s.rule.time ||
+        [...rule.weekdays].sort().join() !== [...s.rule.weekdays].sort().join() ||
+        rule.until < s.rule.until ||
+        (template.locationName ?? null) !== (s.template.locationName ?? null));
     await c.var.db.batch([
+      ...(notifySeries
+        ? [
+            notifyStmt(
+              c.var.db,
+              me.teamId,
+              { team: true },
+              'events',
+              seriesChanged(me.teamId, { ...template, rule }),
+              me.userId,
+            ),
+          ]
+        : []),
       c.var.db
         .prepare('UPDATE recurrences SET rule = ?, template = ? WHERE id = ? AND team_id = ?')
         .bind(JSON.stringify(rule), JSON.stringify(template), id, me.teamId),
-      c.var.db
-        .prepare(
-          `UPDATE events SET
-             deleted_at = CASE WHEN j.value->>'del' = 1 THEN ?1 ELSE events.deleted_at END,
-             starts_at = coalesce(j.value->>'starts_at', events.starts_at),
-             meet_at = CASE WHEN j.value->>'del' = 1 THEN events.meet_at ELSE j.value->>'meet_at' END,
-             ends_at = coalesce(j.value->>'ends_at', events.ends_at),
-             type = CASE WHEN j.value->>'del' = 1 THEN events.type ELSE ?2 END,
-             title = CASE WHEN j.value->>'del' = 1 THEN events.title ELSE ?3 END,
-             location_name = CASE WHEN j.value->>'del' = 1 THEN events.location_name ELSE ?4 END,
-             location_url = CASE WHEN j.value->>'del' = 1 THEN events.location_url ELSE ?5 END,
-             notes = CASE WHEN j.value->>'del' = 1 THEN events.notes ELSE ?6 END,
-             version = events.version + 1, updated_at = ?1
-           FROM json_each(?7) j
-           WHERE events.id = j.value->>'id' AND events.team_id = ?8 AND events.recurrence_id = ?9`,
-        )
-        .bind(
-          t,
-          input.type,
-          input.title,
-          template.locationName,
-          template.locationUrl,
-          template.notes,
-          JSON.stringify(changes),
-          me.teamId,
-          id,
-        ),
+      // Kept and dropped sessions are updated, new dates inserted: one upsert (query budget).
       c.var.db
         .prepare(
           `INSERT INTO events (id, team_id, type, title, starts_at, meet_at, ends_at, location_name, location_url, notes,
-             recurrence_id, version, created_by, updated_at)
-           SELECT j.value->>'id', ?, ?, ?, j.value->>'starts_at', j.value->>'meet_at', j.value->>'ends_at', ?, ?, ?, ?, 1, ?, ?
-           FROM json_each(?) j WHERE true ON CONFLICT DO NOTHING`,
+             recurrence_id, version, created_by, updated_at, deleted_at)
+           SELECT j.value->>'id', ?8, ?2, ?3, coalesce(j.value->>'starts_at', 0), j.value->>'meet_at', j.value->>'ends_at',
+             ?4, ?5, ?6, ?9, 1, ?10, ?1, CASE WHEN j.value->>'del' = 1 THEN ?1 END
+           FROM json_each(?7) j
+           WHERE coalesce(j.value->>'del', 0) = 0 OR EXISTS (SELECT 1 FROM events x WHERE x.id = j.value->>'id')
+           ON CONFLICT(id) DO UPDATE SET
+             deleted_at = coalesce(excluded.deleted_at, events.deleted_at),
+             starts_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.starts_at ELSE events.starts_at END,
+             meet_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.meet_at ELSE events.meet_at END,
+             ends_at = coalesce(excluded.ends_at, events.ends_at),
+             type = CASE WHEN excluded.deleted_at IS NULL THEN excluded.type ELSE events.type END,
+             title = CASE WHEN excluded.deleted_at IS NULL THEN excluded.title ELSE events.title END,
+             location_name = CASE WHEN excluded.deleted_at IS NULL THEN excluded.location_name ELSE events.location_name END,
+             location_url = CASE WHEN excluded.deleted_at IS NULL THEN excluded.location_url ELSE events.location_url END,
+             notes = CASE WHEN excluded.deleted_at IS NULL THEN excluded.notes ELSE events.notes END,
+             version = events.version + 1, updated_at = excluded.updated_at
+           WHERE events.team_id = excluded.team_id AND events.recurrence_id = excluded.recurrence_id`,
         )
         .bind(
-          me.teamId,
+          t,
           input.type,
           input.title,
           template.locationName,
           template.locationUrl,
           template.notes,
+          JSON.stringify([...changes, ...added.map((a) => ({ ...a, del: 0 }))]),
+          me.teamId,
           id,
           me.userId,
-          t,
-          JSON.stringify(added),
         ),
     ]);
     const kept = changes.filter((x) => !x.del).length;
+    if (notifySeries) flushNotifications(c);
     return c.json({
       ok: true,
       updated: kept,
@@ -404,10 +537,10 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const id = c.req.param('recurrenceId');
     const t = now();
-    const [r] = await c.var.db.batch([
+    const [r, ev] = await c.var.db.batch([
       c.var.db
         .prepare(
-          'UPDATE recurrences SET deleted_at = ? WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+          'UPDATE recurrences SET deleted_at = ? WHERE id = ? AND team_id = ? AND deleted_at IS NULL RETURNING template',
         )
         .bind(t, id, me.teamId),
       c.var.db
@@ -416,7 +549,21 @@ export function eventRoutes(app: Hono<AppEnv>) {
         )
         .bind(t, t, id, me.teamId, t),
     ]);
-    if (!r?.meta.changes) throw notFound();
+    const rec = r?.results[0] as { template: string } | undefined;
+    if (!rec) throw notFound();
+    const removed = ev?.meta.changes ?? 0;
+    if (removed) {
+      const title = parseJson<{ title?: string }>(rec.template, {}).title ?? 'Practice';
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'events',
+        seriesRemoved(me.teamId, title, removed),
+        me.userId,
+      ).run();
+      flushNotifications(c);
+    }
     return c.json({ ok: true });
   });
 

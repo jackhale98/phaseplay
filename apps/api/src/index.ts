@@ -33,7 +33,7 @@ export default {
     }
     return new Response('Not found', { status: 404 });
   },
-  async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(scheduled(env));
+  async scheduled(c: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(scheduled(env, c.cron, c.scheduledTime));
   },
 } satisfies ExportedHandler<Env>;

@@ -12,7 +12,7 @@ import {
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
-import { HttpError, body, notFound, now } from '../lib/http';
+import { HttpError, body, notFound, now, parseJson } from '../lib/http';
 import { MEMBER_COLS, TEAM_COLS, memberFromRow, teamFromRow } from '../db/rows';
 import { clearSessionCookie, recoveryCodeStatements, requireUser } from '../auth/session';
 import {
@@ -23,6 +23,12 @@ import {
 } from '../auth/webauthn';
 import { bool } from '../lib/db';
 import { DEMO_USER_ID } from '../seed/demo';
+
+/** Stored prefs, with anything unknown or malformed falling back to "on". */
+function notifyPrefs(raw: string | undefined) {
+  const r = v.safeParse(NotifyPrefs, parseJson<unknown>(raw, {}));
+  return r.success ? r.output : v.parse(NotifyPrefs, {});
+}
 
 const prefixed = (cols: string, p: string) =>
   cols
@@ -39,14 +45,18 @@ const strip = (row: Record<string, unknown>, p: string) =>
 export function meRoutes(app: Hono<AppEnv>) {
   route(app, 'me.get', async (c) => {
     const u = requireUser(c);
-    const { results } = await c.var.db
-      .prepare(
-        `SELECT ${prefixed(MEMBER_COLS, 'm')}, ${prefixed(TEAM_COLS, 't')} FROM memberships m
+    const [rows, prefs] = await c.var.db.batch([
+      c.var.db
+        .prepare(
+          `SELECT ${prefixed(MEMBER_COLS, 'm')}, ${prefixed(TEAM_COLS, 't')} FROM memberships m
          JOIN teams t ON t.id = m.team_id
          WHERE m.user_id = ? AND m.status = 'active' AND t.deleted_at IS NULL ORDER BY m.joined_at`,
-      )
-      .bind(u.id)
-      .all<Record<string, unknown>>();
+        )
+        .bind(u.id),
+      c.var.db.prepare('SELECT notify_prefs FROM users WHERE id = ?').bind(u.id),
+    ]);
+    const results = rows!.results as Record<string, unknown>[];
+    const rawPrefs = (prefs!.results[0] as { notify_prefs?: string } | undefined)?.notify_prefs;
     const res: MeResponse = {
       user: { id: u.id, displayName: u.displayName, createdAt: 0 },
       memberships: results.map((r) => ({
@@ -55,8 +65,7 @@ export function meRoutes(app: Hono<AppEnv>) {
       })),
       env: c.env.ENV,
       demo: u.id === DEMO_USER_ID,
-      // Filled from users.notify_prefs once push notifications land (M7).
-      notify: v.parse(NotifyPrefs, {}),
+      notify: notifyPrefs(rawPrefs),
     };
     return c.json(res);
   });
@@ -97,6 +106,7 @@ export function meRoutes(app: Hono<AppEnv>) {
       c.var.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('DELETE FROM calendar_tokens WHERE user_id = ?').bind(u.id),
+      c.var.db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(u.id),
       c.var.db
         .prepare(`UPDATE users SET display_name = 'Deleted user', deleted_at = ? WHERE id = ?`)
         .bind(t, u.id),
@@ -107,8 +117,10 @@ export function meRoutes(app: Hono<AppEnv>) {
 
   route(app, 'me.export', async (c) => {
     const u = requireUser(c);
-    const [user, members, rsvps, creds] = await c.var.db.batch([
-      c.var.db.prepare('SELECT id, display_name, created_at FROM users WHERE id = ?').bind(u.id),
+    const [user, members, rsvps, creds, devices] = await c.var.db.batch([
+      c.var.db
+        .prepare('SELECT id, display_name, created_at, notify_prefs FROM users WHERE id = ?')
+        .bind(u.id),
       c.var.db
         .prepare(
           `SELECT m.id, m.role, m.jersey, m.positions, m.status, m.joined_at, t.name AS team FROM memberships m JOIN teams t ON t.id = m.team_id WHERE m.user_id = ?`,
@@ -124,6 +136,9 @@ export function meRoutes(app: Hono<AppEnv>) {
           'SELECT nickname, created_at, last_used_at, backed_up FROM credentials WHERE user_id = ?',
         )
         .bind(u.id),
+      c.var.db
+        .prepare('SELECT label, created_at, last_ok_at FROM push_subscriptions WHERE user_id = ?')
+        .bind(u.id),
     ]);
     c.header('Content-Disposition', 'attachment; filename="phaseplay-export.json"');
     return c.json({
@@ -132,6 +147,7 @@ export function meRoutes(app: Hono<AppEnv>) {
       memberships: members!.results,
       rsvps: rsvps!.results,
       passkeys: creds!.results,
+      notificationDevices: devices!.results,
     });
   });
 
@@ -139,6 +155,8 @@ export function meRoutes(app: Hono<AppEnv>) {
     const u = requireUser(c);
     await c.var.db.batch([
       c.var.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(u.id),
+      // Signed out everywhere: stop notifications to every device too.
+      c.var.db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(u.id),
       c.var.db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(Date.now(), u.id),
     ]);
     clearSessionCookie(c);

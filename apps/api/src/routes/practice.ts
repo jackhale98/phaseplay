@@ -5,6 +5,8 @@ import { route } from '../lib/router';
 import { HttpError, body, notFound, now, parseJson } from '../lib/http';
 import { PLAN_COLS, planFromRow } from '../db/rows';
 import { setsFrom, versionedUpdate } from '../lib/versioned';
+import { flushNotifications, notifyStmt } from '../lib/notify';
+import { planShared } from '../lib/push/messages';
 
 const total = (data: Parameters<typeof timeline>[0]) => timeline(data).at(-1)?.endMin ?? 0;
 
@@ -39,12 +41,33 @@ export function practiceRoutes(app: Hono<AppEnv>) {
         .first<{ team_id: string }>();
       if (owner?.team_id !== me.teamId)
         throw new HttpError(409, 'conflict', 'Plan id already used');
+    } else if (p.visibility === 'team' && !p.isTemplate) {
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'plays',
+        planShared(me.teamId, p.id, p.title),
+        me.userId,
+      ).run();
+      flushNotifications(c);
     }
     return c.json({ ok: true, id: p.id }, 201);
   });
 
   route(app, 'plans.update', async (c) => {
+    const me = c.var.member;
     const input = await body(c, PlanUpdate);
+    // Shared with the team just now? Then the squad hears about it.
+    const before =
+      input.visibility === 'team'
+        ? await c.var.db
+            .prepare(
+              'SELECT visibility FROM practice_plans WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+            )
+            .bind(c.req.param('planId'), me.teamId)
+            .first<{ visibility: string }>()
+        : null;
     const { sets, vals } = setsFrom(
       input as Record<string, unknown>,
       {
@@ -69,6 +92,17 @@ export function practiceRoutes(app: Hono<AppEnv>) {
       map: planFromRow,
       what: 'Plan',
     });
+    if (before && before.visibility !== 'team' && !plan.isTemplate) {
+      await notifyStmt(
+        c.var.db,
+        me.teamId,
+        { team: true },
+        'plays',
+        planShared(me.teamId, plan.id, plan.title),
+        me.userId,
+      ).run();
+      flushNotifications(c);
+    }
     return c.json({ plan });
   });
 

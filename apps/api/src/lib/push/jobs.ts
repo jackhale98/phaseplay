@@ -5,6 +5,7 @@
  */
 import { DEMO_TEAM_ID, DEMO_USER_ID } from '../../seed/demo';
 import { payloadJson, wantsTopicSql, whenText } from '../notify';
+import { eventLabel } from './messages';
 
 const H = 3600e3;
 /** Reminders go out for events starting 18–30 h from now, once each (`events.reminded_at`). */
@@ -23,17 +24,6 @@ type EventRow = {
   timezone: string;
   short_name: string;
 };
-
-/** "PRFC v Rivals" for games with an opponent, else the event title. */
-export const eventLabel = (e: {
-  title: string;
-  type: string;
-  opponent: string | null;
-  short_name?: string;
-}) =>
-  (e.type === 'match' || e.type === 'tournament') && e.opponent
-    ? `${e.short_name ?? e.title} v ${e.opponent}`
-    : e.title;
 
 const recipientsSql = (topicParam: string) => `
   JOIN memberships m ON m.team_id = e.team_id AND m.status = 'active' AND m.user_id IS NOT NULL
