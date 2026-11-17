@@ -84,7 +84,7 @@
   const canEdit = $derived(app.can('practice.manage'));
   const canRun = $derived(app.can('practice.run'));
   const drills = $derived((s?.rows.drills ?? {}) as Record<string, DrillMeta>);
-  const drillList = $derived(Object.values(drills).filter((d) => !d.deletedAt));
+  const drillList = $derived(Object.values(drills).filter((d) => !d.deletedAt && !d.archivedAt));
   const staff = $derived(
     Object.values(s?.rows.members ?? {})
       .filter((m) => m.status === 'active' && m.role !== 'player')
@@ -92,7 +92,7 @@
   );
   const plays = $derived(
     Object.values(s?.rows.plays ?? {})
-      .filter((p) => !p.deletedAt)
+      .filter((p) => !p.deletedAt && !p.archivedAt)
       .sort((a, b) => a.title.localeCompare(b.title)),
   );
 

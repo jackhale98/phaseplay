@@ -102,7 +102,11 @@ export const DrillCreate = v.pipe(
   v.check((d) => d.playersMax >= d.playersMin, 'Max players must be at least the minimum'),
 );
 export type DrillCreate = v.InferOutput<typeof DrillCreate>;
-export const DrillUpdate = v.partial(DrillInput.pipe[0]);
+export const DrillUpdate = v.object({
+  ...v.partial(DrillInput.pipe[0]).entries,
+  /** Archive (true) or restore (false): hidden from lists and pickers, kept in existing plans. */
+  archived: v.optional(v.boolean()),
+});
 export type DrillUpdate = v.InferOutput<typeof DrillUpdate>;
 
 /** Equipment derived from a diagram's entities (docs/diagrams.md §Drill mode). */

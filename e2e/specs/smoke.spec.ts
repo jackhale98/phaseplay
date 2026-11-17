@@ -68,3 +68,53 @@ test('Home opens offline from the on-device cache', async ({ page, context, team
   ).toBeVisible();
   await context.setOffline(false);
 });
+
+test('replying on Home confirms clearly before the next event moves up', async ({ page, team }) => {
+  const at = Date.now() + 2 * 86400e3;
+  // The first upcoming event is the hero; the rest queue under "Waiting for your reply".
+  for (const [i, title] of ['Hero practice', 'Quiz night', 'Kit collection'].entries())
+    await team.post(`/teams/${team.teamId}/events`, {
+      id: crypto.randomUUID(),
+      type: i === 0 ? 'training' : 'social',
+      title,
+      startsAt: at + i * 86400e3,
+    });
+  await openTeam(page, team.teamId, '/home');
+  const waiting = page.locator('.wait');
+  await expect(waiting).toHaveCount(2);
+  await expect(waiting.first()).toContainText('Quiz night');
+
+  await waiting.first().getByRole('button', { name: 'In', exact: true }).click();
+  // A visible confirmation names the event that was answered, and screen readers hear it too.
+  await expect(page.getByText("You're in · Quiz night")).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved: You' })).toContainText(
+    'Next: Kit collection',
+  );
+  // Then the answered card leaves and the next one is first.
+  await expect(waiting).toHaveCount(1, { timeout: 5_000 });
+  await expect(waiting.first()).toContainText('Kit collection');
+
+  await waiting.first().getByRole('button', { name: 'Out', exact: true }).click();
+  await expect(page.getByText("You're out · Kit collection")).toBeVisible();
+  await expect(page.getByText("You're all caught up")).toBeVisible({ timeout: 5_000 });
+});
+
+test('an active invite link can be copied again later', async ({ page, team, axe }) => {
+  await openTeam(page, team.teamId, '/squad');
+  await page.getByRole('button', { name: 'Invite' }).first().click();
+  let sheet = page.getByRole('dialog', { name: /Invite to/ });
+  await sheet.getByRole('button', { name: 'Create invite link' }).click();
+  const url = await sheet.locator('.url').textContent();
+  expect(url).toContain('/join#');
+  await sheet.getByRole('button', { name: 'Back to invites' }).click();
+  await page.keyboard.press('Escape');
+
+  // Later: reopen and copy or show the same link.
+  await page.getByRole('button', { name: 'Invite' }).first().click();
+  sheet = page.getByRole('dialog', { name: /Invite to/ });
+  await expect(sheet.getByRole('heading', { name: 'Active invites' })).toBeVisible();
+  await axe(page);
+  await sheet.getByRole('button', { name: /^Show/ }).first().click();
+  await expect(sheet.getByRole('img', { name: 'QR code for the invite link' })).toBeVisible();
+  await expect(sheet.locator('.url')).toHaveText(url!);
+});

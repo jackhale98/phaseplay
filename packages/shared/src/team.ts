@@ -111,3 +111,13 @@ export const CrestUpload = v.object({
   ),
 });
 export type CrestUpload = v.InferOutput<typeof CrestUpload>;
+
+/**
+ * Built-in drill templates and play presets a team has hidden from its pickers, as
+ * `drill:<templateId>` or `preset:<presetId>` (ids from packages/diagram).
+ */
+export const TemplateKey = v.pipe(v.string(), v.regex(/^(drill|preset):[A-Za-z0-9]{1,40}$/));
+export const HiddenTemplates = v.object({
+  hidden: v.pipe(v.array(TemplateKey), v.maxLength(100)),
+});
+export type HiddenTemplates = v.InferOutput<typeof HiddenTemplates>;

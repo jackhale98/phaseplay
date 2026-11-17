@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { EVENT_TYPE_LABELS, type PracticePlan, type TeamEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming } from '#lib/data/selectors';
@@ -67,7 +68,7 @@
   </header>
 
   {#if !s}
-    <div class="sk" aria-busy="true"></div>
+    <Loader label="Loading practice" />
   {:else}
     {#if today}
       {@const p = byEvent.get(today.id)!}
@@ -192,11 +193,6 @@
 </div>
 
 <style>
-  .sk {
-    height: 260px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
-  }
   .hero {
     display: flex;
     flex-direction: column;

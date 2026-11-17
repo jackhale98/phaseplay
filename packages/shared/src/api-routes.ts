@@ -75,6 +75,13 @@ export const ROUTES = {
     auth: 'team',
     action: 'team.manage',
   },
+  /** Hide built-in drill templates / play presets (drills.manage / plays.manage checked per key). */
+  'teams.templates': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/templates',
+    auth: 'team',
+    action: 'team.view',
+  },
   'teams.crest.get': {
     method: 'GET',
     path: '/api/v1/teams/:teamId/crest',

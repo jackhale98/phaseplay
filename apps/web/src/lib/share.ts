@@ -3,7 +3,7 @@ export async function shareOrDownload(
   blob: Blob,
   filename: string,
   title?: string,
-): Promise<'shared' | 'downloaded' | 'cancelled'> {
+): Promise<'shared' | 'downloaded' | 'cancelled' | 'blocked'> {
   const file = new File([blob], filename, { type: blob.type });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   const coarse = matchMedia('(pointer: coarse)').matches;
@@ -13,6 +13,8 @@ export async function shareOrDownload(
       return 'shared';
     } catch (e) {
       if ((e as Error).name === 'AbortError') return 'cancelled';
+      // No longer "right after a tap" (slow render): the caller offers its own Share button.
+      if ((e as Error).name === 'NotAllowedError') return 'blocked';
     }
   }
   const url = URL.createObjectURL(blob);

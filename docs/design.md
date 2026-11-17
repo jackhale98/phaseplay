@@ -8,6 +8,14 @@
 4. **Undo over confirm.** Destructive actions show a 5-second undo toast. Confirm dialogs are only for irreversible things like deleting a team or account.
 5. **Thumb-first on mobile, keyboard-first on desktop.** It's the same app, with each layout built properly.
 
+## Brand
+
+The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py` builds it into `apps/web/static/brand/` (ribbon text outlined with Archivo), the icons and the wordmark font.
+- The logo is a shield crest with a loop play on a striped pitch and a PHASEPLAY ribbon. Use `phaseplay-mark.svg` (no ribbon) at 64 px and below (`#lib/marketing/Logo.svelte` inlines it).
+- The loading state everywhere is `phaseplay-loader.svg`, which runs the play in a loop (`#lib/components/Loader.svelte`, shown after 300 ms). Don't add other spinners.
+- Brand colours (Ink, Pitch, Chalk, Paper, Amber) seed the design tokens below. Amber is reserved for the ball and key accents.
+- The wordmark is Archivo expanded, weight 800, all caps (`#lib/marketing/Wordmark.svelte`, a 2 KB caps-only font subset).
+
 ## Visual language
 
 - **Tokens** are CSS custom properties in `apps/web/src/lib/styles/tokens.css`:

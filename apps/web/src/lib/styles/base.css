@@ -12,6 +12,8 @@ html {
   scrollbar-gutter: stable;
   /* App-like: screens never pan sideways. Wide content scrolls inside its own container. */
   overflow-x: clip;
+  /* No double-tap zoom (fast taps on the match recorder, steppers); pinch zoom still works. */
+  touch-action: manipulation;
 }
 body {
   margin: 0;

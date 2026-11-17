@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shownTemplate } from '#lib/features/plays/templates';
   import { goto } from '$app/navigation';
   import {
     PLAY_CATEGORIES,
@@ -103,7 +104,7 @@
           />
           <span>Blank pitch</span>
         </label>
-        {#each Object.entries(PRESETS) as [id, p] (id)}
+        {#each Object.entries(PRESETS).filter( ([k]) => shownTemplate(`preset:${k}`) ) as [id, p] (id)}
           <label class="opt" class:sel={start === id}>
             <input
               type="radio"

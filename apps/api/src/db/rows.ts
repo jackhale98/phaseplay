@@ -24,7 +24,7 @@ const ns = (x: unknown) => (x ?? null) as string | null;
 const nn = (x: unknown) => (x ?? null) as number | null;
 
 export const TEAM_COLS =
-  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility';
+  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility, hidden_templates';
 export const teamFromRow = (r: Row): Team => ({
   id: s(r.id),
   name: s(r.name),
@@ -40,6 +40,7 @@ export const teamFromRow = (r: Row): Team => ({
   crestVersion: nn(r.crest_version),
   pendingOwnerAt: nn(r.pending_owner_at),
   rsvpVisibility: ((r.rsvp_visibility as string) ?? 'counts') as Team['rsvpVisibility'],
+  hiddenTemplates: parseJson(r.hidden_templates as string | null, [] as string[]),
 });
 
 export const MEMBER_COLS =
@@ -127,7 +128,7 @@ export const sheetFromRow = (r: Row, asPlayer: boolean): TeamSheet | null => {
 };
 
 export const PLAY_META_COLS =
-  'id, team_id, title, category, tags, format, visibility, description, frame_count, version, created_by, updated_at, deleted_at';
+  'id, team_id, title, category, tags, format, visibility, description, frame_count, version, created_by, updated_at, deleted_at, archived_at';
 export const playMetaFromRow = (r: Row): PlayMeta => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -142,6 +143,7 @@ export const playMetaFromRow = (r: Row): PlayMeta => ({
   createdBy: s(r.created_by),
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
+  archivedAt: nn(r.archived_at),
 });
 export const playFullFromRow = (r: Row): PlayFull => ({
   ...playMetaFromRow(r),
@@ -149,7 +151,7 @@ export const playFullFromRow = (r: Row): PlayFull => ({
 });
 
 export const DRILL_META_COLS =
-  'id, team_id, title, category, contact_level, intensity, players_min, players_max, area, equipment, default_duration_min, description, coaching_points, setup, variations, visibility, source, parent_id, version, created_by, updated_at, deleted_at, diagram IS NOT NULL AS has_diagram';
+  'id, team_id, title, category, contact_level, intensity, players_min, players_max, area, equipment, default_duration_min, description, coaching_points, setup, variations, visibility, source, parent_id, version, created_by, updated_at, deleted_at, archived_at, diagram IS NOT NULL AS has_diagram';
 export const drillMetaFromRow = (r: Row): DrillMeta => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -174,6 +176,7 @@ export const drillMetaFromRow = (r: Row): DrillMeta => ({
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
   hasDiagram: bool(r.has_diagram),
+  archivedAt: nn(r.archived_at),
 });
 export const drillFullFromRow = (r: Row): DrillFull => ({
   ...drillMetaFromRow(r),
