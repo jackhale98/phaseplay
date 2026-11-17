@@ -82,3 +82,41 @@ test('the owner hands over ownership and the nominee accepts', async ({ page, te
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(0);
 });
+
+test('an admin uploads the club emblem and it replaces the initials crest', async ({
+  team,
+  axe,
+}) => {
+  const admin = await team.join('admin', 'Admin Ada');
+  const page = admin.page;
+  await openTeam(page, team.teamId, '/settings/team');
+  await expect(page.getByRole('heading', { name: 'Emblem' })).toBeVisible();
+  await axe(page);
+  // A 64×64 green square PNG, generated in the page so the test needs no fixture file.
+  const png = await page.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#1f6f43';
+    ctx.fillRect(8, 8, 48, 48);
+    const b = await new Promise<Blob>((r) => c.toBlob((x) => r(x!), 'image/png'));
+    return [...new Uint8Array(await b.arrayBuffer())];
+  });
+  await page
+    .locator('input[type=file]')
+    .setInputFiles({ name: 'badge.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+  await expect(page.getByRole('button', { name: 'Replace emblem' })).toBeVisible({
+    timeout: 15_000,
+  });
+  // The crest is now the uploaded image (here and in the app header).
+  const emblem = page.getByRole('region', { name: 'Emblem' });
+  const img = emblem.locator('img.crest-img');
+  await expect(img).toBeVisible();
+  await expect
+    .poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0))
+    .toBe(true);
+
+  await page.getByRole('button', { name: 'Use initials instead' }).click();
+  await expect(page.getByRole('button', { name: 'Upload emblem' })).toBeVisible();
+  await expect(emblem.locator('img.crest-img')).toHaveCount(0);
+});

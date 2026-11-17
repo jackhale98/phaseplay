@@ -9,7 +9,8 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { ROLE_LABELS } from '@phaseplay/shared';
+  import { ROLE_LABELS, liveNominee } from '@phaseplay/shared';
+  import { crestUrl, prepareCrest } from '#lib/crest';
   import { IconBack, IconTrash } from '#lib/icons';
 
   const team = $derived(app.team);
@@ -17,7 +18,7 @@
   const manage = $derived(app.can('team.manage'));
   const members = $derived(Object.values(app.snap?.rows.members ?? {}));
   const currentOwner = $derived(members.find((m) => m.role === 'owner'));
-  const nominee = $derived(members.find((m) => m.id === team?.pendingOwnerMemberId));
+  const nominee = $derived(team ? liveNominee(team, members) : null);
   const eligible = $derived(
     members
       .filter((m) => m.status === 'active' && m.userId && m.role !== 'owner')
@@ -26,6 +27,41 @@
   let handOver = $state(false);
   let claim = $state(false);
   let pick = $state('');
+
+  let fileInput = $state<HTMLInputElement>();
+  async function uploadCrest(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    busy = true;
+    try {
+      const body = await prepareCrest(file);
+      await api(teamPath('/crest'), { method: 'PUT', body });
+      await app.sync();
+      await app.refreshMe();
+      toasts.success('Emblem updated');
+    } catch (err) {
+      toasts.error(
+        err instanceof ApiError || err instanceof Error ? err.message : 'Could not upload',
+      );
+    } finally {
+      busy = false;
+    }
+  }
+  async function removeCrest() {
+    busy = true;
+    try {
+      await api(teamPath('/crest'), { method: 'DELETE' });
+      await app.sync();
+      await app.refreshMe();
+      toasts.show('Back to the initials crest');
+    } catch (err) {
+      toasts.error(err instanceof ApiError ? err.message : 'Could not remove');
+    } finally {
+      busy = false;
+    }
+  }
 
   async function post(path: string, body: unknown, done: string) {
     busy = true;
@@ -81,13 +117,45 @@
       {/key}
     {:else}
       <div class="card ro">
-        <Crest colors={team.colors} text={team.shortName} size={56} />
+        <Crest colors={team.colors} text={team.shortName} src={crestUrl(team)} size={56} />
         <div>
           <strong>{team.name}</strong>
           <p class="muted">{team.defaultFormat} · {team.timezone}</p>
           <p class="subtle">Only the owner and admins can change these.</p>
         </div>
       </div>
+    {/if}
+
+    {#if manage}
+      <section class="card sect" aria-labelledby="crest-h">
+        <h2 class="h" id="crest-h">Emblem</h2>
+        <div class="crest-row">
+          <Crest colors={team.colors} text={team.shortName} src={crestUrl(team)} size={72} />
+          <p class="muted">
+            Upload your club badge to use it across the app and on shared team sheets. PNG, SVG,
+            JPEG or WebP; a square image with a transparent background looks best.
+          </p>
+        </div>
+        <div class="row wrap">
+          <input
+            bind:this={fileInput}
+            class="sr-only"
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            tabindex="-1"
+            aria-hidden="true"
+            onchange={uploadCrest}
+          />
+          <Button disabled={busy} onclick={() => fileInput?.click()}
+            >{team.crestVersion ? 'Replace emblem' : 'Upload emblem'}</Button
+          >
+          {#if team.crestVersion}
+            <Button variant="ghost" disabled={busy} onclick={removeCrest}
+              >Use initials instead</Button
+            >
+          {/if}
+        </div>
+      </section>
     {/if}
 
     <section class="card sect" aria-labelledby="own-h">
@@ -213,6 +281,14 @@
     gap: var(--s-3);
   }
   .sect p {
+    margin: 0;
+  }
+  .crest-row {
+    display: flex;
+    gap: var(--s-4);
+    align-items: center;
+  }
+  .crest-row p {
     margin: 0;
   }
   .pending {

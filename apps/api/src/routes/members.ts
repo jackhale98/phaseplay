@@ -142,7 +142,7 @@ export function memberRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `UPDATE memberships SET status = 'removed', removed_at = ?, updated_at = ? WHERE id = ?`,
+          `UPDATE memberships SET status = 'removed', role_ids = '[]', removed_at = ?, updated_at = ? WHERE id = ?`,
         )
         .bind(t, t, target.id),
       c.var.db
@@ -382,14 +382,14 @@ export function memberRoutes(app: Hono<AppEnv>) {
       memberId = existing.id;
       stmt = c.var.db
         .prepare(
-          `UPDATE memberships SET status = 'active', role = ?, display_name = ?, joined_at = ?, removed_at = NULL, updated_at = ? WHERE id = ?`,
+          `UPDATE memberships SET status = 'active', role = ?, role_ids = '[]', display_name = ?, joined_at = ?, removed_at = NULL, updated_at = ? WHERE id = ?`,
         )
         .bind(inv.role, u.displayName, t, t, existing.id);
     } else if (input.claimMemberId) {
       memberId = input.claimMemberId;
       stmt = c.var.db
         .prepare(
-          `UPDATE memberships SET user_id = ?, status = 'active', role = ?, display_name = ?, joined_at = ?, updated_at = ?
+          `UPDATE memberships SET user_id = ?, status = 'active', role = ?, role_ids = '[]', display_name = ?, joined_at = ?, updated_at = ?
            WHERE id = ? AND team_id = ? AND status = 'pending'`,
         )
         .bind(u.id, inv.role, u.displayName, t, t, memberId, teamId);

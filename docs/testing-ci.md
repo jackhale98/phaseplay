@@ -54,7 +54,7 @@ All jobs are required checks for `main`.
 
 ## Deploy — Cloudflare Workers Builds
 
-Cloudflare's Git integration builds every push to the production branch (`pnpm cf:build`) and runs `pnpm deploy` (`scripts/cf-deploy.sh`):
+Cloudflare's Git integration builds every push to the production branch (`pnpm cf:build`) and runs `pnpm cf:deploy` (`scripts/cf-deploy.sh`):
 
 1. **Migrate:** `wrangler d1 migrations apply DB --remote --env production`. Migrations must be **expand/contract**: add first, then backfill, and drop only in a later release. The code being deployed must work with both the old and the new schema.
 2. **Deploy:** `wrangler deploy --env production --var VERSION:$WORKERS_CI_COMMIT_SHA`. Web and API ship together in one Worker version. On the very first deploy this also creates the D1 database (automatic provisioning), and migrations then run straight after.

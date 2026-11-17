@@ -27,3 +27,7 @@ One line per decision: date — decision — why.
 - 2026-11-17 — Debounced autosaves (sheets, plans, plays, drills) pin the base version when a burst of edits begins, not when the save fires.
 - 2026-11-17 — Permissions v2: an `admin` main role (e-board: everything but deleting the team) plus named team roles that add only `GRANTABLE` permissions. Ownership moves by nominate-then-accept; an admin can claim it after the owner has been inactive 30 days. Team-role grants are folded into the existing membership query, so authorization still costs one query.
 - 2026-11-17 — Deleting a team is gated on `team.delete` (owner only) in the route table, not `team.manage`, now that admins have `team.manage`.
+- 2026-11-17 — Team emblems live in D1, not R2 (no new service to enable): the browser fits uploads into 256 px and encodes WebP/PNG (SVG is rasterised, never stored); the API checks magic bytes, caps 200 KB, and serves them `immutable` behind `?v=crestVersion` with `nosniff` and a sandbox CSP.
+- 2026-11-17 — RSVP notes follow the main role (staff), not team-role grants: `availability.view` from a team role shows replies only.
+- 2026-11-17 — Workers Builds deploy command is `pnpm cf:deploy`; `pnpm deploy` is a pnpm built-in and never runs the package script.
+

@@ -223,4 +223,19 @@ export function isCoach(role: Role | null | undefined): boolean {
 }
 
 /** An owner who hasn't been seen for this long can be replaced by an admin. */
+/** Most team roles a team can have. */
+export const MAX_TEAM_ROLES = 30;
 export const OWNER_CLAIM_AFTER_MS = 30 * 86400e3;
+
+/**
+ * The member an ownership handover is waiting on, if the nomination is still live: a nomination
+ * made before the nominee last (re)joined is stale. Mirrors the API's accept check.
+ */
+export function liveNominee<M extends { id: string; status: string; joinedAt: number | null }>(
+  team: { pendingOwnerMemberId: string | null; pendingOwnerAt: number | null },
+  members: readonly M[],
+): M | null {
+  const m = members.find((x) => x.id === team.pendingOwnerMemberId);
+  if (!m || m.status !== 'active') return null;
+  return (team.pendingOwnerAt ?? 0) >= (m.joinedAt ?? 0) ? m : null;
+}

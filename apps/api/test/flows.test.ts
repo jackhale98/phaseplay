@@ -732,3 +732,131 @@ describe('team roles and ownership', () => {
     ).toBe(403);
   });
 });
+
+describe('roles review fixes', () => {
+  const invite = async (a: Awaited<ReturnType<typeof fixtureTeam>>, role = 'player') =>
+    (
+      await call('POST', `/api/v1/teams/${a.teamId}/invites`, {
+        cookie: a.owner.cookie,
+        body: { id: uuidv7(), role, maxUses: 5 },
+      })
+    ).body.token as string;
+
+  it('a team role shows replies but never other people’s RSVP notes', async () => {
+    const a = await fixtureTeam();
+    const roleId = uuidv7();
+    await call('PUT', `/api/v1/teams/${a.teamId}/roles/${roleId}`, {
+      cookie: a.owner.cookie,
+      body: { name: 'Captain', color: '#f2c230', permissions: ['availability.view'] },
+    });
+    await call('PATCH', `/api/v1/teams/${a.teamId}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { roleIds: [roleId] },
+    });
+    await call('PUT', `/api/v1/teams/${a.teamId}/events/${a.eventId}/rsvps/${a.manager.memberId}`, {
+      cookie: a.manager.cookie,
+      body: { status: 'no', note: 'Private reason' },
+    });
+    const s = await sync(a.teamId, a.player.cookie);
+    const r = s.body.rsvps.find((x) => x.memberId === a.manager.memberId)!;
+    expect(r.status).toBe('no');
+    expect(JSON.stringify(s.body)).not.toContain('Private reason');
+    const coach = await sync(a.teamId, a.coach.cookie);
+    expect(JSON.stringify(coach.body)).toContain('Private reason');
+  });
+
+  it('removal clears team roles and a stale ownership nomination', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const roleId = uuidv7();
+    await call('PUT', `${t}/roles/${roleId}`, {
+      cookie: a.owner.cookie,
+      body: { name: 'Social', color: '#7b4fa0', permissions: ['events.manage'] },
+    });
+    await call('PATCH', `${t}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { roleIds: [roleId] },
+    });
+    await call('POST', `${t}/transfer`, {
+      cookie: a.owner.cookie,
+      body: { memberId: a.player.memberId },
+    });
+    await call('DELETE', `${t}/members/${a.player.memberId}`, { cookie: a.owner.cookie });
+    await new Promise((r) => setTimeout(r, 5));
+    const back = await call('POST', '/api/v1/invites/accept', {
+      cookie: a.player.cookie,
+      body: { token: await invite(a) },
+    });
+    expect(back.status).toBe(200);
+    const s = await sync(a.teamId, a.player.cookie);
+    expect(s.body.me.roleIds).toEqual([]);
+    expect(
+      (await call('POST', `${t}/transfer/accept`, { cookie: a.player.cookie, body: {} })).status,
+    ).toBe(409);
+    const ev = { id: uuidv7(), type: 'social', title: 'Quiz', startsAt: Date.now() + 86400e3 };
+    expect((await call('POST', `${t}/events`, { cookie: a.player.cookie, body: ev })).status).toBe(
+      403,
+    );
+  });
+
+  it('deleting a role strips it from holders and it cannot be brought back', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const body = { name: 'Captain', color: '#f2c230', permissions: ['practice.view_private'] };
+    await call('PATCH', `${t}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { roleIds: [a.roleId] },
+    });
+    expect(
+      (await call('DELETE', `${t}/roles/${a.roleId}`, { cookie: a.owner.cookie })).status,
+    ).toBe(200);
+    expect(
+      (await call('PUT', `${t}/roles/${a.roleId}`, { cookie: a.owner.cookie, body })).status,
+    ).toBe(404);
+    const s = await sync(a.teamId, a.player.cookie);
+    expect(s.body.me.roleIds).toEqual([]);
+    expect(
+      (await call('PUT', `${t}/roles/not-a-uuid`, { cookie: a.owner.cookie, body })).status,
+    ).toBe(404);
+  });
+});
+
+describe('team emblem', () => {
+  // A 1×1 transparent PNG.
+  const PNG =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+  it('admins upload a checked image that members can fetch; others cannot', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}/crest`;
+    expect((await call('GET', t, { cookie: a.player.cookie })).status).toBe(404);
+    expect(
+      (await call('PUT', t, { cookie: a.player.cookie, body: { type: 'image/png', data: PNG } }))
+        .status,
+    ).toBe(403);
+    // Bytes must match the declared type (no SVG/HTML smuggled in as an "image").
+    const html = btoa('<svg onload=alert(1)>');
+    expect(
+      (await call('PUT', t, { cookie: a.admin.cookie, body: { type: 'image/png', data: html } }))
+        .status,
+    ).toBe(400);
+    const up = await call('PUT', t, {
+      cookie: a.admin.cookie,
+      body: { type: 'image/png', data: PNG },
+    });
+    expect(up.status).toBe(200);
+    expect(up.body.team.crestVersion).toBeGreaterThan(0);
+    const s = await sync(a.teamId, a.player.cookie);
+    expect(s.body.team.crestVersion).toBe(up.body.team.crestVersion);
+
+    const res = await call('GET', t, { cookie: a.player.cookie });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/png');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    const other = await fixtureTeam('Other');
+    expect((await call('GET', t, { cookie: other.owner.cookie })).status).toBe(404);
+
+    expect((await call('DELETE', t, { cookie: a.admin.cookie })).status).toBe(200);
+    expect((await sync(a.teamId, a.player.cookie)).body.team.crestVersion).toBeNull();
+  });
+});

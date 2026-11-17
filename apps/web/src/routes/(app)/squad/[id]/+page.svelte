@@ -10,6 +10,7 @@
     canChangeRole,
     canRelink,
     canRemove,
+    liveNominee,
     uuidv7,
     type GrantableAction,
     type Role,
@@ -46,7 +47,9 @@
     const grants = [...new Set(mine.flatMap((r) => r.permissions))] as GrantableAction[];
     return grants.filter((g) => GRANT_INFO[g] && !can(m.role, g)).map((g) => GRANT_INFO[g].label);
   });
-  const pendingOwner = $derived(s?.team.pendingOwnerMemberId === m?.id);
+  const pendingOwner = $derived(
+    !!s && !!m && liveNominee(s.team, Object.values(s.rows.members))?.id === m.id,
+  );
   let positions = $state<number[]>([]);
   let jersey = $state<number | null>(null);
   let dirty = $state(false);
@@ -206,7 +209,7 @@
       </section>
     {/if}
 
-    {#if m.status !== 'removed' && (manageRoles || mine.length > 0) && (teamRoles.length > 0 || manageRoles)}
+    {#if m.status === 'active' && (manageRoles || mine.length > 0) && (teamRoles.length > 0 || manageRoles)}
       <section class="card pad">
         <h2 class="h" id="team-roles">Team roles</h2>
         {#if manageRoles && teamRoles.length}

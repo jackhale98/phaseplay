@@ -82,6 +82,7 @@ docs/                specs, decisions.md, runbooks
 | `teams` | id, name, short_name, colors JSON, default_format, timezone, owner_id, pending_owner_member_id?, pending_owner_at?, created_at, updated_at, deleted_at | |
 | `memberships` | id (member id), team_id, user_id?, display_name, role, role_ids JSON, jersey, positions JSON, status (`active`/`removed`/`pending`), joined_at, removed_at, updated_at | UNIQUE(team_id,user_id), (user_id,status), (team_id,status), (team_id,updated_at) |
 | `team_roles` | id, team_id, name, color, permissions JSON (grantable actions only), created_at, updated_at, deleted_at | (team_id,updated_at) |
+| `team_crests` | team_id PK, type (png/webp/jpeg), data BLOB (≤ 200 KB, magic bytes checked), updated_at; `teams.crest_version` is the cache key | |
 | `invites` | id, team_id, token_hash UNIQUE, kind (`join`/`relink`), role, target_user_id?, created_by, expires_at, max_uses, uses, revoked_at | team_id |
 | `seasons` | id, team_id, name, starts_on, ends_on | team_id |
 | `events` | id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id?, cancelled_at, version, updated_at, deleted_at | (team_id,starts_at), (team_id,updated_at) |

@@ -6,6 +6,7 @@ import { loadSession } from './auth/session';
 import { authRoutes } from './routes/auth';
 import { meRoutes } from './routes/me';
 import { teamRoutes } from './routes/teams';
+import { crestRoutes } from './routes/crest';
 import { memberRoutes } from './routes/members';
 import { eventRoutes } from './routes/events';
 import { sheetRoutes } from './routes/sheets';
@@ -74,6 +75,7 @@ export function createApp() {
   demoRoutes(app);
   meRoutes(app);
   teamRoutes(app);
+  crestRoutes(app);
   memberRoutes(app);
   eventRoutes(app);
   sheetRoutes(app);

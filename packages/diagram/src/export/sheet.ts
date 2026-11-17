@@ -15,7 +15,14 @@ import {
 import { type Monogram, drawBrandMark, drawCrest, fillRound, font, mix } from './common';
 
 export type SheetTemplate = 'story' | 'square' | 'landscape';
-export type SheetTeam = { name: string; shortName: string; primary: string; secondary: string };
+export type SheetTeam = {
+  name: string;
+  shortName: string;
+  primary: string;
+  secondary: string;
+  /** The team's uploaded emblem, drawn instead of the initials crest. */
+  crest?: Monogram['image'];
+};
 
 export type TeamSheetInput = {
   template: SheetTemplate;
@@ -68,7 +75,7 @@ export const FORMATIONS: Record<'15s' | '7s', Record<number, [number, number]>> 
 };
 
 /** Background and ink derived from team colours, with AA contrast guaranteed. */
-export function teamColours(team: Pick<SheetTeam, 'primary' | 'secondary'>) {
+export function teamColours(team: Pick<SheetTeam, 'primary' | 'secondary' | 'crest'>) {
   const hex = (c: string, d: string) => (/^#[0-9a-f]{6}$/i.test(c) ? c : d);
   const primary = hex(team.primary, '#1d4ed8');
   const secondary = hex(team.secondary, '#facc15');
@@ -85,6 +92,7 @@ export function teamColours(team: Pick<SheetTeam, 'primary' | 'secondary'>) {
       : '#ffffff';
   const crest: Monogram = {
     text: '',
+    image: team.crest ?? null,
     bg: token.bg,
     fg: contrast(secondary, token.bg) >= 3 ? secondary : token.fg,
   };

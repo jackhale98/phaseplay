@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import { app } from '#lib/data/app.svelte';
   import Crest from '#lib/components/Crest.svelte';
+  import { crestUrl } from '#lib/crest';
+  import { liveNominee } from '@phaseplay/shared';
   import SyncDot from '#lib/components/SyncDot.svelte';
   import Sheet from '#lib/components/Sheet.svelte';
   import CommandPalette from './CommandPalette.svelte';
@@ -60,7 +62,12 @@
         onclick={() => (switcher = true)}
         aria-label="Switch team, current {team?.name ?? 'none'}"
       >
-        {#if team}<Crest colors={team.colors} text={team.shortName} size={32} />{/if}
+        {#if team}<Crest
+            colors={team.colors}
+            text={team.shortName}
+            src={crestUrl(team)}
+            size={32}
+          />{/if}
         <span class="tn truncate">{team?.name ?? 'Phaseplay'}</span>
         <IconChevronDown />
       </button>
@@ -95,7 +102,12 @@
         onclick={() => (switcher = true)}
         aria-label="Switch team, current {team?.name ?? 'none'}"
       >
-        {#if team}<Crest colors={team.colors} text={team.shortName} size={28} />{/if}
+        {#if team}<Crest
+            colors={team.colors}
+            text={team.shortName}
+            src={crestUrl(team)}
+            size={28}
+          />{/if}
         <span class="truncate">{team?.shortName ?? 'Phaseplay'}</span>
         <IconChevronDown />
       </button>
@@ -105,7 +117,7 @@
 
   <main id="main" tabindex="-1">
     {#if app.demo && !immersive}<DemoBanner />{/if}
-    {#if !immersive && app.team?.pendingOwnerMemberId && app.team.pendingOwnerMemberId === app.member?.id}<OwnershipBanner
+    {#if !immersive && app.team && app.member && liveNominee( app.team, [app.member] )}<OwnershipBanner
       />{/if}
     {@render children()}
   </main>
@@ -133,7 +145,7 @@
             await goto('/home');
           }}
         >
-          <Crest colors={m.team.colors} text={m.team.shortName} size={36} />
+          <Crest colors={m.team.colors} text={m.team.shortName} src={crestUrl(m.team)} size={36} />
           <span class="grow"
             ><strong>{m.team.name}</strong><small class="muted">{m.member.role}</small></span
           >

@@ -88,3 +88,20 @@ export const TeamRoleInput = v.object({
   ),
 });
 export type TeamRoleInput = v.InferOutput<typeof TeamRoleInput>;
+
+/** Raster types accepted for an uploaded emblem. SVG is rasterised in the browser first. */
+export const CREST_TYPES = ['image/png', 'image/webp', 'image/jpeg'] as const;
+export const CREST_MAX_BYTES = 200 * 1024;
+/** Uploaded emblems are resized to fit this square, keeping transparency. */
+export const CREST_PX = 256;
+export const CrestUpload = v.object({
+  type: v.picklist(CREST_TYPES),
+  /** Base64 image bytes. */
+  data: v.pipe(
+    v.string(),
+    v.minLength(8),
+    v.maxLength(Math.ceil(CREST_MAX_BYTES / 3) * 4),
+    v.regex(/^[A-Za-z0-9+/]+={0,2}$/),
+  ),
+});
+export type CrestUpload = v.InferOutput<typeof CrestUpload>;

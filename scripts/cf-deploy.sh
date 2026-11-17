@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cloudflare Workers Builds "Deploy command" (also `pnpm deploy` from a laptop after `wrangler login`).
+# Cloudflare Workers Builds "Deploy command" (also `pnpm cf:deploy` from a laptop after `wrangler login`).
 # Order keeps migrations expand/contract-safe: migrate → deploy → migrate (the last is a no-op except
 # on the very first deploy, when `wrangler deploy` has only just created the D1 database).
 set -euo pipefail

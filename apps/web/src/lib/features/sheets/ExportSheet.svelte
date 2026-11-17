@@ -10,6 +10,8 @@
   import { toasts } from '#lib/stores/toast.svelte';
   import { IconShare, IconDownload, IconCopy } from '#lib/icons';
   import type { TeamSheetInput, SheetTemplate } from '@phaseplay/diagram/export/sheet';
+  import { app } from '#lib/data/app.svelte';
+  import { loadCrest } from '#lib/crest';
 
   type Props = {
     open: boolean;
@@ -43,7 +45,8 @@
       try {
         const mod = await import('@phaseplay/diagram/export/sheet');
         await document.fonts?.load("800 40px 'PP Sans'").catch(() => {});
-        const b = await mod.renderTeamSheet(data);
+        const crest = await loadCrest(app.team);
+        const b = await mod.renderTeamSheet({ ...data, team: { ...data.team, crest } });
         if (cancelled) return;
         if (url) URL.revokeObjectURL(url);
         blob = b;

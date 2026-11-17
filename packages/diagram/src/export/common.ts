@@ -26,7 +26,13 @@ export function alpha(hex: string, a: number): string {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-export type Monogram = { text: string; bg: string; fg: string };
+/** A crest: initials on a shield, or the team's uploaded emblem when `image` is set. */
+export type Monogram = {
+  text: string;
+  bg: string;
+  fg: string;
+  image?: (CanvasImageSource & { width: number; height: number }) | null;
+};
 
 /** Trace a heraldic shield centred on (cx, cy), `size` tall. */
 export function shieldPath(ctx: Ctx2D, cx: number, cy: number, size: number): void {
@@ -67,6 +73,15 @@ export function drawCrest(
   m: Monogram,
   shape: 'shield' | 'circle' = 'shield',
 ): void {
+  if (m.image && m.image.width > 0 && m.image.height > 0) {
+    // Fit the emblem in the crest's box (shield proportions), centred.
+    const bw = size * 0.92;
+    const k = Math.min(bw / m.image.width, size / m.image.height);
+    const w = m.image.width * k;
+    const h = m.image.height * k;
+    ctx.drawImage(m.image, cx - w / 2, cy - h / 2, w, h);
+    return;
+  }
   ctx.beginPath();
   if (shape === 'circle') ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
   else shieldPath(ctx, cx, cy, size);

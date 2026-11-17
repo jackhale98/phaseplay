@@ -75,6 +75,24 @@ export const ROUTES = {
     auth: 'team',
     action: 'team.manage',
   },
+  'teams.crest.get': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/crest',
+    auth: 'team',
+    action: 'team.view',
+  },
+  'teams.crest.put': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/crest',
+    auth: 'team',
+    action: 'team.manage',
+  },
+  'teams.crest.delete': {
+    method: 'DELETE',
+    path: '/api/v1/teams/:teamId/crest',
+    auth: 'team',
+    action: 'team.manage',
+  },
   'teams.delete': {
     method: 'DELETE',
     path: '/api/v1/teams/:teamId',

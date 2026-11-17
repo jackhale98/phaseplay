@@ -29,6 +29,16 @@
     '#2a9d8f',
     '#5c6b73',
   ];
+  const COLOR_NAMES: Record<string, string> = {
+    '#f2c230': 'Gold',
+    '#1f6f43': 'Green',
+    '#2f6fb0': 'Blue',
+    '#7b4fa0': 'Purple',
+    '#c0392b': 'Red',
+    '#d9822b': 'Orange',
+    '#2a9d8f': 'Teal',
+    '#5c6b73': 'Slate',
+  };
   const SUGGESTIONS: { name: string; color: string; permissions: GrantableAction[] }[] = [
     {
       name: 'Captain',
@@ -212,7 +222,7 @@
       {#each COLORS as c (c)}
         <label class="sw" style:background={c}>
           <input type="radio" name="color" value={c} bind:group={color} />
-          <span class="sr-only">{c}</span>
+          <span class="sr-only">{COLOR_NAMES[c] ?? c}</span>
         </label>
       {/each}
     </fieldset>

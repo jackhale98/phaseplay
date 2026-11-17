@@ -21,6 +21,10 @@ export type Team = {
   ownerId: string;
   /** Ownership handover in progress: the nominated member, until they accept or decline. */
   pendingOwnerMemberId: string | null;
+  /** When the nomination was made; stale if the nominee has (re)joined since. */
+  pendingOwnerAt: number | null;
+  /** Set when the team has uploaded an emblem; changes with every upload (cache key). */
+  crestVersion: number | null;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;

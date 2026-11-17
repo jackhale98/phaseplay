@@ -40,7 +40,7 @@ The canonical matrix lives in `packages/shared/permissions.ts`. Everyone has one
 | Audit log | ✓ | ✓ | ✓ | | |
 
 - **Admins** are the e-board: they can do everything except delete the team. There can be several.
-- **Team roles** are named bundles of extra permissions, made by owners and admins (for example *Captain*: see coach-only practice plans, availability and draft sheets; *Social sec*: create events). They can only add permissions from the `GRANTABLE` list, which leaves out team settings, deleting, roles and member management, so a team role can never escalate itself. A player with *invite people* can only invite players.
+- **Team roles** are named bundles of extra permissions, made by owners and admins (for example *Captain*: see coach-only practice plans, availability and draft sheets; *Social sec*: create events). They can only add permissions from the `GRANTABLE` list, which leaves out team settings, deleting, roles and member management, so a team role can never escalate itself. A player with *invite people* can only invite players. *See who's in* shows replies and non-responders but never RSVP notes, which stay with staff by main role. Team roles are cleared when someone leaves or is removed, and a nomination lapses if the nominee leaves.
 - **Ownership handover** for when the e-board changes: the owner nominates an active member, nothing changes until they accept, and the old owner becomes an admin. If the owner's account hasn't been used for 30 days, any admin can take over. Every step is in the audit log.
 
 ## 3. Scope
@@ -220,7 +220,7 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
   - new play or practice plan shared
 - On iOS, guide players through installing the app to the home screen first, because Web Push only works after install.
 - **Season stats:** attendance, minutes played, match tallies and penalty trends, and training load (contact and high-intensity minutes from the practice plans).
-- **Team crest upload** to R2, resized client-side.
+- ~~Team crest upload~~ Done early: emblems are resized in the browser (256 px, PNG/WebP) and stored in D1 (`team_crests`, ≤ 200 KB), not R2. See `docs/decisions.md`.
 
 ### M8 — Cloudflare hardening (hosting itself moved into M0)
 - Done in M0: one Worker serves web + API on `phaseplay.app`, real security headers through `_headers`, runbook in `docs/runbook.md`.

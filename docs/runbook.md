@@ -13,13 +13,13 @@ Cloudflare builds and deploys straight from GitHub, so no API token lives in Git
    - **Production branch:** `main` (every push to `main` deploys)
    - **Root directory:** `/` (the repo root; pnpm workspaces install from there)
    - **Build command:** `pnpm cf:build`
-   - **Deploy command:** `pnpm deploy`
+   - **Deploy command:** `pnpm cf:deploy` (not `pnpm deploy`, which is a built-in pnpm command)
    - Leave non-production branch builds **off** for now: passkeys only work on `phaseplay.app`, so preview URLs can't sign in.
 4. Save and deploy. The first deploy creates the D1 database `phaseplay`, applies migrations, attaches `phaseplay.app` and `www.phaseplay.app`, and serves the app. A new custom domain's certificate can take a few minutes.
 
 After that, **every push to `main` deploys to phaseplay.app**. Each build shows as a check on the GitHub commit. Protect `main` (Settings → Branches: require the CI checks to pass) so only green code reaches it, since Cloudflare deploys whatever lands on `main`.
 
-**From a laptop instead:** `pnpm i`, then `pnpm --filter @phaseplay/api exec wrangler login`, then `pnpm deploy`.
+**From a laptop instead:** `pnpm i`, then `pnpm --filter @phaseplay/api exec wrangler login`, then `pnpm cf:deploy`.
 
 ## Public demo
 

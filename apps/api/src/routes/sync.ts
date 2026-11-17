@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { can, type RsvpCounts, type SyncResponse } from '@phaseplay/shared';
+import { can, isStaff, type RsvpCounts, type SyncResponse } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { notFound } from '../lib/http';
@@ -128,7 +128,8 @@ export function syncRoutes(app: Hono<AppEnv>) {
       roles: list('roles').map(roleFromRow),
       seasons: list('seasons').map(seasonFromRow),
       events: list('events').map(eventFromRow),
-      rsvps: list('rsvps').map((r) => rsvpFromRow(r, staff || r.member_id === me.id)),
+      // RSVP notes stay with staff by main role; a team-role grant shows replies, never notes.
+      rsvps: list('rsvps').map((r) => rsvpFromRow(r, isStaff(me.role) || r.member_id === me.id)),
       rsvpCounts,
       sheets: list('sheets')
         .map((r) => sheetFromRow(r, !drafts))
