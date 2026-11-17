@@ -4,8 +4,16 @@
   import Crest from '#lib/components/Crest.svelte';
 
   /** Real screenshots of the demo team (scripts/landing-shots.mjs), light and dark. */
-  type Shot = { src: string; dark?: boolean; w: number; h: number; alt: string };
-  const PHONE = { w: 640, h: 1387 };
+  type Shot = {
+    src: string;
+    dark?: boolean;
+    w: number;
+    h: number;
+    alt: string;
+    /** Also ships `<src>-480.webp` for small screens. */
+    small?: boolean;
+  };
+  const PHONE = { w: 640, h: 1073 };
   const DESK = { w: 1440, h: 900 };
   const shot = (name: string, size: { w: number; h: number }, alt: string, dark = true): Shot => ({
     src: `/landing/${name}`,
@@ -154,7 +162,9 @@
   <link
     rel="preload"
     as="image"
-    href="/landing/phone-home.webp"
+    href="/landing/phone-home-480.webp"
+    imagesrcset="/landing/phone-home-480.webp 480w, /landing/phone-home.webp 640w"
+    imagesizes="(max-width: 959px) 260px, 320px"
     type="image/webp"
     fetchpriority="high"
     media="(prefers-color-scheme: light)"
@@ -162,19 +172,51 @@
 </svelte:head>
 
 {#snippet picture(s: Shot, cls: string, eager = false)}
+  {@const darkSet = s.small
+    ? `${s.src}-dark-480.webp 480w, ${s.src}-dark.webp 640w`
+    : `${s.src}-dark.webp`}
+  {@const lightSet = s.small ? `${s.src}-480.webp 480w, ${s.src}.webp 640w` : undefined}
   <picture class={cls}>
     {#if s.dark}
-      <source srcset="{s.src}-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" />
+      {#if eager}
+        <source
+          srcset={darkSet}
+          sizes={s.small ? '(max-width: 959px) 260px, 320px' : undefined}
+          media="(prefers-color-scheme: dark)"
+          type="image/webp"
+        />
+      {:else}
+        <source
+          data-defer
+          data-srcset={darkSet}
+          media="(prefers-color-scheme: dark)"
+          type="image/webp"
+        />
+      {/if}
     {/if}
-    <img
-      src="{s.src}.webp"
-      width={s.w}
-      height={s.h}
-      alt={s.alt}
-      loading={eager ? 'eager' : 'lazy'}
-      decoding="async"
-      fetchpriority={eager ? 'high' : 'auto'}
-    />
+    {#if eager}
+      <img
+        src="{s.src}.webp"
+        srcset={lightSet}
+        sizes={s.small ? '(max-width: 959px) 260px, 320px' : undefined}
+        width={s.w}
+        height={s.h}
+        alt={s.alt}
+        decoding="auto"
+        fetchpriority="high"
+      />
+    {:else}
+      <!-- Filled in after the page loads (app.html), so these never compete with the hero. -->
+      <img
+        data-defer
+        data-src="{s.src}.webp"
+        width={s.w}
+        height={s.h}
+        alt={s.alt}
+        decoding="async"
+      />
+      <noscript><img src="{s.src}.webp" width={s.w} height={s.h} alt={s.alt} /></noscript>
+    {/if}
   </picture>
 {/snippet}
 
@@ -210,11 +252,14 @@
       <div class="visual">
         <div class="device phone hero-phone">
           {@render picture(
-            shot(
-              'phone-home',
-              PHONE,
-              'The Phaseplay home screen: the next practice with replies, and who is in by position.',
-            ),
+            {
+              ...shot(
+                'phone-home',
+                PHONE,
+                'The Phaseplay home screen: the next practice with replies, and who is in by position.',
+              ),
+              small: true,
+            },
             'screen',
             true,
           )}
@@ -489,7 +534,7 @@
   }
   .visual {
     position: relative;
-    width: min(100%, 320px);
+    width: min(100%, 260px);
     margin: 0 auto;
   }
 
@@ -501,6 +546,10 @@
     box-shadow:
       0 30px 60px -20px rgb(10 30 18 / 0.35),
       0 10px 24px -12px rgb(10 30 18 / 0.3);
+  }
+  /* Reserve the space (width/height ratio) but show nothing until the deferred source is set. */
+  .device :global(img[data-defer]:not([src])) {
+    visibility: hidden;
   }
   .device :global(img) {
     display: block;

@@ -84,6 +84,8 @@ for (const scheme of ['light', 'dark']) {
     if (kind === 'phone') {
       await open(page, '/home');
       await save(page, `phone-home${sfx}`, await shot(), 640);
+      // A smaller hero for phones (it's the landing page's largest paint).
+      await save(page, `phone-home${sfx}-480`, await shot(), 480);
       await open(page, `/events/${lastGame.id}/match`);
       await save(page, `phone-match${sfx}`, await shot(), 640);
       await open(page, `/events/${lastGame.id}/match/summary`);

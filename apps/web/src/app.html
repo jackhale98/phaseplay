@@ -33,6 +33,13 @@
           for (var k in s) document.documentElement.style.setProperty(k, s[k]);
         }
       } catch (e) {}
+      // Below-the-fold images (data-defer) load after the page, so the first paint isn't slowed.
+      addEventListener('load', function () {
+        document.querySelectorAll('[data-defer]').forEach(function (el) {
+          if (el.dataset.srcset) el.srcset = el.dataset.srcset;
+          if (el.dataset.src) el.src = el.dataset.src;
+        });
+      });
     </script>
     %sveltekit.head%
   </head>
