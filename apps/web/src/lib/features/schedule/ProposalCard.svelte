@@ -10,7 +10,7 @@
   import type { ProposalAnswer, TeamEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { proposalView } from '#lib/data/selectors';
-  import { longDay, shortDay, time } from '#lib/format';
+  import { day as dayMonth, longDay, time } from '#lib/format';
   import { IconCheck, IconX, IconMapPin } from '#lib/icons';
   import { displayTitle } from './schedule';
   import { answerProposal } from './proposals';
@@ -37,17 +37,17 @@
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const d = reduce ? 0 : 320;
 
-  const when = (ms: number) => `${shortDay(ms, tz)}, ${time(ms, tz)}`;
+  const when = (ms: number) => `${dayMonth(ms, tz)}, ${time(ms, tz)}`;
   const summary = $derived.by(() => {
     const works = v.options
       .filter((o) => o.mine === 'in')
-      .map((o) => shortDay(o.option.startsAt, tz));
+      .map((o) => dayMonth(o.option.startsAt, tz));
     if (!poll) {
       const o = v.options[0];
       if (!o) return '';
       return o.mine === 'in'
-        ? `You're in ${shortDay(o.option.startsAt, tz)}`
-        : `Can't make ${shortDay(o.option.startsAt, tz)}`;
+        ? `You're in ${dayMonth(o.option.startsAt, tz)}`
+        : `Can't make ${dayMonth(o.option.startsAt, tz)}`;
     }
     return works.length ? `Works: ${works.join(', ')}` : 'None work';
   });
@@ -133,7 +133,7 @@
           {#each v.options as o (o.option.id)}
             <li class:new={!o.mine && v.newDate}>
               <span class="d tnum"
-                ><strong>{shortDay(o.option.startsAt, tz)}</strong>
+                ><strong>{dayMonth(o.option.startsAt, tz)}</strong>
                 {time(o.option.startsAt, tz)}<span class="n">{o.counts.in} in</span></span
               >
               <div class="two" role="group" aria-label={when(o.option.startsAt)}>

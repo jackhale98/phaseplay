@@ -24,7 +24,14 @@ function nextMonthSaturdays() {
   const sat = first + ((6 - dow + 7) % 7) * DAY;
   return [sat, sat + 7 * DAY];
 }
-const sat = (ms: number) => `Sat ${new Date(ms).getUTCDate()}`;
+/** How the app writes a proposal date ("Sat, Jul 12"): the fixture team is on London time. */
+const sat = (ms: number) =>
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/London',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(ms);
 
 async function answerAs(who: Actor, teamId: string, eventId: string, answers: unknown[]) {
   const r = await who.api.put(`${ORIGIN}/api/v1/teams/${teamId}/events/${eventId}/answers`, {

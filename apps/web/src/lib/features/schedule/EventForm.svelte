@@ -37,7 +37,7 @@
   import Button from '#lib/components/Button.svelte';
   import Chip from '#lib/components/Chip.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
-  import { fromLocalInput, toLocalInput, tzName, day, time, shortDay, plural } from '#lib/format';
+  import { fromLocalInput, toLocalInput, tzName, day, time, plural } from '#lib/format';
   import { toasts } from '#lib/stores/toast.svelte';
   import { IconChevronLeft, IconChevronRight, IconPlus, IconX } from '#lib/icons';
   import { optionsOf } from '#lib/data/selectors';
@@ -362,7 +362,7 @@
       .filter((x) => x.n > 0);
     if (!gone.length) return null;
     const n = gone.reduce((a, x) => a + x.n, 0);
-    return `${gone.map((x) => shortDay(x.o.startsAt, tz)).join(' and ')} ${
+    return `${gone.map((x) => day(x.o.startsAt, tz)).join(' and ')} ${
       gone.length === 1 ? 'has' : 'have'
     } ${plural(n, 'answer')}. Saving clears ${n === 1 ? 'it' : 'them'}.`;
   }

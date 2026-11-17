@@ -12,7 +12,7 @@
   import Field from '#lib/components/Field.svelte';
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { longDay, plural, shortDay, time, tzName } from '#lib/format';
+  import { day as dayMonth, longDay, plural, time, tzName } from '#lib/format';
   import {
     IconCheck,
     IconCopy,
@@ -38,7 +38,7 @@
   const title = $derived(displayTitle(e, s?.team.shortName));
   const notes = $derived(notesBody(e.notes));
   const map = $derived(mapLink(e));
-  const dates = $derived(v.options.map((o) => shortDay(o.option.startsAt, tz)));
+  const dates = $derived(v.options.map((o) => dayMonth(o.option.startsAt, tz)));
 
   /** The date being confirmed (one step, inline), and a meet time if the date has none. */
   let confirming = $state<string | null>(null);
@@ -63,7 +63,7 @@
     await confirmProposal(e, optionId, meetAt);
     confirming = null;
     toasts.success(
-      `${shortDay(o.option.startsAt, tz)} is on. ${plural(o.counts.in, 'person', 'people')} marked Yes.`,
+      `${dayMonth(o.option.startsAt, tz)} is on. ${plural(o.counts.in, 'person', 'people')} marked Yes.`,
     );
   }
   async function drop() {
@@ -172,7 +172,7 @@
           {#if confirming === o.option.id}
             <div class="confirm" role="group" aria-labelledby="cf-{o.option.id}">
               <p id="cf-{o.option.id}">
-                <strong>Confirm {shortDay(o.option.startsAt, tz)}?</strong>
+                <strong>Confirm {dayMonth(o.option.startsAt, tz)}?</strong>
                 {plural(o.counts.in, 'person is', 'people are')} in. They'll be marked Yes and asked to
                 reconfirm.
               </p>
@@ -188,7 +188,7 @@
                   >Not yet</Button
                 >
                 <Button size="sm" variant="primary" onclick={() => confirm(o.option.id)}
-                  >Confirm {shortDay(o.option.startsAt, tz)}</Button
+                  >Confirm {dayMonth(o.option.startsAt, tz)}</Button
                 >
               </div>
             </div>
@@ -197,7 +197,7 @@
               size="sm"
               variant={best || v.options.length === 1 ? 'primary' : 'secondary'}
               onclick={() => askConfirm(o.option.id)}
-              >Confirm {shortDay(o.option.startsAt, tz)}<span class="sr-only"
+              >Confirm {dayMonth(o.option.startsAt, tz)}<span class="sr-only"
                 >{`, ${longDay(o.option.startsAt, tz)}`}</span
               ></Button
             >
