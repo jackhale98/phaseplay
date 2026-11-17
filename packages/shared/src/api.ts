@@ -269,6 +269,8 @@ export type Invite = {
   maxUses: number;
   uses: number;
   revokedAt: number | null;
+  /** The join link (`/join#t=…`) for live invites made since links were kept; else null. */
+  path?: string | null;
 };
 
 export type InvitePreview = {

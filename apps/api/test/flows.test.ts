@@ -999,3 +999,23 @@ describe('editing a weekly series', () => {
     expect(ev.every((e) => e.type === 'meeting')).toBe(true);
   });
 });
+
+describe('invite links can be copied again', () => {
+  it('lists the link for live join invites only', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}/invites`;
+    const made = await call('POST', t, {
+      cookie: a.coach.cookie,
+      body: { id: uuidv7(), role: 'player', maxUses: 3 },
+    });
+    const list = async (cookie: string) =>
+      (await call('GET', t, { cookie })).body.invites as { id: string; path: string | null }[];
+    const mine = (await list(a.coach.cookie)).find((i) => i.id === made.body.id)!;
+    expect(mine.path).toBe(made.body.path);
+    // Players can't list invites at all.
+    expect((await call('GET', t, { cookie: a.player.cookie })).status).toBe(403);
+    // Revoked invites never show their link.
+    await call('DELETE', `${t}/${made.body.id}`, { cookie: a.owner.cookie });
+    expect((await list(a.coach.cookie)).find((i) => i.id === made.body.id)!.path).toBeNull();
+  });
+});

@@ -91,7 +91,7 @@
           >{#snippet icon()}<IconCopy />{/snippet}Copy</Button
         >
       </div>
-      <Button variant="ghost" onclick={() => (link = null)}>Make another</Button>
+      <Button variant="ghost" onclick={() => (link = null)}>Back to invites</Button>
     </div>
   {:else}
     <div class="stack">
@@ -129,8 +129,13 @@
     </div>
   {/if}
 
-  {#if active.length}
+  {#if active.length && !link}
     <h3 class="section-title">Active invites</h3>
+    {#if active.some((i) => !i.path)}
+      <p class="subtle">
+        Links made before this update can't be shown again. Make a new one to share.
+      </p>
+    {/if}
     <ul class="list inv">
       {#each active as i (i.id)}
         <li>
@@ -141,6 +146,23 @@
               · made {ago(i.createdAt)}</small
             ></span
           >
+          {#if i.path}
+            <Button
+              size="sm"
+              onclick={async () =>
+                toasts.show(
+                  (await copyText(`${location.origin}${i.path}`)) ? 'Link copied' : "Couldn't copy",
+                )}
+              >{#snippet icon()}<IconCopy />{/snippet}Copy<span class="sr-only">
+                {ROLE_LABELS[i.role]} invite link</span
+              ></Button
+            >
+            <Button size="sm" variant="ghost" onclick={() => (link = `${location.origin}${i.path}`)}
+              >Show<span class="sr-only">
+                {ROLE_LABELS[i.role]} invite link and QR code</span
+              ></Button
+            >
+          {/if}
           {#if canRevoke}<Button size="sm" variant="ghost" onclick={() => revoke(i.id)}
               >{#snippet icon()}<IconTrash />{/snippet}Revoke</Button
             >{/if}
@@ -184,6 +206,7 @@
   }
   .inv li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--s-3);
     padding: var(--s-2) 0;
