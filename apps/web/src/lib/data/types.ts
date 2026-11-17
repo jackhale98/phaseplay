@@ -10,7 +10,12 @@ import type {
   TeamEvent,
   TeamSheet,
   TeamRole,
+  InventoryItem,
+  InventoryHandoff,
 } from '@phaseplay/shared';
+
+/** A handover as cached on this device: `queued` while my accept/decline waits in the outbox. */
+export type LocalHandoff = InventoryHandoff & { queued?: 'accept' | 'decline' };
 
 /** Everything cached for one team. Rows are keyed by id (rsvps by `${eventId}:${memberId}`). */
 export type TeamSnapshot = {
@@ -31,6 +36,10 @@ export type TeamSnapshot = {
     plans: Record<string, PracticePlan>;
     /** Missing from snapshots cached before team roles existed. */
     roles?: Record<string, TeamRole>;
+    /** Club kit (M9). Missing from snapshots cached before kit existed. */
+    items?: Record<string, InventoryItem>;
+    /** Open handovers. Missing from snapshots cached before kit existed. */
+    handoffs?: Record<string, LocalHandoff>;
   };
 };
 

@@ -17,6 +17,7 @@
   $effect(() => theme.set(pref));
   const links = $derived([
     { href: '/practice', label: 'Practice plans', icon: IconTimer, show: true },
+    { href: '/kit', label: 'Kit', icon: IconClipboard, show: true },
     { href: '/settings/calendar', label: 'Calendar feed', icon: IconCalendar, show: true },
     { href: '/settings/account', label: 'Account and passkeys', icon: IconKey, show: true },
     { href: '/settings/team', label: 'Team settings', icon: IconSettings, show: true },

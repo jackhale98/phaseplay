@@ -25,7 +25,7 @@ export type OutboxEntry = {
   nextAt: number;
 };
 
-export type VersionedEntity = 'events' | 'sheets' | 'plays' | 'drills' | 'plans';
+export type VersionedEntity = 'events' | 'sheets' | 'plays' | 'drills' | 'plans' | 'items';
 export type Optimistic =
   | { op: 'put'; entity: keyof TeamSnapshot['rows']; key: string; value: unknown }
   | { op: 'patch'; entity: keyof TeamSnapshot['rows']; key: string; value: Record<string, unknown> }
