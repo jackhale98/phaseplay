@@ -379,7 +379,21 @@
   nav a {
     white-space: nowrap;
   }
-  @media (max-width: 380px) {
+  .top {
+    gap: var(--s-3);
+  }
+  .brand {
+    min-width: 0;
+  }
+  @media (max-width: 560px) {
+    .brand :global(.wordmark) {
+      font-size: 0.8125rem !important;
+    }
+    .link {
+      padding: 10px 6px;
+    }
+  }
+  @media (max-width: 400px) {
     .brand :global(.wordmark) {
       display: none;
     }
