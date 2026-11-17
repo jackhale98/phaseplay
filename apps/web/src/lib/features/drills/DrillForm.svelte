@@ -53,9 +53,11 @@
   let errors = $state<Record<string, string>>({});
   const derived = $derived(equipmentFromDiagram(diagram));
 
+  // Copy the drill into the form when the sheet opens, not whenever the drill changes: a
+  // background save (e.g. the diagram autosave) must not wipe what's being typed.
   $effect(() => {
     if (!open) return;
-    const v = $state.snapshot(value) as DrillDetails;
+    const v = untrack(() => $state.snapshot(value)) as DrillDetails;
     f = {
       ...v,
       area: { ...v.area },

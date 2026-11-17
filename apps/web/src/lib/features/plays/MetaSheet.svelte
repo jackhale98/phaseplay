@@ -8,6 +8,7 @@
 </script>
 
 <script lang="ts">
+  import { untrack } from 'svelte';
   import {
     PLAY_CATEGORIES,
     PLAY_CATEGORY_LABELS,
@@ -29,15 +30,18 @@
   let description = $state('');
   let error = $state<string | null>(null);
 
+  // Copy the play in when the sheet opens only, so a background autosave can't wipe edits.
   $effect(() => {
     if (!open) return;
-    title = value.title;
-    category = value.category;
-    tags = value.tags.join(', ');
-    format = value.format;
-    visibility = value.visibility;
-    description = value.description ?? '';
-    error = null;
+    untrack(() => {
+      title = value.title;
+      category = value.category;
+      tags = value.tags.join(', ');
+      format = value.format;
+      visibility = value.visibility;
+      description = value.description ?? '';
+      error = null;
+    });
   });
 
   function save(e: SubmitEvent) {

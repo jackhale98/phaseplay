@@ -77,6 +77,8 @@ test('a coach builds a 90-minute split session on a phone', async ({
   isMobile,
 }) => {
   test.skip(!isMobile, 'Phone flow; desktop uses the library side panel (covered below)');
+  // A long flow (14 sheet round-trips); CI's WebKit runner needs more than the default 30 s.
+  test.setTimeout(90_000);
   const ev = await training(team);
   await openTeam(page, team.teamId, '/practice');
   await page
