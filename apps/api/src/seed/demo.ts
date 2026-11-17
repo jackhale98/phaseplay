@@ -7,10 +7,17 @@ import {
   zonedToUtc,
   addDays,
   dateInTz,
+  type Entity,
+  type Frame,
+  type Move,
   type Play,
   type MatchPayload,
   type PlanData,
+  type Vec2,
+  type View,
+  type Viewport,
 } from '@phaseplay/shared';
+import { lineout, scrum15 } from '@phaseplay/diagram/presets';
 import { STARTER_DRILLS } from './starter-drills';
 import { starterDiagram } from './starter-diagrams';
 
@@ -461,84 +468,19 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     });
   }
 
-  // Plays (simple but valid diagrams; replaced by presets once packages/diagram lands).
-  const mkPlay = (
-    pid: string,
-    title: string,
-    view: Play['view'],
-    tokens: {
-      id: string;
-      kind: 'attack' | 'defence' | 'ball';
-      n?: number;
-      a: [number, number];
-      b: [number, number];
-    }[],
-    captions: [string, string],
-  ): Play => ({
-    v: 1,
-    id: pid,
-    mode: 'play',
-    title,
-    format: '15s',
-    view,
-    entities: tokens.map((t) => ({ id: t.id, kind: t.kind, ...(t.n ? { number: t.n } : {}) })),
-    frames: [
-      {
-        id: 'f0',
-        durationMs: 0,
-        pos: Object.fromEntries(tokens.map((t) => [t.id, { x: t.a[0], y: t.a[1] }])),
-        moves: {},
-        caption: captions[0],
-        ball: { holder: tokens.find((t) => t.kind === 'attack')?.id },
-      },
-      {
-        id: 'f1',
-        durationMs: 2200,
-        pos: Object.fromEntries(tokens.map((t) => [t.id, { x: t.b[0], y: t.b[1] }])),
-        moves: Object.fromEntries(
-          tokens
-            .filter((t) => t.kind !== 'ball')
-            .map((t) => [t.id, { kind: 'run' as const, ease: 'inOut' as const }]),
-        ),
-        caption: captions[1],
-      },
-    ],
-  });
-  const playDefs: [string, string, Play['view'], string][] = [
-    ['Lineout 5: front ball', 'lineout', 'lineout', 'Quick front ball to the 2, maul set.'],
-    ['Lineout 7: back peel', 'lineout', 'lineout', 'Throw to the back, 8 peels round the tail.'],
-    ['Scrum: 8 pick, 9 switch', 'scrum', 'scrum', 'Eight picks right, nine loops for the switch.'],
-    ['Strike: Wide Wally', 'strike', 'attack22', 'Miss-pass from 10 to 13, winger hits the hole.'],
-    ['Strike: Unders', 'strike', 'half', '12 runs the unders line off 10.'],
-    ['Kick-off: left short', 'kickoff', 'half', 'Short kick to the 10 m on the left.'],
-    ['Exit: box kick', 'exit', 'half', 'Box kick to touch from our 22.'],
-    ['Defence: rush on 10', 'defence', 'half', 'Outside backs rush the 10 channel.'],
-  ];
-  for (const [title, category, view, description] of playDefs) {
+  // Plays: built from the shared presets, with real frames (see DEMO_PLAYS below).
+  for (const def of DEMO_PLAYS) {
     const pid = id('91a');
-    const data = mkPlay(
-      pid,
-      title,
-      view,
-      [
-        { id: 'a9', kind: 'attack', n: 9, a: [30, 60], b: [32, 64] },
-        { id: 'a10', kind: 'attack', n: 10, a: [36, 66], b: [44, 72] },
-        { id: 'a12', kind: 'attack', n: 12, a: [42, 70], b: [52, 78] },
-        { id: 'a13', kind: 'attack', n: 13, a: [48, 73], b: [60, 82] },
-        { id: 'd1', kind: 'defence', a: [36, 75], b: [40, 76] },
-        { id: 'd2', kind: 'defence', a: [46, 78], b: [50, 79] },
-      ],
-      ['Set up', description],
-    );
+    const data = def.build(pid);
     insert('plays', {
       id: pid,
       team_id: TEAM,
-      title,
-      category,
-      tags: JSON.stringify([category]),
+      title: def.title,
+      category: def.category,
+      tags: JSON.stringify([def.category]),
       format: '15s',
-      visibility: category === 'defence' ? 'coaches' : 'team',
-      description,
+      visibility: def.category === 'defence' ? 'coaches' : 'team',
+      description: def.description,
       data: JSON.stringify(data),
       frame_count: data.frames.length,
       version: 1,
@@ -548,7 +490,7 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     });
   }
 
-  // Drills: the starter pack (12 shown in docs; we seed all 15).
+  // Drills: the starter pack (12 shown in docs; we seed all 16).
   const drillIds: Record<string, string> = {};
   STARTER_DRILLS.forEach((d, i) => {
     const did = id('d1');
@@ -822,3 +764,695 @@ export function buildDemo(now: number = Date.now()): DemoTables {
   if (owner.userId !== DEMO_USER_ID) throw new Error('demo owner id drifted');
   return tables;
 }
+// ---------------------------------------------------------------------------------------------
+// Demo plays. Attack runs towards y = 0 (docs/diagrams.md §Model); "behind" the attack is larger
+// y, and a team facing −y has its left at low x. Every pass goes sideways or back.
+
+type Pos = Record<string, Vec2>;
+type MoveSpec = Vec2 | { to: Vec2; ctrl?: Vec2[]; kind?: Move['kind']; delay?: number };
+type Step = {
+  caption: string;
+  ms: number;
+  moves?: Record<string, MoveSpec>;
+  /** Ball state at the end of the step, and how it gets there. */
+  ball?: Frame['ball'];
+  ballMove?: { kind: Move['kind']; delay?: number; ctrl?: Vec2[] };
+};
+type Shape = { entities: Entity[]; pos: Pos; ball?: Frame['ball']; view: View };
+
+/** A play from a starting shape plus steps that list only what moves. */
+function framesPlay(
+  pid: string,
+  title: string,
+  shape: Shape,
+  caption0: string,
+  steps: Step[],
+  viewport?: Viewport,
+): Play {
+  const frames: Frame[] = [
+    {
+      id: 'f0',
+      durationMs: 0,
+      pos: structuredClone(shape.pos),
+      moves: {},
+      caption: caption0,
+    },
+  ];
+  if (shape.ball) frames[0]!.ball = shape.ball;
+  steps.forEach((s, i) => {
+    const pos: Pos = {};
+    const moves: Frame['moves'] = {};
+    for (const [eid, spec] of Object.entries(s.moves ?? {})) {
+      const m = 'x' in spec ? { to: spec } : spec;
+      pos[eid] = m.to;
+      const mv: Move = { kind: m.kind ?? 'run' };
+      if (m.ctrl) mv.ctrl = m.ctrl;
+      if (m.delay) mv.delayMs = m.delay;
+      moves[eid] = mv;
+    }
+    if (s.ballMove) {
+      const mv: Move = { kind: s.ballMove.kind };
+      if (s.ballMove.delay) mv.delayMs = s.ballMove.delay;
+      if (s.ballMove.ctrl) mv.ctrl = s.ballMove.ctrl;
+      moves.ball = mv;
+    }
+    const f: Frame = {
+      id: `f${i + 1}`,
+      durationMs: s.ms,
+      pos,
+      moves,
+      caption: s.caption,
+    };
+    if (s.ball) f.ball = s.ball;
+    frames.push(f);
+  });
+  const play: Play = {
+    v: 1,
+    id: pid,
+    mode: 'play',
+    title,
+    format: '15s',
+    view: shape.view,
+    entities: shape.entities,
+    frames,
+  };
+  if (viewport) play.viewport = viewport;
+  return play;
+}
+
+/** Move a group of tokens by (dx, dy) from where they are in `pos`. */
+const shift = (pos: Pos, ids: string[], dx: number, dy: number): Pos =>
+  Object.fromEntries(
+    ids.map((k) => [k, { x: (pos[k] as Vec2).x + dx, y: (pos[k] as Vec2).y + dy }]),
+  );
+
+type Tok = [id: string, x: number, y: number, text?: string];
+/** A shape from explicit tokens: `a{n}` attackers, `d{n}` defenders, numbered from the id. */
+function tokens(
+  view: View,
+  list: Tok[],
+  holder: string,
+  labels: [string, number, number][] = [],
+): Shape {
+  const entities: Entity[] = [];
+  const pos: Pos = {};
+  for (const [eid, x, y, text] of list) {
+    const e: Entity = {
+      id: eid,
+      kind: eid.startsWith('a') ? 'attack' : 'defence',
+      number: Number(eid.slice(1)),
+    };
+    if (text) e.text = text;
+    entities.push(e);
+    pos[eid] = { x, y };
+  }
+  labels.forEach(([text, x, y], i) => {
+    const lid = `label${i + 1}`;
+    entities.push({ id: lid, kind: 'label', text });
+    pos[lid] = { x, y };
+  });
+  entities.push({ id: 'ball', kind: 'ball' });
+  pos.ball = { ...(pos[holder] as Vec2) };
+  return { entities, pos, ball: { holder }, view };
+}
+
+/** Lineout plays show the backs 10 m+ back, beyond the named lineout view. */
+const LINEOUT_VIEWPORT: Viewport = { x: -4, y: 24, w: 56, h: 46 };
+
+/** The strike moves happen between their 22 and try line, right of the ruck. */
+const STRIKE_VIEWPORT: Viewport = { x: 12, y: -6, w: 50, h: 48 };
+
+/** Off a ruck at (20, 30) on the left, near their 22: shared by the two strike moves. */
+const strikeShape = (): Shape =>
+  tokens(
+    'half',
+    [
+      ['a9', 20, 30.8],
+      ['a10', 26, 34],
+      ['a12', 32, 35.5],
+      ['a13', 39, 37],
+      ['a15', 45, 38.5],
+      ['a14', 55, 40],
+      ['d7', 23.5, 28.5],
+      ['d10', 27, 28],
+      ['d12', 33, 28],
+      ['d13', 40, 28],
+      ['d11', 50, 27],
+      ['d15', 45, 15],
+    ],
+    'a9',
+    [['Ruck', 18.6, 29.2]],
+  );
+
+type DemoPlay = {
+  title: string;
+  category: string;
+  description: string;
+  build: (pid: string) => Play;
+};
+
+const DEMO_PLAYS: DemoPlay[] = [
+  {
+    title: 'Lineout 5: front ball, maul',
+    category: 'lineout',
+    description: 'Front ball to position 2, set the maul.',
+    build: (pid) => {
+      const s = lineout(5);
+      const maul = { a4: { x: 7.5, y: 41.5 }, a1: { x: 6.5, y: 42.3 } };
+      const set: Pos = {
+        ...maul,
+        a3: { x: 8.5, y: 42.3 },
+        a5: { x: 7.5, y: 43.2 },
+        a6: { x: 6.5, y: 43.8 },
+      };
+      return framesPlay(
+        pid,
+        'Lineout 5: front ball, maul',
+        s,
+        '5-player lineout. Call: front ball to the 4 at position 2.',
+        [
+          {
+            caption: 'Hooker throws to the front jumper; 1 and 3 lift.',
+            ms: 1000,
+            ball: { holder: 'a4' },
+            ballMove: { kind: 'pass', delay: 150 },
+          },
+          {
+            caption:
+              '4 lands and turns to face her own team. 1, 3 and 5 bind on; the ball goes to the back.',
+            ms: 1200,
+            moves: set,
+            ball: { holder: 'a5' },
+            ballMove: { kind: 'pass', delay: 700 },
+          },
+          {
+            caption:
+              'The maul drives infield and forward, toward the try line. 2 joins at the back; 9 follows the ball.',
+            ms: 1500,
+            moves: {
+              ...shift(set, Object.keys(set), 2, -4),
+              a2: { x: 9.6, y: 40.6 },
+              a9: { x: 11.4, y: 41.4 },
+            },
+          },
+        ],
+        LINEOUT_VIEWPORT,
+      );
+    },
+  },
+  {
+    title: 'Lineout 7: back peel',
+    category: 'lineout',
+    description: 'Throw to the back; the 8 taps down to the 7 peeling round the tail.',
+    build: (pid) =>
+      framesPlay(
+        pid,
+        'Lineout 7: back peel',
+        lineout(7),
+        'Full lineout. Call: back ball to the 8 at position 6.',
+        [
+          {
+            caption: '2 throws to the 8 at the back; 6 and 7 lift. The throw lands about 12 m in.',
+            ms: 1100,
+            ball: { holder: 'a8' },
+            ballMove: { kind: 'pass', delay: 150 },
+          },
+          {
+            caption: '8 taps the ball down to the 7 peeling round the tail.',
+            ms: 1000,
+            moves: {
+              a7: { to: { x: 16.5, y: 42 }, ctrl: [{ x: 16.5, y: 41 }] },
+            },
+            ball: { holder: 'a7' },
+            ballMove: { kind: 'pass', delay: 600 },
+          },
+          {
+            caption:
+              '7 carries flat off the tail at the opposition 10–12 channel; 9 and 6 support.',
+            ms: 1300,
+            moves: {
+              a7: { to: { x: 20, y: 36 }, kind: 'carry' },
+              a9: { x: 18, y: 40 },
+              a6: { x: 17, y: 39 },
+            },
+          },
+        ],
+        LINEOUT_VIEWPORT,
+      ),
+  },
+  {
+    title: 'Scrum: 8 pick, 9 switch',
+    category: 'scrum',
+    description: 'The 8 picks right, the 9 loops round, and the 14 switches back against the flow.',
+    build: (pid) =>
+      framesPlay(
+        pid,
+        'Scrum: 8 pick, 9 switch',
+        scrum15(),
+        'Scrum in midfield. 9 feeds on the loosehead side; the pack hooks the ball back to the 8’s feet.',
+        [
+          {
+            caption: '9 feeds, the hooker strikes and the ball is channelled back to the 8.',
+            ms: 900,
+            ball: { at: { x: 35, y: 42.8 } },
+            ballMove: { kind: 'run', delay: 150, ctrl: [{ x: 34.6, y: 40.6 }] },
+          },
+          {
+            caption: '8 picks from the base and goes right.',
+            ms: 1000,
+            moves: {
+              a8: { to: { x: 38, y: 41 }, kind: 'carry' },
+              d6: { x: 39.8, y: 38.4 },
+              d9: {
+                to: { x: 38.4, y: 37.4 },
+                ctrl: [
+                  { x: 33, y: 35.4 },
+                  { x: 37, y: 35.4 },
+                ],
+              },
+            },
+            ball: { holder: 'a8' },
+            ballMove: { kind: 'run' },
+          },
+          {
+            caption: '8 passes back to the 9, who loops round behind; the right wing starts in.',
+            ms: 1100,
+            moves: {
+              a8: { to: { x: 38.6, y: 40.4 }, kind: 'carry' },
+              a9: {
+                to: { x: 39, y: 42.5 },
+                ctrl: [
+                  { x: 33, y: 46.5 },
+                  { x: 37, y: 46.5 },
+                ],
+              },
+              a14: { x: 48, y: 47 },
+              d9: { x: 39.6, y: 38.2 },
+              d6: { x: 42, y: 38.6 },
+            },
+            ball: { holder: 'a9' },
+            ballMove: { kind: 'pass', delay: 800 },
+          },
+          {
+            caption: '9 switches with the openside wing, coming back against the flow.',
+            ms: 1300,
+            moves: {
+              a9: { to: { x: 42.5, y: 41.4 }, kind: 'carry' },
+              a14: { to: { x: 41.4, y: 42.8 }, ctrl: [{ x: 44.5, y: 46 }] },
+              d9: { x: 43.5, y: 39 },
+              d6: { x: 46, y: 38.8 },
+              d10: { x: 31, y: 31 },
+            },
+            ball: { holder: 'a14' },
+            ballMove: { kind: 'pass', delay: 1000 },
+          },
+          {
+            caption: '14 breaks through the hole behind the drifting defense.',
+            ms: 1300,
+            moves: {
+              a14: { to: { x: 38.5, y: 30 }, kind: 'carry' },
+              d10: { x: 33.5, y: 31.8 },
+            },
+          },
+        ],
+      ),
+  },
+  {
+    title: 'Strike: Wide Wally',
+    category: 'strike',
+    description: 'Miss pass from 10 to 13; the 14 comes in off the wing to hit the hole.',
+    build: (pid) =>
+      framesPlay(
+        pid,
+        'Strike: Wide Wally',
+        strikeShape(),
+        'Ruck on the left near their 22. Wide Wally: a miss pass from 10 to 13, and the 14 comes in off the wing.',
+        [
+          {
+            caption: '9 to 10.',
+            ms: 900,
+            moves: { a10: { x: 26.4, y: 33.4 } },
+            ball: { holder: 'a10' },
+            ballMove: { kind: 'pass', delay: 100 },
+          },
+          {
+            caption: '10 throws a miss pass over 12 to 13; 12 runs a decoy line.',
+            ms: 1200,
+            moves: {
+              a10: { to: { x: 27, y: 32.5 }, kind: 'carry' },
+              a12: { x: 33, y: 31 },
+              a13: { x: 39.5, y: 35 },
+              a15: { x: 45.5, y: 37 },
+              a14: { x: 54, y: 38.5 },
+              d10: { x: 27.4, y: 29.6 },
+              d12: { x: 33, y: 29.8 },
+              d13: { x: 40, y: 29.8 },
+              d11: { x: 50, y: 28.5 },
+            },
+            ball: { holder: 'a13' },
+            ballMove: { kind: 'pass', delay: 800 },
+          },
+          {
+            caption:
+              '13 fixes her defender; the 14 comes in off the wing into the hole between 13 and the outside defender.',
+            ms: 1300,
+            moves: {
+              a13: { to: { x: 40.4, y: 32.6 }, kind: 'carry' },
+              a14: { to: { x: 45.2, y: 33.8 }, ctrl: [{ x: 51, y: 37 }] },
+              a15: { x: 48, y: 33.5 },
+              d13: { x: 40.3, y: 31 },
+              d11: { x: 49, y: 30.5 },
+              d15: { x: 47, y: 20 },
+            },
+            ball: { holder: 'a14' },
+            ballMove: { kind: 'pass', delay: 1000 },
+          },
+          {
+            caption: '14 runs in to score.',
+            ms: 1400,
+            moves: {
+              a14: {
+                to: { x: 42.5, y: 1 },
+                ctrl: [{ x: 44.5, y: 16 }],
+                kind: 'carry',
+              },
+              a15: { x: 49, y: 18 },
+              d15: { x: 46.5, y: 9 },
+              d11: { x: 47.5, y: 24 },
+            },
+          },
+        ],
+        STRIKE_VIEWPORT,
+      ),
+  },
+  {
+    title: 'Strike: Unders',
+    category: 'strike',
+    description: '12 runs an unders line back inside 10.',
+    build: (pid) =>
+      framesPlay(
+        pid,
+        'Strike: Unders',
+        strikeShape(),
+        'Ruck on the left near their 22. Unders: 10 runs at the line and 12 cuts back inside her shoulder.',
+        [
+          {
+            caption: '9 to 10.',
+            ms: 900,
+            moves: { a10: { x: 26.3, y: 33.4 } },
+            ball: { holder: 'a10' },
+            ballMove: { kind: 'pass', delay: 100 },
+          },
+          {
+            caption: '10 runs hard at the line to hold the 10 defender.',
+            ms: 1100,
+            moves: {
+              a10: { to: { x: 28.8, y: 30.8 }, kind: 'carry' },
+              a12: { x: 30.5, y: 33.5 },
+              a13: { x: 38, y: 34.5 },
+              d10: { x: 29, y: 29.1 },
+              d12: { x: 33.5, y: 29.3 },
+              d13: { x: 40, y: 29.5 },
+              d7: { x: 24, y: 28.8 },
+            },
+          },
+          {
+            caption:
+              '12 cuts back on an unders line inside 10’s shoulder; 10 pops the pass just before contact.',
+            ms: 900,
+            moves: {
+              a10: { to: { x: 29.1, y: 30.3 }, kind: 'carry' },
+              a12: { to: { x: 27.6, y: 32 }, ctrl: [{ x: 29.8, y: 34 }] },
+              d10: { x: 29.3, y: 29 },
+              d12: { x: 33.6, y: 29.6 },
+            },
+            ball: { holder: 'a12' },
+            ballMove: { kind: 'pass', delay: 650 },
+          },
+          {
+            caption: '12 hits the gap between the pillar and the 10 defender.',
+            ms: 1100,
+            moves: {
+              a12: { to: { x: 26.2, y: 24 }, kind: 'carry' },
+              d10: { x: 28.8, y: 28.2 },
+              d7: { x: 24.2, y: 27.9 },
+            },
+          },
+        ],
+        STRIKE_VIEWPORT,
+      ),
+  },
+  {
+    title: 'Kick-off: left short',
+    category: 'kickoff',
+    description:
+      'Short, high kick-off to just past their 10 m line on the left, for our pod to contest.',
+    build: (pid) => {
+      const s = tokens(
+        'full',
+        [
+          ['a10', 35, 50.5],
+          ['a11', 5, 53],
+          ['a1', 9, 53, 'L'],
+          ['a4', 13, 53, 'J'],
+          ['a3', 17, 53, 'L'],
+          ['a6', 22, 53],
+          ['a7', 27, 53],
+          ['a2', 40, 53],
+          ['a5', 45, 53],
+          ['a8', 50, 53],
+          ['a12', 55, 53],
+          ['a13', 60, 53],
+          ['a14', 65, 53],
+          ['a9', 35, 56],
+          ['a15', 35, 72],
+          ['d1', 58, 37, 'L'],
+          ['d4', 56, 37, 'J'],
+          ['d3', 54, 37, 'L'],
+          ['d6', 16, 37, 'L'],
+          ['d5', 14, 37, 'J'],
+          ['d7', 12, 37, 'L'],
+          ['d2', 40, 34],
+          ['d8', 30, 34],
+          ['d9', 35, 30],
+          ['d10', 42, 26],
+          ['d12', 48, 22],
+          ['d13', 22, 22],
+          ['d11', 60, 15],
+          ['d14', 10, 15],
+          ['d15', 35, 10],
+        ],
+        'a10',
+      );
+      return framesPlay(
+        pid,
+        'Kick-off: left short',
+        s,
+        'Kicking team loaded left: six chasers between 5 and 27 m from the left touchline, all behind the ball. 4 jumps; 1 and 3 lift.',
+        [
+          {
+            caption:
+              '10 drop-kicks a short, high ball to land just past their 10 m line, 10 m in from the left touchline. Chasers go on the kick.',
+            ms: 2800,
+            moves: {
+              a11: { to: { x: 5.5, y: 41.5 }, delay: 300 },
+              a1: { to: { x: 9.3, y: 40.6 }, delay: 300 },
+              a4: { to: { x: 10.6, y: 39.8 }, delay: 300 },
+              a3: { to: { x: 11.9, y: 40.6 }, delay: 300 },
+              a6: { to: { x: 15.5, y: 42.5 }, delay: 300 },
+              a7: { to: { x: 20, y: 43.5 }, delay: 300 },
+              a2: { to: { x: 37, y: 44 }, delay: 300 },
+              a5: { to: { x: 43, y: 45 }, delay: 300 },
+              a8: { to: { x: 48, y: 45.5 }, delay: 300 },
+              a12: { to: { x: 53, y: 46 }, delay: 300 },
+              a13: { to: { x: 58, y: 46.5 }, delay: 300 },
+              a14: { to: { x: 63, y: 47 }, delay: 300 },
+              a9: { to: { x: 28, y: 48 }, delay: 300 },
+              a10: { to: { x: 31, y: 47.5 }, delay: 300 },
+              a15: { to: { x: 33, y: 62 }, delay: 300 },
+              d5: { x: 11.6, y: 38.3 },
+              d6: { x: 12.8, y: 37.4 },
+              d7: { x: 10.4, y: 37.4 },
+              d8: { x: 20, y: 36 },
+              d9: { x: 25, y: 32 },
+              d13: { x: 16, y: 28 },
+              d14: { x: 8, y: 26 },
+            },
+            ball: { at: { x: 10.6, y: 39.2 } },
+            ballMove: { kind: 'kick', delay: 300 },
+          },
+          {
+            caption:
+              'Jumper 4, lifted by 1 and 3, competes for the ball in the air; the others chase to the landing zone.',
+            ms: 900,
+            moves: {
+              a6: { x: 14.4, y: 41 },
+              a7: { x: 17.6, y: 41.6 },
+              a11: { x: 6.5, y: 39.6 },
+            },
+            ball: { holder: 'a4' },
+            ballMove: { kind: 'carry' },
+          },
+        ],
+        { x: -2, y: 4, w: 74, h: 72 },
+      );
+    },
+  },
+  {
+    title: 'Exit: box kick',
+    category: 'exit',
+    description: 'Box kick from our 22 to a contestable spot.',
+    build: (pid) => {
+      const s = tokens(
+        'full',
+        [
+          ['a9', 12, 86.5],
+          ['a11', 5, 87.2],
+          ['a13', 21, 88],
+          ['a10', 18, 91],
+          ['a12', 27, 90],
+          ['a15', 35, 97],
+          ['a14', 60, 90],
+          ['d9', 12, 83.3],
+          ['d7', 8.5, 82.5],
+          ['d10', 20, 82.5],
+          ['d12', 27, 82],
+          ['d13', 34, 81.5],
+          ['d14', 8, 54],
+          ['d15', 30, 62],
+          ['d11', 60, 66],
+        ],
+        'a9',
+        [['Ruck', 15.6, 85.6]],
+      );
+      return framesPlay(
+        pid,
+        'Exit: box kick',
+        s,
+        'Ruck inside our 22, 12 m in from the left touchline. 9 to box-kick; 11 and 13 chase from behind the kicker.',
+        [
+          {
+            caption:
+              '9 box-kicks to land on our 10 m line, about 12 m in from touch. Chasers go on the kick.',
+            ms: 3200,
+            moves: {
+              a11: { to: { x: 11, y: 61.5 }, delay: 300 },
+              a13: { to: { x: 16, y: 67 }, delay: 300 },
+              a10: { to: { x: 15.5, y: 74 }, delay: 400 },
+              d14: { x: 12, y: 58.2 },
+              d15: { x: 18, y: 60 },
+            },
+            ball: { at: { x: 12, y: 59.5 } },
+            ballMove: { kind: 'kick', delay: 300 },
+          },
+          {
+            caption:
+              'Wing 11 competes for the ball, not the player; 13 and 10 follow to tackle once the catcher lands.',
+            ms: 1000,
+            moves: {
+              a11: { x: 11.7, y: 60.3 },
+              a13: { x: 14, y: 63.5 },
+              a10: { x: 13.5, y: 69 },
+            },
+            ball: { holder: 'd14' },
+            ballMove: { kind: 'carry' },
+          },
+          {
+            caption:
+              'The catcher lands; 13 tackles below the sternum while 11 competes for the ball.',
+            ms: 900,
+            moves: { a13: { x: 13.8, y: 59.2 } },
+          },
+        ],
+        { x: -2, y: 46, w: 74, h: 64 },
+      );
+    },
+  },
+  {
+    title: 'Defense: rush on 10',
+    category: 'defence',
+    description:
+      'Rush (blitz) on the 10: 12 and 13 shoot up together on the 10/12, wing holds, 15 covers the kick.',
+    build: (pid) => {
+      const s = tokens(
+        'half',
+        [
+          ['a9', 35, 41.6],
+          ['a10', 42, 44.5],
+          ['a12', 48.5, 45.8],
+          ['a13', 55, 47],
+          ['a15', 60.5, 48.5],
+          ['a14', 66, 50],
+          ['a7', 28, 43.8],
+          ['a8', 21, 44.5],
+          ['a11', 10, 47],
+          ['d14', 7, 38],
+          ['d7', 14, 38],
+          ['d8', 20, 38],
+          ['d6', 25.5, 38],
+          ['d4', 28.5, 38],
+          ['d2', 31, 38],
+          ['d1', 33.4, 38],
+          ['d3', 36.6, 38],
+          ['d5', 39.6, 38],
+          ['d10', 43.5, 38],
+          ['d12', 49, 38],
+          ['d13', 55, 38],
+          ['d11', 61, 38],
+          ['d9', 35, 33],
+          ['d15', 58, 24],
+        ],
+        'a9',
+        [['Ruck', 35, 40.1]],
+      );
+      return framesPlay(
+        pid,
+        'Defense: rush on 10',
+        s,
+        'Ruck in midfield, their backline going right. Guards tight; our 10, 12 and 13 opposite theirs. Call: rush.',
+        [
+          {
+            caption:
+              'On the 9’s pass, 12 and 13 accelerate up 4–5 m, inside-out; 10 goes with them.',
+            ms: 900,
+            moves: {
+              a10: { x: 42.4, y: 43.8 },
+              d10: { x: 43.2, y: 42 },
+              d12: { x: 48.7, y: 43 },
+              d13: { x: 54.6, y: 43 },
+              d11: { x: 61, y: 40 },
+              d5: { x: 39.8, y: 40 },
+              d3: { x: 36.7, y: 39.2 },
+              d15: { x: 59, y: 25 },
+            },
+            ball: { holder: 'a10' },
+            ballMove: { kind: 'pass' },
+          },
+          {
+            caption:
+              '10 is pressured; 12 hits the 12, 13 takes the 13, and the 11 sits a step back for the kick or the miss pass.',
+            ms: 1100,
+            moves: {
+              a10: { to: { x: 42.8, y: 43.2 }, kind: 'carry' },
+              a12: { x: 48.6, y: 44.8 },
+              a13: { x: 55, y: 46.2 },
+              d10: { x: 43, y: 41.8 },
+              d12: { x: 48.4, y: 43.5 },
+              d13: { x: 54.8, y: 44.6 },
+              d11: { x: 60.5, y: 41.5 },
+              d15: { x: 60, y: 26 },
+            },
+            ball: { holder: 'a12' },
+            ballMove: { kind: 'pass', delay: 300 },
+          },
+          {
+            caption: '12 makes a dominant tackle behind the gain line, below the sternum.',
+            ms: 900,
+            moves: { a12: { x: 48.7, y: 45.4 }, d12: { x: 48.6, y: 44.4 } },
+          },
+        ],
+        { x: -2, y: 18, w: 74, h: 38 },
+      );
+    },
+  },
+];
