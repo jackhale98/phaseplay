@@ -28,6 +28,15 @@
   let progress = $state<number | null>(null);
   let ctrl: AbortController | null = null;
   let lastBlob: Blob | null = null;
+  /** Rendered but the phone refused the share (the tap went stale while rendering). */
+  let ready = $state<{ blob: Blob; name: string } | null>(null);
+  async function deliver(blob: Blob, name: string) {
+    const r = await shareOrDownload(blob, name, play.title);
+    if (r === 'blocked') {
+      ready = { blob, name };
+      status = 'Ready. Tap Share to send it';
+    } else ready = null;
+  }
   let status = $state('');
 
   const team = $derived(app.team);
@@ -78,16 +87,15 @@
           signal: ctrl.signal,
         });
         status = 'Video ready';
-        await shareOrDownload(res.blob, `${slug}.${res.ext}`, play.title);
+        await deliver(res.blob, `${slug}.${res.ext}`);
       } else {
         status = 'Drawing image…';
         const blob = await makeImage();
         lastBlob = blob;
         status = 'Image ready';
-        await shareOrDownload(
+        await deliver(
           blob,
           `${slug}${kind === 'storyboard' ? '-storyboard' : `-frame-${frame + 1}`}.png`,
-          play.title,
         );
       }
     } catch (e) {
@@ -120,6 +128,7 @@
   $effect(() => {
     void [kind, frame, size, theme, play];
     lastBlob = null;
+    ready = null;
   });
   $effect(() => {
     if (!open) ctrl?.abort();
@@ -185,6 +194,16 @@
     {/if}
     <p class="sr-only" aria-live="polite">{status}</p>
 
+    {#if ready}
+      <div class="ready" role="status">
+        <span>Your {kind === 'video' ? 'video' : 'image'} is ready.</span>
+        <Button variant="primary" onclick={() => ready && deliver(ready.blob, ready.name)}
+          >{#snippet icon()}<IconShare />{/snippet}Share {kind === 'video'
+            ? 'video'
+            : 'image'}</Button
+        >
+      </div>
+    {/if}
     <div class="row wrap">
       <Button
         variant="primary"
@@ -206,6 +225,17 @@
 </Sheet>
 
 <style>
+  .ready {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    margin-bottom: var(--s-3);
+    border-radius: var(--r-lg);
+    background: var(--ok-soft);
+    font-weight: 600;
+  }
   .two {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

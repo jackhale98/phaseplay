@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { flip } from 'svelte/animate';
-  import { fly, slide } from 'svelte/transition';
+  import { cubicInOut, cubicOut } from 'svelte/easing';
+  import { fade, fly, slide } from 'svelte/transition';
   import { GROUP_LABELS, type RsvpStatus } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming, myRsvp, availability, sheetFor, memberName } from '#lib/data/selectors';
@@ -46,7 +46,7 @@
   let prevIds: string[] = [];
   const reduce =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const d = reduce ? 0 : 260;
+  const d = reduce ? 0 : 280;
   const REPLY_TEXT: Record<RsvpStatus, string> = {
     yes: "You're in",
     maybe: 'Marked maybe',
@@ -181,14 +181,13 @@
     <p class="sr-only" role="status" aria-live="polite">{said}</p>
     {#if waiting.length}
       <h2 class="section-title">Waiting for your reply</h2>
-      <div class="stack">
+      <div class="waits">
         {#each waiting as e (e.id)}
           <div
             class="wait"
             class:done={!!held[e.id]}
-            animate:flip={{ duration: d }}
-            in:fly={{ y: 24, duration: d }}
-            out:slide={{ duration: d }}
+            in:fade={{ duration: d, delay: d / 2, easing: cubicOut }}
+            out:slide={{ duration: d * 1.4, easing: cubicInOut }}
           >
             {#if held[e.id]}
               <p class="saved" aria-hidden="true">
@@ -379,9 +378,16 @@
     border-radius: var(--r-lg);
     transition:
       box-shadow var(--m-fast) var(--ease),
-      opacity 300ms var(--ease);
+      transform 280ms var(--ease);
+    /* Composite the card on its own layer so the collapse animates without repainting it. */
+    will-change: transform;
+  }
+  .wait {
+    /* Each card owns the space below it, so a leaving card's collapse animates that space too. */
+    margin-bottom: var(--s-3);
   }
   .wait.done {
+    transform: scale(0.985);
     box-shadow: 0 0 0 2px var(--ok);
   }
   .wait.done :global(.card),
