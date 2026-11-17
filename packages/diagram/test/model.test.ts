@@ -1,7 +1,7 @@
 import { equipmentFromDiagram, Play, VIEWS } from '@phaseplay/shared';
 import * as v from 'valibot';
 import { describe, expect, it } from 'vitest';
-import { addPlayers, DRILL_TEMPLATES } from '../src/drill-templates';
+import { addPlayers, DRILL_TEMPLATES, EXTRA_DRILL_TEMPLATES } from '../src/drill-templates';
 import { History } from '../src/history';
 import { CURRENT_PLAY_VERSION, migratePlay, PlayMigrationError } from '../src/migrate';
 import { addFrame, duplicateFrame, newPlay, PRESETS, type PresetId } from '../src/presets';
@@ -9,10 +9,13 @@ import { frameTimes, resolvedPositions, sample } from '../src/sample';
 import {
   bestOrientation,
   hitTest,
+  LINEOUT_Y,
   makeTransform,
   playViewport,
   viewForPreset,
 } from '../src/viewport';
+
+const ALL_TEMPLATES = { ...DRILL_TEMPLATES, ...EXTRA_DRILL_TEMPLATES };
 
 describe('viewport transforms', () => {
   for (const orientation of ['portrait', 'landscape'] as const) {
@@ -67,7 +70,7 @@ describe('viewport transforms', () => {
     const s = sample(play, 0);
     const a9 = resolvedPositions(play, 0).a9!;
     expect(hitTest(s, { x: a9.x + 0.3, y: a9.y }, 0.2)).toBe('ball');
-    expect(hitTest(s, { x: 35, y: 58 }, 0.3)).toBe('a15');
+    expect(hitTest(s, { x: 37, y: 59 }, 0.3)).toBe('a15');
     expect(hitTest(s, { x: 69, y: 100 }, 0.3)).toBeNull();
     const drill = DRILL_TEMPLATES.tackleBox.build();
     const ds = sample(drill, 0);
@@ -138,7 +141,7 @@ describe('presets', () => {
 });
 
 describe('drill templates', () => {
-  for (const [id, t] of Object.entries(DRILL_TEMPLATES)) {
+  for (const [id, t] of Object.entries(ALL_TEMPLATES)) {
     it(`${id} is a valid looping drill`, () => {
       const play = t.build();
       expect(() => v.parse(Play, play)).not.toThrow();
@@ -177,6 +180,96 @@ describe('drill templates', () => {
   });
 });
 
+describe('rugby accuracy', () => {
+  /** Every primary-ball pass: where it leaves the passer's hands and where it is caught. */
+  function passes(play: Play): { frame: number; from: { y: number }; to: { y: number } }[] {
+    const times = frameTimes(play);
+    const out: { frame: number; from: { y: number }; to: { y: number } }[] = [];
+    for (let fi = 1; fi < play.frames.length; fi++) {
+      const t0 = times[fi - 1]!;
+      const t1 = times[fi]!;
+      for (let k = 0; k <= 400; k++) {
+        const s = sample(play, t0 + ((t1 - t0) * k) / 400);
+        if (s.ball?.flight === 'pass') {
+          out.push({
+            frame: fi,
+            from: { ...s.ball.pos },
+            to: { ...sample(play, t1).ball!.pos },
+          });
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  it('attack drills never pass forward (attack runs towards y = 0)', () => {
+    for (const id of [
+      'channels',
+      'overload2v1',
+      'overload3v2',
+      'lineSpeed',
+      'touchGame',
+    ] as const) {
+      const ps = passes(ALL_TEMPLATES[id].build());
+      expect(ps.length, id).toBeGreaterThan(0);
+      for (const p of ps)
+        expect(p.to.y, `${id} f${p.frame}`).toBeGreaterThanOrEqual(p.from.y - 0.05);
+    }
+  });
+
+  it('the square grid passes across the square, receiver deeper', () => {
+    const ps = passes(DRILL_TEMPLATES.squareGrid.build());
+    // f1 and f2 run towards y = 0, f4 runs towards y = 10 (f3 is the hand-on at the corner).
+    for (const p of ps.filter((q) => q.frame === 1 || q.frame === 2))
+      expect(p.to.y).toBeGreaterThanOrEqual(p.from.y);
+    for (const p of ps.filter((q) => q.frame === 4)) expect(p.to.y).toBeLessThanOrEqual(p.from.y);
+  });
+
+  it('lineout players not in the line stand 10 m+ from the line of touch (Law 18)', () => {
+    for (const n of [4, 5, 6, 7] as const) {
+      const p = PRESETS[`lineout${n}`].build();
+      for (const e of p.entities) {
+        if (e.kind !== 'attack' || e.number === 2 || e.number === 9) continue;
+        const dy = Math.abs(p.pos[e.id]!.y - LINEOUT_Y);
+        if (dy > 0.5) expect(dy, `lineout${n} ${e.id}`).toBeGreaterThanOrEqual(10);
+      }
+      // Seven players fit between the 5 m and 15 m lines.
+      const xs = p.entities.filter((e) => e.text).map((e) => p.pos[e.id]!.x);
+      expect(Math.min(...xs)).toBeGreaterThan(5);
+      expect(Math.max(...xs)).toBeLessThan(15);
+    }
+  });
+
+  it('scrum backs stand 5 m+ behind their hindmost foot (Law 19)', () => {
+    const p = PRESETS.scrum15.build();
+    const y = (id: string) => p.pos[id]!.y;
+    for (const n of [10, 11, 12, 13, 14, 15]) {
+      expect(y(`a${n}`)).toBeGreaterThanOrEqual(y('a8') + 5);
+      expect(y(`d${n}`)).toBeLessThanOrEqual(y('d8') - 5);
+    }
+    // Defending wings on their own sides: the defence faces +y, so its left (11) is at high x.
+    expect(p.pos.d11!.x).toBeGreaterThan(p.pos.d14!.x);
+    expect(p.pos.a11!.x).toBeLessThan(p.pos.a14!.x);
+  });
+
+  it('the kicking team starts behind the ball at kick-offs (Law 12)', () => {
+    for (const id of ['kickoffReceive15', 'restartReceive7'] as const) {
+      const p = PRESETS[id].build();
+      const ball = p.pos.ball!.y;
+      for (const e of p.entities.filter((q) => q.kind === 'defence'))
+        expect(p.pos[e.id]!.y, `${id} ${e.id}`).toBeLessThanOrEqual(ball);
+    }
+  });
+
+  it('the 7s defensive line has guards tight on the ruck', () => {
+    const p = PRESETS.defensiveLine7.build();
+    const xs = p.entities
+      .filter((e) => e.kind === 'defence' && p.pos[e.id]!.y === 38)
+      .map((e) => Math.abs(p.pos[e.id]!.x - 35));
+    expect(xs.filter((d) => d <= 3)).toHaveLength(2);
+  });
+});
 describe('history', () => {
   const p0 = newPlay({ id: 'h', title: 'h', mode: 'play', format: '15s' });
   const rename =
