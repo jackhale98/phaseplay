@@ -193,7 +193,9 @@ async function loadHandoff(c: C, handoffId: string) {
     .prepare(
       `SELECT ${HANDOFF_COLS.split(', ')
         .map((col) => `h.${col}`)
-        .join(', ')}, i.status AS item_status, i.holder_member_id AS item_holder
+        .join(
+          ', ',
+        )}, i.status AS item_status, i.holder_member_id AS item_holder, i.name AS item_name
        FROM inventory_handoffs h JOIN inventory_items i ON i.id = h.item_id AND i.team_id = h.team_id
        WHERE h.id = ? AND h.team_id = ? AND i.deleted_at IS NULL`,
     )
@@ -666,9 +668,36 @@ export function inventoryRoutes(app: Hono<AppEnv>) {
            WHERE id = ? AND team_id = ? AND resolved_at IS NULL RETURNING ${HANDOFF_COLS}`,
         )
         .bind(t, outcome, t, h.id, me.teamId),
+      // Tell the person who offered it, unless they cancelled it themselves. Only if this write won.
+      ...(h.from_member_id && h.from_member_id !== me.id
+        ? [
+            notifyStmt(
+              db,
+              me.teamId,
+              { memberIds: [h.from_member_id as string] },
+              'kit',
+              {
+                title: recipient
+                  ? `${me.displayName} can't take the ${String(h.item_name).toLowerCase()}`
+                  : `Your handover of the ${String(h.item_name).toLowerCase()} was cancelled`,
+                body: recipient
+                  ? 'You still have it. Offer it to someone else, or bring it back.'
+                  : `${me.displayName} cancelled it. You still have it.`,
+                url: `/kit/${h.item_id}?team=${me.teamId}`,
+                tag: `kit-${h.item_id}`,
+              },
+              me.userId,
+              {
+                sql: 'EXISTS (SELECT 1 FROM inventory_handoffs WHERE id = ? AND outcome = ? AND resolved_at = ?)',
+                params: [h.id, outcome, t],
+              },
+            ),
+          ]
+        : []),
     ]);
     const done = res[1]?.results[0] as Row | undefined;
     if (!done) throw conflict('This handover was already answered');
+    if (h.from_member_id && h.from_member_id !== me.id) flushNotifications(c);
     return c.json({ handoff: handoffFromRow(done) });
   });
 }

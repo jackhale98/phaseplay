@@ -499,6 +499,40 @@ describe('cron jobs', () => {
     expect(await at()).toBeNull();
   });
 
+  it('tells the person who offered kit when the handover is declined, once', async () => {
+    const a = await fixtureTeam('Handover RFC');
+    for (const x of everyone(a)) await subscribe(x);
+    const itemId = uuidv7();
+    const t0 = Date.now();
+    await env.DB.prepare(
+      `INSERT INTO inventory_items (id, team_id, kind, name, status, holder_member_id, created_at, updated_at)
+       VALUES (?, ?, 'bibs', 'Red bibs', 'with_someone', ?, ?, ?)`,
+    )
+      .bind(itemId, a.teamId, a.player.memberId, t0, t0)
+      .run();
+    const handoffId = uuidv7();
+    const offered = await call('POST', `/api/v1/teams/${a.teamId}/inventory/${itemId}/handoffs`, {
+      cookie: a.player.cookie,
+      body: { id: handoffId, toMemberId: a.coach.memberId },
+    });
+    expect(offered.status).toBe(201);
+    await env.DB.prepare('DELETE FROM push_queue').run();
+
+    const decline = () =>
+      call('POST', `/api/v1/teams/${a.teamId}/handoffs/${handoffId}/decline`, {
+        cookie: a.coach.cookie,
+        body: {},
+      });
+    expect((await decline()).status).toBe(200);
+    // A retry doesn't notify again.
+    expect((await decline()).status).toBe(200);
+    const q = (await queued(ids(everyone(a)))).filter((x) => x.topic === 'kit');
+    expect(q).toHaveLength(1);
+    expect(q[0]).toMatchObject({ userId: a.player.userId });
+    expect(q[0]!.title).toContain("can't take the red bibs");
+    expect(q[0]!.url).toBe(`/kit/${itemId}?team=${a.teamId}`);
+  });
+
   it('kit at risk: a "no" from someone holding kit, once', async () => {
     const a = await fixtureTeam('Kit RFC');
     for (const x of everyone(a)) await subscribe(x);
