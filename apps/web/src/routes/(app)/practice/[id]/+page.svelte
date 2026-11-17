@@ -434,6 +434,11 @@
       {:else}
         <span class="mins tnum">{blockMinutes(b)} min</span>
       {/if}
+      {#if d}
+        <a class="drill-link" href="/drills/{d.id}" aria-label="View drill: {d.title}"
+          >{d.hasDiagram ? 'Drill & diagram' : 'View drill'}</a
+        >
+      {/if}
     </div>
     {#if b.notes}<p class="notes">{b.notes}</p>{/if}
     {#if b.rotation}
@@ -1510,5 +1515,15 @@
       flex-direction: row;
       align-items: center;
     }
+  }
+  .drill-link {
+    order: -1;
+    margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--s-2);
+    font-size: var(--t-14);
+    font-weight: 600;
   }
 </style>

@@ -1,20 +1,14 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { page } from '$app/state';
-  import {
-    ALL_LANE,
-    laneLabel,
-    type DrillFull,
-    type DrillMeta,
-    type RunEvent,
-  } from '@phaseplay/shared';
+  import { ALL_LANE, laneLabel, type DrillMeta, type RunEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import Button from '#lib/components/Button.svelte';
   import Sheet from '#lib/components/Sheet.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import { time } from '#lib/format';
   import CountdownRing from '#lib/features/practice/CountdownRing.svelte';
-  import DrillPreview from '#lib/features/practice/DrillPreview.svelte';
+  import RunDrill from '#lib/features/practice/RunDrill.svelte';
   import { blockTitle, fmtMin } from '#lib/features/practice/model';
   import {
     crossed,
@@ -28,24 +22,10 @@
     summary,
     type StepInfo,
   } from '#lib/features/practice/runner';
-  import {
-    appendRun,
-    fetchDrill,
-    fetchRun,
-    loadRun,
-    newRunEventId,
-  } from '#lib/features/practice/store';
+  import { appendRun, fetchRun, loadRun, newRunEventId } from '#lib/features/practice/store';
   import { chime, keepAwake, unlockAudio, vibrate } from '#lib/features/practice/device';
   import { loadPrefs, savePrefs, type RunnerPrefs } from '#lib/features/practice/ui.svelte';
-  import {
-    IconPlay,
-    IconPause,
-    IconSkip,
-    IconX,
-    IconCheck,
-    IconImage,
-    IconClipboardCheck,
-  } from '#lib/icons';
+  import { IconPlay, IconPause, IconSkip, IconX, IconCheck, IconClipboardCheck } from '#lib/icons';
   import IconVolume from '@lucide/svelte/icons/volume-2';
   import IconVolumeOff from '@lucide/svelte/icons/volume-x';
   import IconVibrate from '@lucide/svelte/icons/vibrate';
@@ -66,7 +46,6 @@
   let loaded = $state(false);
   let now = $state(Date.now());
   let prefs = $state<RunnerPrefs>(loadPrefs());
-  let showDiagram = $state(false);
   let announce = $state('');
   let confirmEnd = $state(false);
 
@@ -191,20 +170,19 @@
   }
 
   const current = $derived(view?.current ?? null);
-  const currentDrill = $derived.by(() => {
-    const b = current?.slot.blocks.find((x) => x.drillId && drills[x.drillId]);
-    return b?.drillId ? drills[b.drillId] : undefined;
-  });
-  let diagram = $state.raw<DrillFull | null>(null);
-  $effect(() => {
-    const d = currentDrill;
-    diagram = null;
-    if (!d?.hasDiagram || !showDiagram || !app.teamId) return;
-    let alive = true;
-    void fetchDrill(app.teamId, d.id, d.version).then((full) => alive && (diagram = full));
-    return () => {
-      alive = false;
-    };
+  /** Every drill running now, one per group; the viewer's own group first. */
+  const drillsNow = $derived.by(() => {
+    const blocks = current?.slot.blocks ?? [];
+    const split = !(blocks.length === 1 && blocks[0]!.lane === ALL_LANE);
+    return blocks
+      .filter((b) => b.drillId && drills[b.drillId])
+      .map((b) => ({
+        key: b.id,
+        drill: drills[b.drillId!]!,
+        group: split ? laneLabel(b.lane) : undefined,
+        mine: !!b.coachId && b.coachId === s?.me.id,
+      }))
+      .sort((a, b) => Number(b.mine) - Number(a.mine));
   });
 
   function start() {
@@ -404,34 +382,9 @@
         {#each current.slot.blocks.filter((b) => b.notes) as b (b.id)}
           <p class="notes">{b.notes}</p>
         {/each}
-        {#if currentDrill?.coachingPoints.length}
-          <h2 class="cp-h">Coaching points</h2>
-          <ul class="cp">
-            {#each currentDrill.coachingPoints.slice(0, 5) as p (p)}<li>{p}</li>{/each}
-          </ul>
-        {/if}
-        {#if currentDrill?.hasDiagram}
-          <Button
-            variant="ghost"
-            aria-pressed={showDiagram}
-            onclick={() => (showDiagram = !showDiagram)}
-            >{#snippet icon()}<IconImage />{/snippet}{showDiagram
-              ? 'Hide diagram'
-              : 'Show diagram'}</Button
-          >
-          {#if showDiagram}
-            {#if diagram?.diagram}
-              <DrillPreview
-                play={diagram.diagram}
-                playing
-                label="Diagram: {currentDrill.title}"
-                height="240px"
-              />
-            {:else}
-              <div class="dg-sk" aria-busy="true"></div>
-            {/if}
-          {/if}
-        {/if}
+        {#each drillsNow as d (d.key)}
+          <RunDrill drill={d.drill} group={d.group} mine={d.mine} />
+        {/each}
 
         {#if view.next}
           <div class="card next">
@@ -756,23 +709,6 @@
     border-left: 3px solid var(--accent);
     background: var(--surface-2);
     border-radius: 0 var(--r-md) var(--r-md) 0;
-  }
-  .cp-h {
-    font-size: var(--t-16);
-    margin-top: var(--s-2);
-  }
-  .cp {
-    margin: 0;
-    padding-left: var(--s-5);
-    display: flex;
-    flex-direction: column;
-    gap: var(--s-1);
-    font-size: var(--t-16);
-  }
-  .dg-sk {
-    height: 240px;
-    border-radius: var(--r-md);
-    background: var(--surface-2);
   }
   .next {
     display: flex;

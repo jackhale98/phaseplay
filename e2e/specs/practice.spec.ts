@@ -291,6 +291,15 @@ test('assistant coaches follow the live session: both groups, their own countdow
   await expect(lanes.filter({ hasText: 'Backs' })).toContainText('You');
   await expect(lanes.filter({ hasText: 'Backs' })).toContainText(/1[45]:\d\d left/);
 
+  // Both groups' drills are available, with the assistant's own group first.
+  const groups = assistant.page.getByRole('region', { name: /^(Forwards|Backs): / });
+  await expect(groups).toHaveCount(2);
+  await expect(groups.first()).toHaveAccessibleName(/^Backs: 3 v 2 overload/);
+  const fwd = assistant.page.getByRole('region', { name: 'Forwards: Ruck-clearing lanes' });
+  await fwd.getByRole('button', { name: /Show diagram/ }).click();
+  await expect(fwd.getByText('Diagram: Forwards: Ruck-clearing lanes')).toBeAttached();
+  await expect(fwd.locator('canvas')).toBeVisible();
+
   // The assistant moves everyone on; the head coach's screen follows.
   await assistant.page.getByRole('button', { name: /^Next/ }).click();
   await expect(assistant.page.getByText('Block 2 of 2')).toBeVisible();
