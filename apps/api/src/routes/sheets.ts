@@ -115,6 +115,16 @@ export function sheetRoutes(app: Hono<AppEnv>) {
               'sheets',
               sheetPublished(me.teamId, event),
               me.userId,
+              // Not for a re-publish of the same side (e.g. a retried request): only when the
+              // line-up differs from the previous published version.
+              {
+                sql: `NOT EXISTS (SELECT 1 FROM team_sheet_versions cur JOIN team_sheet_versions prev
+                  ON prev.sheet_id = cur.sheet_id AND prev.version = (SELECT max(p.version)
+                    FROM team_sheet_versions p WHERE p.sheet_id = cur.sheet_id AND p.version < cur.version)
+                  WHERE cur.sheet_id = ? AND cur.version = ?
+                    AND json_remove(cur.snapshot, '$.publishedAt') = json_remove(prev.snapshot, '$.publishedAt'))`,
+                params: [id, row.version],
+              },
             ),
           ]
         : []),

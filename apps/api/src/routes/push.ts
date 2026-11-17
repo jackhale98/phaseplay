@@ -6,6 +6,7 @@ import {
   PushSubscriptionInput,
   PushUnsubscribe,
   sha256Base64Url,
+  type PushDevice,
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
@@ -17,13 +18,6 @@ import { flushNotifications, payloadJson } from '../lib/notify';
 
 /** Devices kept per user; the oldest beyond this is dropped. */
 const MAX_DEVICES = 10;
-
-export type PushDevice = {
-  id: string;
-  label: string | null;
-  createdAt: number;
-  lastOkAt: number | null;
-};
 
 export function pushRoutes(app: Hono<AppEnv>) {
   route(app, 'push.key', async (c) => {

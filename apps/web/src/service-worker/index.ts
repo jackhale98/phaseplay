@@ -6,6 +6,7 @@
 import { immutable, assets, prerendered as pre } from '$app/manifest';
 import { version } from '$app/env';
 import { self as sw } from '$app/service-worker';
+import type { PushPayload } from '@phaseplay/shared';
 
 const build = immutable.map((x) => x.path);
 const files = assets.map((x) => x.path as string);
@@ -74,8 +75,8 @@ sw.addEventListener('fetch', (event) => {
   );
 });
 
-// Web Push (docs/architecture.md §Push). The payload is a PushPayload from packages/shared.
-type Push = { title?: string; body?: string; url?: string; tag?: string };
+// Web Push (docs/architecture.md §Push).
+type Push = Partial<PushPayload>;
 
 sw.addEventListener('push', (event) => {
   let p: Push;
@@ -108,8 +109,10 @@ sw.addEventListener('notificationclick', (event) => {
       if (win) {
         // Focus the open app and take it to the page, rather than opening a second window.
         await win.focus();
-        if (win.url !== target.href) await win.navigate(target.href).catch(() => null);
-        return;
+        if (win.url === target.href) return;
+        // navigate() only works for windows this worker controls; otherwise open the page.
+        const moved = await win.navigate(target.href).catch(() => null);
+        if (moved) return;
       }
       await sw.clients.openWindow(target.href);
     })(),

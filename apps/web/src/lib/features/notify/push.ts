@@ -2,16 +2,10 @@
  * Web Push on this device (docs/architecture.md §Push). The browser's subscription lives with the
  * service worker; the server keeps one row per device and the user's topic preferences.
  */
-import type { NotifyPrefs, PushSubscriptionInput } from '@phaseplay/shared';
+import type { NotifyPrefs, PushKeyResponse, PushSubscriptionInput } from '@phaseplay/shared';
 import { api, v1 } from '#lib/api';
 
-export type PushDevice = {
-  id: string;
-  label: string | null;
-  createdAt: number;
-  lastOkAt: number | null;
-};
-export type KeyResponse = { publicKey: string; devices: PushDevice[] };
+export type { PushDevice } from '@phaseplay/shared';
 
 /**
  * What this device can do:
@@ -92,7 +86,7 @@ export async function enablePush(): Promise<void> {
     );
   const reg = await registration();
   if (!reg) throw new PushError('The app is still installing. Try again in a moment.');
-  const { publicKey } = await api<KeyResponse>(v1('/push/key'));
+  const { publicKey } = await api<PushKeyResponse>(v1('/push/key'));
   const key = keyBytes(publicKey);
   let sub = await reg.pushManager.getSubscription();
   // A subscription made for another server key can't receive our messages.
@@ -118,7 +112,7 @@ export async function disablePush(): Promise<void> {
   await sub.unsubscribe().catch(() => {});
 }
 
-export const loadDevices = () => api<KeyResponse>(v1('/push/key'));
+export const loadDevices = () => api<PushKeyResponse>(v1('/push/key'));
 export const sendTest = () => api(v1('/push/test'), { method: 'POST', body: {} });
 export const savePrefs = (prefs: NotifyPrefs) =>
   api<{ notify: NotifyPrefs }>(v1('/me/notifications'), { method: 'PUT', body: prefs });

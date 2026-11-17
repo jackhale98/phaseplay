@@ -219,6 +219,15 @@ describe('notifyStmt', () => {
       cookie: a.coach.cookie,
     });
     expect(versions.body.versions[0].slots).toEqual({ '1': a.player.memberId });
+
+    // Publishing the same side again (a retried request) doesn't notify twice.
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const again = await call('POST', `/api/v1/teams/${a.teamId}/sheets/${a.sheetId}/publish`, {
+      cookie: a.coach.cookie,
+      body: {},
+    });
+    expect(again.status).toBe(200);
+    expect(await queued(ids(everyone(a)))).toEqual([]);
   });
 
   it('targets members, and never queues for the demo team', async () => {
@@ -471,6 +480,23 @@ describe('cron jobs', () => {
     expect(
       (await queued(ids(everyone(a)))).filter((x) => x.url.startsWith(`/events/${eventId}`)),
     ).toEqual([]);
+    // Moved to a week later: the new date gets its own reminder; a note edit doesn't reset it.
+    const at = async () =>
+      (
+        await env.DB.prepare('SELECT reminded_at FROM events WHERE id = ?')
+          .bind(eventId)
+          .first<{ reminded_at: number | null }>()
+      )?.reminded_at;
+    await call('PATCH', `/api/v1/teams/${a.teamId}/events/${eventId}`, {
+      cookie: a.owner.cookie,
+      body: { notes: 'Bring boots' },
+    });
+    expect(await at()).toBe(t);
+    await call('PATCH', `/api/v1/teams/${a.teamId}/events/${eventId}`, {
+      cookie: a.owner.cookie,
+      body: { startsAt: t + 8 * 24 * 3600e3 },
+    });
+    expect(await at()).toBeNull();
   });
 
   it('kit at risk: a "no" from someone holding kit, once', async () => {

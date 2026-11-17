@@ -103,7 +103,7 @@ export function drainOptions(env: Env, limit?: number) {
 }
 
 /** Requests leave CPU for the request itself: a smaller first batch. */
-const FLUSH_LIMIT = 20;
+const FLUSH_LIMIT = 8;
 
 /** Start delivering queued notifications after the response (ctx.waitUntil). */
 export function flushNotifications(c: Context<AppEnv>): void {

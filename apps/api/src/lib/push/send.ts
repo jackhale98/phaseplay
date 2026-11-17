@@ -57,6 +57,8 @@ export async function sendPush(target: PushTarget, payload: string, opts: SendOp
         urgency: opts.urgency ?? 'normal',
       },
       body,
+      // Only the allowlisted push service: a redirect elsewhere is a failure, not followed.
+      redirect: 'manual',
     });
     // Don't keep the connection busy reading a body we don't need.
     await res.body?.cancel();

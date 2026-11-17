@@ -47,6 +47,16 @@ export const PushUnsubscribe = v.object({
 });
 export type PushUnsubscribe = v.InferOutput<typeof PushUnsubscribe>;
 
+/** A device that receives pushes (listed in settings; this device is matched by endpoint). */
+export type PushDevice = {
+  id: string;
+  label: string | null;
+  createdAt: number;
+  lastOkAt: number | null;
+};
+/** `push.key`: the server's VAPID public key and this user's devices. */
+export type PushKeyResponse = { publicKey: string; devices: PushDevice[] };
+
 /** What the service worker receives and shows. */
 export type PushPayload = {
   topic: NotifyTopic | 'test';

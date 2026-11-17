@@ -105,6 +105,12 @@ export async function startDemo() {
 }
 
 export async function signOut() {
+  // Stop this device's notifications first (while still signed in), so a shared or borrowed phone
+  // stops showing team news. Never let it hold up signing out.
+  try {
+    const { disablePush } = await import('#lib/features/notify/push');
+    await Promise.race([disablePush(), new Promise((r) => setTimeout(r, 3000))]);
+  } catch {}
   try {
     await api(v1('/auth/logout'), { method: 'POST', body: {} });
   } catch {}

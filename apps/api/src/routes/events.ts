@@ -200,6 +200,11 @@ export function eventRoutes(app: Hono<AppEnv>) {
       sets.push('settings = ?');
       vals.push(input.settings ? JSON.stringify(input.settings) : null);
     }
+    // Moved to a new time: the reminder for the new date hasn't gone out yet.
+    if (input.startsAt !== undefined) {
+      sets.push('reminded_at = CASE WHEN starts_at = ? THEN reminded_at ELSE NULL END');
+      vals.push(input.startsAt);
+    }
     if (input.cancelled !== undefined) {
       sets.push('cancelled_at = ?');
       vals.push(input.cancelled ? now() : null);
@@ -502,6 +507,8 @@ export function eventRoutes(app: Hono<AppEnv>) {
              starts_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.starts_at ELSE events.starts_at END,
              meet_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.meet_at ELSE events.meet_at END,
              ends_at = coalesce(excluded.ends_at, events.ends_at),
+             reminded_at = CASE WHEN excluded.deleted_at IS NULL AND excluded.starts_at != events.starts_at
+               THEN NULL ELSE events.reminded_at END,
              type = CASE WHEN excluded.deleted_at IS NULL THEN excluded.type ELSE events.type END,
              title = CASE WHEN excluded.deleted_at IS NULL THEN excluded.title ELSE events.title END,
              location_name = CASE WHEN excluded.deleted_at IS NULL THEN excluded.location_name ELSE events.location_name END,

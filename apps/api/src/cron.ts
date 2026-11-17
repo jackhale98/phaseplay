@@ -6,12 +6,18 @@ import { queueKitAtRisk, queueReminders } from './lib/push/jobs';
 
 /** Every few minutes: reply reminders, kit at risk, and the next batch of queued pushes. */
 export const FREQUENT_CRON = '*/5 * * * *';
+/** Every minute: just the next batch of queued pushes (cheap when the queue is empty). */
+export const DRAIN_CRON = '* * * * *';
+/** Nightly housekeeping (03:17 UTC). */
+export const NIGHTLY_CRON = '17 3 * * *';
 const TICK_MS = 5 * 60e3;
 
 /** Run the job for a cron schedule (the controller's `cron` string from wrangler.toml). */
 export async function scheduled(env: Env, cron?: string, scheduledTime = Date.now()) {
   if (cron === FREQUENT_CRON) return frequent(env, scheduledTime);
-  return nightly(env);
+  if (cron === DRAIN_CRON) return drainQueue(env.DB, drainOptions(env));
+  if (cron === NIGHTLY_CRON || cron === undefined) return nightly(env);
+  console.error(JSON.stringify({ cron: `unknown schedule ${cron}` }));
 }
 
 export async function frequent(env: Env, t: number) {

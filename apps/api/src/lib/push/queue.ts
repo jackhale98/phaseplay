@@ -10,7 +10,8 @@ import { forgetJwt, vapidKeys } from './vapid';
 import { sendPush } from './send';
 
 /** Sends per invocation (each is a subrequest). */
-export const DRAIN_LIMIT = 25;
+// Each send costs ~0.5 ms CPU (ECDH + AES-GCM) against the 10 ms Free limit; a drain runs every minute.
+export const DRAIN_LIMIT = 12;
 /** Most devices one user receives on (newest first). */
 const DEVICES_PER_USER = 5;
 /** Claimed rows are hidden from other drains this long, in case this invocation dies. */
@@ -42,9 +43,9 @@ export async function drainQueue(
   const t = opts.now ?? Date.now();
   const { results: rows } = await db
     .prepare(
-      `UPDATE push_queue SET next_at = ?1
+      `UPDATE push_queue SET next_at = ?1, attempts = attempts + 1
        WHERE id IN (SELECT id FROM push_queue WHERE next_at <= ?2 ORDER BY next_at LIMIT ?3)
-       RETURNING id, payload, attempts, created_at,
+       RETURNING id, payload, attempts - 1 AS attempts, created_at,
          (SELECT json_group_array(json_object('id', s.id, 'endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth))
             FROM (SELECT * FROM push_subscriptions WHERE user_id = push_queue.user_id ORDER BY created_at DESC LIMIT ${DEVICES_PER_USER}) s) AS subs`,
     )
@@ -60,7 +61,9 @@ export async function drainQueue(
   let budget = limit;
   for (const row of rows) {
     const subs = JSON.parse(row.subs || '[]') as Sub[];
-    if (!subs.length || row.created_at < t - STALE_MS) done.push(row.id);
+    // Counted at claim time, so an invocation killed mid-send (CPU limit) can't resend forever.
+    if (!subs.length || row.created_at < t - STALE_MS || row.attempts >= MAX_ATTEMPTS)
+      done.push(row.id);
     else if (subs.length <= budget || !work.length) {
       work.push({ row, subs: subs.slice(0, Math.max(budget, 1)) });
       budget -= subs.length;
