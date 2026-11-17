@@ -31,9 +31,14 @@
     min-height: 44px;
     cursor: pointer;
   }
+  button.tag:not(.selected):hover {
+    background: var(--surface-2);
+  }
+  /* Selected: the shared solid fill (tokens.css --sel), not a tint. */
   button.tag.selected {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+    border-color: var(--sel);
+    background: var(--sel);
+    color: var(--on-sel);
   }
   .dot {
     width: 10px;

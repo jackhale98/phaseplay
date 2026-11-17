@@ -1576,12 +1576,13 @@
     background: transparent;
     color: var(--text);
   }
-  .ib:hover {
+  .ib:not([aria-pressed='true']):hover {
     background: var(--surface-2);
   }
+  /* On toggles and the active tool use the solid selected fill (tokens.css --sel), not a tint. */
   .ib[aria-pressed='true'] {
-    background: var(--accent-soft);
-    color: var(--accent-text);
+    background: var(--sel);
+    color: var(--on-sel);
   }
   .ib :global(svg) {
     width: 20px;
@@ -1818,9 +1819,14 @@
     width: 22px;
     height: 22px;
   }
+  .tool:not([aria-pressed='true']):not(:disabled):hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
   .tool[aria-pressed='true'] {
-    background: var(--accent-soft);
-    color: var(--accent-text);
+    background: var(--sel);
+    color: var(--on-sel);
+    box-shadow: var(--e-1);
   }
   .tool:disabled {
     opacity: 0.4;
@@ -1842,10 +1848,14 @@
     font-weight: 600;
     text-align: left;
   }
-  .choice:hover,
-  .choice[aria-pressed='true'] {
+  .choice:not([aria-pressed='true']):hover {
     border-color: var(--accent);
     background: var(--accent-softer);
+  }
+  .choice[aria-pressed='true'] {
+    border-color: var(--sel);
+    background: var(--sel);
+    color: var(--on-sel);
   }
   .fld {
     display: flex;

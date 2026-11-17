@@ -254,27 +254,49 @@
     border-top: 1px solid var(--border);
   }
   .tabs a {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 3px;
+    justify-content: flex-start;
+    gap: 5px;
+    padding-top: 10px;
     color: var(--text-3);
     text-decoration: none;
     font-size: 0.6875rem;
     font-weight: 650;
     letter-spacing: 0.01em;
   }
+  /* Selected tab: a solid pill behind the icon (tokens.css --sel) plus a bolder, full-contrast label. */
+  .tabs a::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 56px;
+    height: 32px;
+    margin-left: -28px;
+    border-radius: var(--r-full);
+    background: transparent;
+    transition: background-color var(--m-fast) var(--ease);
+  }
   .tabs a :global(svg) {
+    position: relative;
     width: 24px;
     height: 24px;
-    transition: transform var(--m-fast) var(--ease);
+  }
+  .tabs a:not([aria-current='page']):hover {
+    color: var(--text);
   }
   .tabs a[aria-current='page'] {
-    color: var(--accent-text);
+    color: var(--text);
+    font-weight: 800;
+  }
+  .tabs a[aria-current='page']::before {
+    background: var(--sel);
   }
   .tabs a[aria-current='page'] :global(svg) {
-    transform: translateY(-1px) scale(1.06);
+    color: var(--on-sel);
   }
   /* ---------- Tablet rail & desktop sidebar ---------- */
   @media (min-width: 768px) {
@@ -337,13 +359,15 @@
       width: 22px;
       height: 22px;
     }
-    nav a:hover {
+    nav a:not([aria-current='page']):hover {
       background: var(--surface-2);
       color: var(--text);
     }
+    /* Selected: solid fill (tokens.css --sel), unlike the hover tint. */
     nav a[aria-current='page'] {
-      background: var(--accent-soft);
-      color: var(--accent-text);
+      background: var(--sel);
+      color: var(--on-sel);
+      font-weight: 750;
     }
     .rail-hide {
       display: none;

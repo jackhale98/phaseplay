@@ -55,9 +55,14 @@
     min-height: 32px;
     padding: 0 var(--s-3);
   }
-  button[aria-checked='true'] {
-    background: var(--surface);
+  button:not([aria-checked='true']):hover {
     color: var(--text);
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+  }
+  /* Selected: solid fill (tokens.css --sel), clearly unlike the hover tint and the focus ring. */
+  button[aria-checked='true'] {
+    background: var(--sel);
+    color: var(--on-sel);
     box-shadow: var(--e-1);
   }
 </style>

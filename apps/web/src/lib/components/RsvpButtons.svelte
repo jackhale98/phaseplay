@@ -77,22 +77,20 @@
   button:active {
     transform: scale(0.97);
   }
+  /* Chosen answer: a solid status fill with --on-sel text (white in light, ink in dark), never a
+     tint, so it is obvious in both themes; the icon keeps it from relying on colour alone. */
   .yes[aria-pressed='true'] {
-    background: var(--ok);
-    border-color: var(--ok);
-    color: #fff;
+    --st: var(--ok);
   }
   .maybe[aria-pressed='true'] {
-    background: var(--warn-soft);
-    border-color: var(--maybe);
-    color: var(--warn);
+    --st: var(--warn);
   }
   .no[aria-pressed='true'] {
-    background: var(--danger-soft);
-    border-color: var(--no);
-    color: var(--danger);
+    --st: var(--danger);
   }
-  :global(:root[data-theme='dark']) .yes[aria-pressed='true'] {
-    color: #08140c;
+  [aria-pressed='true'] {
+    background: var(--st);
+    border-color: var(--st);
+    color: var(--on-sel);
   }
 </style>

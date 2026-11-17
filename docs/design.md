@@ -20,6 +20,7 @@ The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py
 
 - **Tokens** are CSS custom properties in `apps/web/src/lib/styles/tokens.css`:
   - colour: a neutral scale, surfaces, text, and the accent with on-accent
+  - selected state: `--sel` / `--on-sel`, a solid fill (never a tint) for the current tab, segment, nav item, designer tool and chosen chips; it differs from the surface by ≥ 3:1 and carries ≥ 4.5:1 text in both themes for any team colour (`e2e/specs/selected-state.spec.ts`)
   - spacing on a 4 px base
   - radius (6/10/16/full) and elevation (3 levels)
   - motion: 120/200/320 ms, standard and emphasised easing
