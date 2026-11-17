@@ -1,5 +1,6 @@
 <!-- Club kit (PLAN.md M9): phone list grouped by status or holder; desktop sortable, filterable table. -->
 <script lang="ts">
+  import { tick } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import {
     ITEM_CONDITION_LABELS,
@@ -7,6 +8,7 @@
     ITEM_KIND_LABELS,
     ITEM_STATUSES,
     ITEM_STATUS_LABELS,
+    inService as assignable,
     type InventoryItem,
     type ItemKind,
     type ItemStatus,
@@ -21,6 +23,7 @@
   import EmptyState from '#lib/components/EmptyState.svelte';
   import ItemForm from '#lib/features/kit/ItemForm.svelte';
   import HandoffBanner from '#lib/features/kit/HandoffBanner.svelte';
+  import BulkAssignSheet from '#lib/features/kit/BulkAssignSheet.svelte';
   import { STATUS_TONE, itemLabel, whereIs } from '#lib/features/kit/meta';
   import { IconPlus, IconChevronRight, IconWarn } from '#lib/icons';
 
@@ -118,6 +121,35 @@
   }
   const ariaSort = (k: SortKey) =>
     sortKey === k ? (sortDir === 1 ? 'ascending' : 'descending') : 'none';
+  /* --------------------- Desktop: select rows, assign in bulk --------------------- */
+  // Only kit in service (in the store or with someone) can be given out. Selection counts only
+  // the rows shown, so what you see ticked is exactly what "Assign…" acts on.
+  let picked = $state<string[]>([]);
+  let bulkOpen = $state(false);
+  let allBox = $state<HTMLInputElement>();
+  const pickable = $derived(manage ? rows.filter(assignable) : []);
+  const sel = $derived(pickable.filter((i) => picked.includes(i.id)));
+  const allOn = $derived(sel.length > 0 && sel.length === pickable.length);
+  $effect(() => {
+    if (allBox) allBox.indeterminate = sel.length > 0 && !allOn;
+  });
+  function toggle(id: string, on: boolean) {
+    picked = on ? [...picked, id] : picked.filter((x) => x !== id);
+  }
+  function toggleAll() {
+    const shown = new Set(pickable.map((i) => i.id));
+    picked = allOn ? picked.filter((id) => !shown.has(id)) : [...new Set([...picked, ...shown])];
+  }
+  function clearPicked() {
+    picked = [];
+    // The bar's buttons go away: keep focus in the table rather than dropping it on the body.
+    allBox?.focus();
+  }
+  const pickName = (i: InventoryItem) =>
+    assignable(i)
+      ? `Select ${itemLabel(i)}`
+      : `${itemLabel(i)} is ${ITEM_STATUS_LABELS[i.status].toLowerCase()}, so it can't be given out`;
+
   const COLS: { key: SortKey; label: string }[] = [
     { key: 'name', label: 'Item' },
     { key: 'kind', label: 'Kind' },
@@ -264,11 +296,38 @@
         </label>
         <span class="subtle grow count" role="status">{rows.length} shown</span>
       </div>
+      {#if manage}
+        <div class="selbar" class:on={sel.length > 0} role="group" aria-label="Selected kit">
+          <span class="grow" role="status"
+            >{#if sel.length}<strong class="tnum">{sel.length}</strong> selected{:else}<span
+                class="subtle">Tick kit to give several items out at once.</span
+              >{/if}</span
+          >
+          {#if sel.length}
+            <Button variant="primary" size="sm" onclick={() => (bulkOpen = true)}>Assign…</Button>
+            <Button variant="ghost" size="sm" onclick={clearPicked}>Clear</Button>
+          {/if}
+        </div>
+      {/if}
       <div class="card tw">
         <table>
           <caption class="sr-only">Club kit, sortable by each column</caption>
           <thead>
             <tr>
+              {#if manage}
+                <td class="pick">
+                  <label class="box">
+                    <input
+                      type="checkbox"
+                      bind:this={allBox}
+                      checked={allOn}
+                      disabled={!pickable.length}
+                      onchange={toggleAll}
+                      aria-label="Select all shown kit that can be given out"
+                    />
+                  </label>
+                </td>
+              {/if}
               {#each COLS as col (col.key)}
                 <th scope="col" aria-sort={ariaSort(col.key)}>
                   <button type="button" onclick={() => sortBy(col.key)}
@@ -282,7 +341,21 @@
           </thead>
           <tbody>
             {#each rows as i (i.id)}
-              <tr>
+              {@const on = picked.includes(i.id) && assignable(i)}
+              <tr class:on>
+                {#if manage}
+                  <td class="pick">
+                    <label class="box">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={!assignable(i)}
+                        onchange={(e) => toggle(i.id, e.currentTarget.checked)}
+                        aria-label={pickName(i)}
+                      />
+                    </label>
+                  </td>
+                {/if}
                 <th scope="row">
                   <a href="/kit/{i.id}">{itemLabel(i)}</a>
                   {#if i.tag}<small class="tag">{i.tag}</small>{/if}
@@ -297,7 +370,9 @@
                 >
               </tr>
             {:else}
-              <tr><td colspan="5" class="none">Nothing matches those filters.</td></tr>
+              <tr>
+                <td colspan={manage ? 6 : 5} class="none">Nothing matches those filters.</td>
+              </tr>
             {/each}
           </tbody>
         </table>
@@ -307,6 +382,17 @@
 </div>
 
 {#if manage}<ItemForm bind:open={addOpen} />{/if}
+{#if manage && wide.current}
+  <BulkAssignSheet
+    bind:open={bulkOpen}
+    items={sel}
+    ondone={() => {
+      picked = [];
+      // After the dialog has closed (the page is inert until then) and its opener has gone.
+      void tick().then(() => allBox?.focus());
+    }}
+  />
+{/if}
 
 <style>
   .summary {
@@ -405,6 +491,51 @@
   }
   .tw {
     overflow-x: auto;
+  }
+  /* Always there (fixed height) so ticking the first row never shifts the table. */
+  .selbar {
+    position: sticky;
+    top: var(--s-2);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    min-height: 52px;
+    margin-bottom: var(--s-2);
+    padding: var(--s-1) var(--s-2) var(--s-1) var(--s-4);
+    border-radius: var(--r-md);
+    font-size: var(--t-14);
+  }
+  .selbar.on {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--e-2);
+  }
+  .pick {
+    width: 52px;
+    padding: 0;
+  }
+  .box {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  .box:has(:disabled) {
+    cursor: not-allowed;
+  }
+  .box input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--sel);
+  }
+  tr.on > * {
+    background: var(--surface-2);
+  }
+  tr.on > .pick {
+    box-shadow: inset 3px 0 0 var(--sel);
   }
   table {
     width: 100%;

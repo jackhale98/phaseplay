@@ -1,12 +1,14 @@
 /** Display helpers for club kit. */
 import {
+  can,
   ITEM_KIND_LABELS,
   ITEM_STATUS_LABELS,
   type InventoryEvent,
   type InventoryItem,
   type ItemStatus,
+  type Member,
 } from '@phaseplay/shared';
-import { memberName } from '#lib/data/selectors';
+import { activeMembers, memberName } from '#lib/data/selectors';
 import type { TeamSnapshot } from '#lib/data/types';
 
 /** "Bibs, red × 15". */
@@ -67,4 +69,34 @@ export function describeEvent(s: TeamSnapshot | null, e: InventoryEvent): string
     case 'retired':
       return `${actor} retired it`;
   }
+}
+
+export type MemberChoices = {
+  people: Member[];
+  first: Member[];
+  firstLabel: string;
+  rest: Member[];
+};
+
+/**
+ * Who kit can go to, for the teammate pickers: active members minus `exclude` (the holder), and
+ * only people who can sign in when they must accept a handover. `suggest` (e.g. those going to
+ * the next session) come first; with none, coaches and kit managers do: players can't see who
+ * else is going (they only sync their own replies), and staff can always take kit back.
+ */
+export function memberChoices(
+  s: TeamSnapshot | null,
+  opts: { exclude?: string | null; needsAccount?: boolean; suggest?: readonly string[] } = {},
+): MemberChoices {
+  const people = activeMembers(s).filter(
+    (m) => m.id !== opts.exclude && (!opts.needsAccount || m.userId !== null),
+  );
+  const going = people.filter((m) => opts.suggest?.includes(m.id));
+  const first = going.length ? going : people.filter((m) => can(m.role, 'inventory.manage'));
+  return {
+    people,
+    first,
+    firstLabel: going.length ? 'Going to the next session' : 'Coaches and kit managers',
+    rest: people.filter((m) => !first.includes(m)),
+  };
 }
