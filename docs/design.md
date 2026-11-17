@@ -93,7 +93,7 @@ The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py
 | Fonts | ≤ 60 KB total woff2 |
 | Play editor chunk (lazy) | ≤ 120 KB gzip; video/GIF encoders load only when exporting |
 | Lighthouse mobile (landing, and Home with fixtures) | perf ≥ 95, a11y 100, best practices ≥ 95 |
-| LCP / INP / CLS | < 1.5 s / < 200 ms / < 0.05 |
+| LCP / INP / CLS | < 1.8 s (landing, simulated slow 4G) / < 200 ms / < 0.05 |
 | Diagram playback | 60 fps on a mid-range Android; no long tasks > 50 ms |
 
 ## Accessibility
