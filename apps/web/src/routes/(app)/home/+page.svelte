@@ -6,6 +6,7 @@
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Button from '#lib/components/Button.svelte';
   import { copyText } from '#lib/share';
+  import KitHome from '#lib/features/kit/KitHome.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { relDay, time, ago } from '#lib/format';
   import {
@@ -69,6 +70,8 @@
       <h1>{greet}{firstName ? `, ${firstName}` : ''}</h1>
     </div>
   </header>
+
+  <KitHome />
 
   {#if !s}
     <div class="sk" aria-busy="true"></div>
