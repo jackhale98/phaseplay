@@ -1019,7 +1019,7 @@ const DEMO_PLAYS: DemoPlay[] = [
           },
           {
             caption: '8 picks from the base and goes right.',
-            ms: 1000,
+            ms: 1200,
             moves: {
               a8: { to: { x: 38, y: 41 }, kind: 'carry' },
               d6: { x: 39.8, y: 38.4 },
@@ -1036,7 +1036,7 @@ const DEMO_PLAYS: DemoPlay[] = [
           },
           {
             caption: '8 passes back to the 9, who loops round behind; the right wing starts in.',
-            ms: 1100,
+            ms: 1600,
             moves: {
               a8: { to: { x: 38.6, y: 40.4 }, kind: 'carry' },
               a9: {
@@ -1068,7 +1068,7 @@ const DEMO_PLAYS: DemoPlay[] = [
           },
           {
             caption: '14 breaks through the hole behind the drifting defense.',
-            ms: 1300,
+            ms: 1900,
             moves: {
               a14: { to: { x: 38.5, y: 30 }, kind: 'carry' },
               d10: { x: 33.5, y: 31.8 },
@@ -1129,7 +1129,7 @@ const DEMO_PLAYS: DemoPlay[] = [
           },
           {
             caption: '14 runs in to score.',
-            ms: 1400,
+            ms: 4600,
             moves: {
               a14: {
                 to: { x: 42.5, y: 1 },
@@ -1334,7 +1334,7 @@ const DEMO_PLAYS: DemoPlay[] = [
           {
             caption:
               '9 box-kicks to land on our 10 m line, about 12 m in from touch. Chasers go on the kick.',
-            ms: 3200,
+            ms: 3700,
             moves: {
               a11: { to: { x: 11, y: 61.5 }, delay: 300 },
               a13: { to: { x: 16, y: 67 }, delay: 300 },

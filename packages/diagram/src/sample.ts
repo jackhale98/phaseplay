@@ -66,8 +66,10 @@ export const BALL_HOLD_OFFSET: Readonly<Vec2> = { x: 0.65, y: 0.45 };
 /** Easing used when a move doesn't specify one. */
 export const DEFAULT_EASE: EaseName = 'inOut';
 
-const PASS_SPEED = 14; // m/s for implicit passes
+const PASS_SPEED = 18; // m/s: diagrams run a little faster than life, so the ball must outpace runners
 const KICK_SPEED = 22;
+/** Shortest pass flight, so even a short pop is visible. */
+const MIN_PASS_MS = 250;
 
 type Seg = { table: ArcTable; delay: number; active: number; ease: EaseName; still: boolean };
 type BallState = { holder?: string; at: Vec2 | null };
@@ -136,7 +138,7 @@ function clampDelay(delayMs: number | undefined, dur: number): number {
   return clamp(delayMs ?? 0, 0, dur * 0.9);
 }
 
-function compile(play: Play): Compiled {
+export function compile(play: Play): Compiled {
   const hit = cache.get(play);
   if (hit) return hit;
   const { entities, frames } = play;
@@ -281,7 +283,27 @@ function compile(play: Play): Compiled {
           const ap = entityPosAt(fi, index.get(A) as number, start, { x: 0, y: 0 });
           p0 = { x: ap.x + BALL_HOLD_OFFSET.x, y: ap.y + BALL_HOLD_OFFSET.y };
         }
+        // A pass travels at passing speed rather than floating for the rest of the frame, and is
+        // aimed where the receiver will be at the catch: they run onto it and carry it on. So a
+        // passer who follows (or loops) can't overtake their own pass.
+        let end = dur;
+        let target = p1;
+        if (p0 && kind === 'pass' && move) {
+          const holderAt = (t: number): Vec2 => {
+            if (!B) return p1;
+            const bp = entityPosAt(fi, index.get(B) as number, t, { x: 0, y: 0 });
+            return { x: bp.x + BALL_HOLD_OFFSET.x, y: bp.y + BALL_HOLD_OFFSET.y };
+          };
+          const room = dur - start;
+          const flightMs = (q: Vec2) =>
+            clamp((dist(p0 as Vec2, q) / PASS_SPEED) * 1000, Math.min(MIN_PASS_MS, room), room);
+          end = start + flightMs(p1);
+          target = holderAt(end);
+          end = start + flightMs(target);
+          target = holderAt(end);
+        }
         if (p0) {
+          const p1 = target;
           const d = dist(p0, p1);
           let ctrl = move?.ctrl ?? [];
           if (!ctrl.length && kind === 'pass' && d > 1) {
@@ -300,7 +322,7 @@ function compile(play: Play): Compiled {
           flight = {
             table: buildArcTable(p0, ctrl, p1),
             start,
-            end: dur,
+            end,
             ease: move?.ease ?? (kind === 'run' ? DEFAULT_EASE : 'linear'),
             kind,
             peak,

@@ -5,7 +5,7 @@
  */
 import type { DemoTables } from './demo';
 
-export const DEMO_CONTENT_VERSION = 'b08f200f1b2be6f31b7fd661';
+export const DEMO_CONTENT_VERSION = 'fb2106437d0d7f7ebd554299';
 
 export async function demoContentHash(t: DemoTables): Promise<string> {
   const content = JSON.stringify([

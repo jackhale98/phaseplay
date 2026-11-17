@@ -6,6 +6,7 @@ import { History } from '../src/history';
 import { CURRENT_PLAY_VERSION, migratePlay, PlayMigrationError } from '../src/migrate';
 import { addFrame, duplicateFrame, newPlay, PRESETS, type PresetId } from '../src/presets';
 import { frameTimes, resolvedPositions, sample } from '../src/sample';
+import { timingIssues } from '../src/timing-check';
 import {
   bestOrientation,
   hitTest,
@@ -341,5 +342,54 @@ describe('migrate', () => {
       migratePlay({ ...newPlay({ id: 'x', title: 'x', mode: 'play', format: '15s' }), v: 2 }),
     ).toThrow(/newer/);
     expect(() => migratePlay({ v: 1, id: 'x' })).toThrow(/Invalid/);
+  });
+});
+
+describe('timing reads like rugby', () => {
+  it.each(Object.entries(DRILL_TEMPLATES))(
+    '%s: nobody outruns their pass or moves too fast',
+    (_, t) => {
+      expect(timingIssues(t.build())).toEqual([]);
+    },
+  );
+
+  it('a pass flies at passing speed to where the receiver will be, ahead of a follower', () => {
+    // A passes to B from 10 m and runs after the pass in the same frame. The ball used to float
+    // for the whole frame, so A got to B first.
+    const play: Play = {
+      v: 1,
+      id: 'follow',
+      mode: 'play',
+      title: 'follow',
+      format: '15s',
+      view: 'full',
+      entities: [
+        { id: 'a', kind: 'attack' },
+        { id: 'b', kind: 'attack' },
+        { id: 'ball', kind: 'ball' },
+      ],
+      frames: [
+        {
+          id: 'f0',
+          durationMs: 0,
+          pos: { a: { x: 10, y: 50 }, b: { x: 20, y: 52 } },
+          moves: {},
+          ball: { holder: 'a' },
+        },
+        {
+          id: 'f1',
+          durationMs: 2000,
+          pos: { a: { x: 19, y: 53 }, b: { x: 26, y: 46 } },
+          moves: { a: { kind: 'run' }, b: { kind: 'run' }, ball: { kind: 'pass' } },
+          ball: { holder: 'b' },
+        },
+      ],
+    };
+    expect(timingIssues(play)).toEqual([]);
+    // In the air for well under the frame, and caught on the move: right with B mid-run.
+    const mid = sample(play, 700);
+    expect(mid.ball?.flight).toBeUndefined();
+    const b = mid.entities.find((e) => e.id === 'b')!.pos;
+    expect(Math.hypot(mid.ball!.pos.x - b.x, mid.ball!.pos.y - b.y)).toBeLessThan(1.2);
   });
 });

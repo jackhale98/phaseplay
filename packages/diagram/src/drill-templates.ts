@@ -293,34 +293,46 @@ export function trianglePassing(id = 'drill-triangle'): Play {
     'Three cones 8–10 m apart (5–6 m for U12), two players at each. Ball starts at the top.',
     { holder: 'pA1' },
   );
+  // Pass first, then follow at a jog: the follow run spans two frames, so the passer is never
+  // near the receiver before the ball is.
   b.step(
-    'B1 steps onto the ball, hands up. A1 passes to B1 and follows the pass.',
+    'B1 steps onto the ball, hands up. A1 passes to B1, then follows the pass.',
     1500,
     {
-      pA1: { to: { x: 11, y: 13.2 }, delay: 300 },
+      pA1: { to: { x: 8.6, y: 6.6 }, delay: 350 },
       pB1: { x: 10.6, y: 9.3 },
-      ball: { kind: 'pass', delay: 500 },
+      ball: { kind: 'pass', delay: 200 },
     },
     { holder: 'pB1' },
   );
   b.step(
-    'C1 steps onto the ball. B1 passes to C1 and follows the pass.',
+    'C1 steps onto the ball. B1 passes to C1 and follows; A1 joins the back of the B queue.',
     1500,
     {
-      pB1: { to: { x: 1, y: 13.2 }, delay: 300 },
+      pA1: { to: { x: 11, y: 13.2 }, ctrl: [{ x: 12.4, y: 9.6 }] },
+      pB1: { to: { x: 6, y: 11.6 }, delay: 350 },
       pC1: { x: 1.4, y: 9.3 },
-      ball: { kind: 'pass', delay: 500 },
+      ball: { kind: 'pass', delay: 200 },
     },
     { holder: 'pC1' },
   );
   b.step(
-    'C1 passes to A2 and follows. Switch direction after two minutes.',
+    'A2 steps onto the ball. C1 passes to A2 and follows; B1 joins the back of the C queue.',
     1500,
     {
-      pC1: { to: { x: 6, y: -1.4 }, delay: 300 },
-      ball: { kind: 'pass', delay: 300 },
+      pB1: { to: { x: 1, y: 13.2 }, ctrl: [{ x: -0.4, y: 9.6 }] },
+      pC1: { to: { x: 3.4, y: 4.6 }, delay: 350 },
+      pA2: { x: 5.6, y: 1.4 },
+      ball: { kind: 'pass', delay: 200 },
     },
     { holder: 'pA2' },
+  );
+  b.step(
+    'C1 joins the back of the A queue. Keep it going; switch direction after two minutes.',
+    1200,
+    {
+      pC1: { to: { x: 6, y: -1.4 }, ctrl: [{ x: 3.6, y: -0.6 }] },
+    },
   );
   return b.build(id, 'Triangle passing');
 }
@@ -349,7 +361,7 @@ export function gates(id = 'drill-gates'): Play {
   });
   const B1a = { x: 14.2, y: 15.6 };
   const B2a = { x: 15.8, y: 16.3 };
-  b.step('Pairs run to a gate side by side.', 1500, {
+  b.step('Pairs run to a gate side by side.', 1800, {
     pA1: { to: { x: 4.2, y: 5.6 }, kind: 'carry' },
     pA2: { x: 5.8, y: 6.3 },
     pB1: { to: B1a, kind: 'carry' },
@@ -833,12 +845,12 @@ export function dynamicWarmup(id = 'drill-warmup'): Play {
   b.start('Raise: jog out and back, then side-shuffle out, back-pedal home. Waves of four.');
   b.step(
     'Raise: jog to the far line.',
-    2000,
+    3600,
     wave((x) => ({ to: { x, y: 0.5 }, ease: 'linear' })),
   );
   b.step(
     'Mobilise: walking lunge with a twist, leg swings, inchworm to halfway.',
-    2000,
+    3000,
     wave((x) => ({ to: { x, y: 10.5 }, ease: 'linear' })),
   );
   b.step(
@@ -853,7 +865,7 @@ export function dynamicWarmup(id = 'drill-warmup'): Play {
   );
   b.step(
     'Change of direction: plant and cut at each cone. Finish with a pass along the wave and two 90–100% sprints.',
-    1600,
+    2800,
     wave((x) => ({
       to: { x, y: 20.5 },
       ctrl: [
@@ -981,7 +993,7 @@ export function boxKickChase(id = 'drill-box-kick'): Play {
   );
   b.step(
     '9 box-kicks over the ruck: high (4+ s hang) to land in the zone, 10–15 m in from touch. Chasers go on the kick.',
-    3000,
+    3800,
     {
       c1: { to: { x: 10.6, y: 14.4 }, delay: 250 },
       c2: { to: { x: 15.6, y: 16.2 }, delay: 250 },
@@ -1026,10 +1038,10 @@ export function conditioningShuttle(id = 'drill-shuttle'): Play {
   );
   b.step('Sprint to the 5 m line and touch it.', 1000, to(13.5));
   b.step('Back to the start line.', 1000, to(19.5));
-  b.step('Sprint to 10 m and touch.', 1400, to(8.5));
-  b.step('Back to the start.', 1400, to(19.5));
-  b.step('Sprint to 15 m and touch.', 1800, to(3.5));
-  b.step('Back to the start. Rest about twice the work time, then repeat.', 1800, to(19.5));
+  b.step('Sprint to 10 m and touch.', 1500, to(8.5));
+  b.step('Back to the start.', 1500, to(19.5));
+  b.step('Sprint to 15 m and touch.', 2100, to(3.5));
+  b.step('Back to the start. Rest about twice the work time, then repeat.', 2100, to(19.5));
   return b.build(id, 'Conditioning shuttle');
 }
 
