@@ -1,52 +1,181 @@
 <script lang="ts">
   import Logo from '#lib/marketing/Logo.svelte';
-  import HeroPitch from '#lib/marketing/HeroPitch.svelte';
   import Crest from '#lib/components/Crest.svelte';
 
-  const features = [
+  /** Real screenshots of the demo team (scripts/landing-shots.mjs), light and dark. */
+  type Shot = { src: string; dark?: boolean; w: number; h: number; alt: string };
+  const PHONE = { w: 640, h: 1387 };
+  const DESK = { w: 1440, h: 900 };
+  const shot = (name: string, size: { w: number; h: number }, alt: string, dark = true): Shot => ({
+    src: `/landing/${name}`,
+    dark,
+    ...size,
+    alt,
+  });
+
+  const rows: {
+    k: string;
+    eyebrow: string;
+    title: string;
+    body: string;
+    points: string[];
+    main: Shot;
+    side?: Shot;
+    phoneMain?: boolean;
+  }[] = [
     {
-      t: "Who's in for Saturday?",
-      b: 'One-tap RSVPs, availability by position group, and a nudge you can paste straight into the group chat.',
       k: 'avail',
+      eyebrow: 'Schedule and availability',
+      title: "Know who's in before you pick the team",
+      body: 'Games, practices, socials and fundraisers in one schedule. Players reply in one tap; you see the squad by position, with front-row cover warnings.',
+      points: [
+        'Weekly practices with an end date, editable as a whole series',
+        'Nudge the players who haven’t replied, straight from the board',
+        'Calendar feed for everyone’s phone',
+      ],
+      main: shot(
+        'desktop-availability',
+        DESK,
+        'An upcoming game with the availability board: who is in, maybe and out, grouped by position.',
+      ),
     },
     {
-      t: 'Team sheets in two minutes',
-      b: 'Drag-and-drop on a laptop, tap-to-pick on a phone. Out-of-position and front-row cover warnings built in.',
       k: 'sheet',
+      eyebrow: 'Team sheets',
+      title: 'Pick the side in minutes. Share it in seconds.',
+      body: 'Drag players onto the pitch on a laptop or tap to pick on a phone. Out-of-position and front-row warnings keep you honest, and one tap turns it into an image for the group chat.',
+      points: [
+        'Drafts stay with the coaches until you publish',
+        'Starters, replacements, captain and vice-captain',
+        'Story, square and landscape images in your team colours',
+      ],
+      main: shot(
+        'desktop-sheet',
+        DESK,
+        'The team sheet builder: a pitch with the starting fifteen and the squad list beside it.',
+      ),
+      side: {
+        ...shot(
+          'sheet-story',
+          { w: 540, h: 960 },
+          'An exported team sheet image ready to share.',
+          false,
+        ),
+      },
     },
     {
-      t: 'Plays that move',
-      b: 'Draw lineouts and strike moves frame by frame. Players watch them anywhere and you see who has.',
       k: 'play',
+      eyebrow: 'Plays and drills',
+      title: 'Plays that move. Drills everyone understands.',
+      body: 'Draw lineouts, scrum moves and strike plays frame by frame, or start from a preset. Players watch them on their phones and you can see who has.',
+      points: [
+        'Lineout, scrum, restart, pod and defensive presets for 15s and 7s',
+        'A starter drill library with diagrams and coaching points',
+        'Export as images or video',
+      ],
+      main: shot(
+        'desktop-play',
+        DESK,
+        'The play designer with a lineout on the pitch and the frame strip below.',
+      ),
+      side: shot('phone-play', PHONE, 'A play on a phone, ready to watch.'),
     },
     {
-      t: 'Practice, planned',
-      b: 'Drill library, split forwards/backs sessions, water breaks and a full-screen session timer.',
       k: 'practice',
+      eyebrow: 'Practice',
+      title: 'Plan the session. Run it with your assistants.',
+      body: 'Build a practice from the drill library, split forwards and backs, and see contact and intensity minutes add up. At the field, every coach follows the same live timer on their own phone.',
+      points: [
+        'Each group gets its own countdown and drill diagram',
+        'Water breaks, stations and rotations',
+        'Captains can see the plan if you let them',
+      ],
+      main: shot(
+        'desktop-practice',
+        DESK,
+        'The practice planner with a drill library and a timeline split into forwards and backs.',
+      ),
+      side: shot(
+        'phone-live',
+        PHONE,
+        'A live practice on a phone: a countdown with forwards and backs on different drills.',
+      ),
     },
     {
-      t: 'Sideline match mode',
-      b: 'Game clock, scores, cards, sin bins and subs. Big buttons, one hand, works in airplane mode.',
       k: 'match',
+      eyebrow: 'Match day',
+      title: 'The whole game, recorded with one thumb.',
+      body: 'Game clock, tries, kicks, cards, sin bins and replacements, with big buttons that work with no signal. When the whistle goes you get a match report worth sharing.',
+      points: [
+        'Sin-bin timers that pause with the clock',
+        'Minutes played and score progression for everyone',
+        'Tournament days for 7s',
+      ],
+      main: shot(
+        'phone-match',
+        PHONE,
+        'The sideline recorder at full time: the score, the clock and large buttons for scores, cards and subs.',
+      ),
+      side: shot('phone-summary', PHONE, 'The match summary with the score progression chart.'),
+      phoneMain: true,
+    },
+  ];
+
+  const extras = [
+    {
+      t: 'Roles that fit your club',
+      b: 'Owner, admins for the e-board, coaches, managers and players, plus your own roles like captain or social secretary.',
     },
     {
-      t: 'Exports for the chat',
-      b: 'Team sheets, plays and match reports as images that look great on every phone.',
-      k: 'export',
+      t: 'Hand over when the e-board changes',
+      b: 'Pass ownership to the new president in two taps. Nothing is lost when people move on.',
+    },
+    {
+      t: 'Your colours, your crest',
+      b: 'Upload your club emblem and it shows up in the app and on every shared image.',
+    },
+    {
+      t: 'You choose what players see',
+      b: "Just the numbers, or who's going to games or everything. Reasons for missing a session stay with staff.",
     },
   ];
 </script>
 
 <svelte:head>
-  <title>Phaseplay: your rugby team, one calm place</title>
+  <title>Phaseplay: run your rugby team from one app</title>
   <meta
     name="description"
-    content="Availability, team sheets, animated plays, practice plans and a sideline match mode for rugby coaches running 15s and 7s."
+    content="Schedule and availability, team sheets, animated plays and drills, practice plans with a live session timer, and a sideline match recorder for rugby 15s and 7s."
   />
   <meta property="og:title" content="Phaseplay" />
-  <meta property="og:description" content="Your rugby team, one calm place." />
+  <meta property="og:description" content="Run your rugby team from one app." />
   <link rel="canonical" href="https://phaseplay.app/" />
+  <link
+    rel="preload"
+    as="image"
+    href="/landing/phone-home.webp"
+    type="image/webp"
+    fetchpriority="high"
+    media="(prefers-color-scheme: light)"
+  />
 </svelte:head>
+
+{#snippet picture(s: Shot, cls: string, eager = false)}
+  <picture class={cls}>
+    {#if s.dark}
+      <source srcset="{s.src}-dark.webp" media="(prefers-color-scheme: dark)" type="image/webp" />
+    {/if}
+    <img
+      src="{s.src}.webp"
+      width={s.w}
+      height={s.h}
+      alt={s.alt}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchpriority={eager ? 'high' : 'auto'}
+    />
+  </picture>
+{/snippet}
 
 <div class="landing">
   <header class="top">
@@ -62,48 +191,92 @@
   <main>
     <section class="hero">
       <div class="copy">
-        <p class="eyebrow">For rugby coaches · 15s and 7s</p>
-        <h1>Your whole season,<br /><span>one calm place.</span></h1>
+        <p class="eyebrow">For rugby coaches and clubs · 15s and 7s</p>
+        <h1>Run your rugby team<br /><span>from one app.</span></h1>
         <p class="lede">
-          Availability, team sheets, animated plays, practice plans and a sideline match mode. Fast
-          on a phone at the pitch, roomy on a laptop at home.
+          Who's available, who's playing, what the plays are and what happened on the day. Quick on
+          a phone at the field, roomy on a laptop at home.
         </p>
         <div class="actions">
           <a class="cta" href="/signup">Create your team</a>
           <a class="ghost" href="/demo">Explore the demo</a>
         </div>
         <p class="fine">
-          Try the demo with no account. When you're ready, sign up with just your name and a
-          passkey: no email, no password.
+          Look around a demo team with no account. When you're ready, sign up with just your name
+          and a passkey: no email, no password.
         </p>
       </div>
       <div class="visual">
-        <div class="phone">
-          <HeroPitch />
-          <div class="float avail" aria-hidden="true">
-            <strong>Who's in for Saturday?</strong>
-            <div class="bars">
-              <span class="y" style="width:68%"></span><span class="m" style="width:14%"
-              ></span><span class="n" style="width:18%"></span>
-            </div>
-            <small>19 in · 4 maybe · 5 out</small>
+        <div class="device phone hero-phone">
+          {@render picture(
+            shot(
+              'phone-home',
+              PHONE,
+              'The Phaseplay home screen: the next practice with replies, and who is in by position.',
+            ),
+            'screen',
+            true,
+          )}
+        </div>
+        <div class="float avail" aria-hidden="true">
+          <strong>Who's in for Saturday?</strong>
+          <div class="bars">
+            <span class="y" style="width:68%"></span><span class="m" style="width:14%"></span><span
+              class="n"
+              style="width:18%"
+            ></span>
           </div>
-          <div class="float score" aria-hidden="true">
-            <span class="tnum">24</span><small>v</small><span class="tnum">17</span>
-            <em>Try 63′ · J. Taylor</em>
-          </div>
+          <small>19 in · 4 maybe · 5 out</small>
+        </div>
+        <div class="float score" aria-hidden="true">
+          <span class="tnum">24</span><small>v</small><span class="tnum">17</span>
+          <em>Try 63′ · J. Taylor</em>
         </div>
       </div>
     </section>
 
-    <section class="features" aria-labelledby="f-h">
-      <h2 id="f-h">Everything for the week, two taps away</h2>
+    <nav class="jump" aria-label="Features">
+      {#each rows as r (r.k)}<a href="#{r.k}">{r.eyebrow}</a>{/each}
+    </nav>
+
+    {#each rows as r, i (r.k)}
+      <section class="row" class:flip={i % 2 === 1} id={r.k} aria-labelledby="{r.k}-h">
+        <div class="text">
+          <p class="eyebrow">{r.eyebrow}</p>
+          <h2 id="{r.k}-h">{r.title}</h2>
+          <p class="body">{r.body}</p>
+          <ul class="ticks">
+            {#each r.points as p (p)}<li>{p}</li>{/each}
+          </ul>
+        </div>
+        <div class="art" class:phones={r.phoneMain}>
+          {#if r.phoneMain}
+            <div class="device phone">{@render picture(r.main, 'screen')}</div>
+            {#if r.side}<div class="device phone second">
+                {@render picture(r.side, 'screen')}
+              </div>{/if}
+          {:else}
+            <div class="device browser">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              {@render picture(r.main, 'screen')}
+            </div>
+            {#if r.side}
+              <div class="device phone overlay" class:story={r.k === 'sheet'}>
+                {@render picture(r.side, 'screen')}
+              </div>
+            {/if}
+          {/if}
+        </div>
+      </section>
+    {/each}
+
+    <section class="club" aria-labelledby="club-h">
+      <h2 id="club-h">Built for the whole club, not just the coach</h2>
       <ul>
-        {#each features as f (f.k)}
-          <li class="feat {f.k}">
-            <span class="dot" aria-hidden="true"></span>
-            <h3>{f.t}</h3>
-            <p>{f.b}</p>
+        {#each extras as x (x.t)}
+          <li>
+            <h3>{x.t}</h3>
+            <p>{x.b}</p>
           </li>
         {/each}
       </ul>
@@ -111,21 +284,21 @@
 
     <section class="promise">
       <div>
-        <h2>Calm by design</h2>
+        <h2>Made for the touchline</h2>
         <p>
           No ads, no trackers, no feeds. It opens instantly from your home screen, keeps working
-          without signal, and never asks for anyone's medical details.
+          with no signal at the ground, and never asks for anyone's medical details.
         </p>
       </div>
       <ul class="ticks">
         <li>Installs like an app on iPhone and Android</li>
-        <li>Works offline at the ground; syncs when you're back</li>
+        <li>Works offline; syncs when you're back in range</li>
         <li>Passkeys instead of passwords</li>
-        <li>Export or delete your data any time</li>
+        <li>Light and dark mode</li>
       </ul>
     </section>
 
-    <section class="soon" aria-labelledby="demo-h">
+    <section class="demo" aria-labelledby="demo-h">
       <Crest
         colors={{ primary: '#1f6f43', secondary: '#f2c230' }}
         text="PRFC"
@@ -152,7 +325,8 @@
 
 <style>
   .landing {
-    --maxw: 1120px;
+    --maxw: 1160px;
+    --green: #1f6f43;
     min-height: 100dvh;
     background:
       radial-gradient(
@@ -209,7 +383,7 @@
     text-decoration: none;
   }
   .cta {
-    background: #1f6f43;
+    background: var(--green);
     color: #fff;
     box-shadow: 0 6px 20px rgb(31 111 67 / 0.3);
   }
@@ -228,6 +402,26 @@
     margin: 0 auto;
     padding: 0 var(--s-4);
   }
+  .eyebrow {
+    margin: 0;
+    font-size: var(--t-14);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--green);
+  }
+  :global(:root[data-theme='dark']) .eyebrow,
+  :global(:root[data-theme='dark']) h1 span {
+    color: #6fd39a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .eyebrow,
+    :global(:root:not([data-theme='light'])) h1 span {
+      color: #6fd39a;
+    }
+  }
+
+  /* Hero */
   .hero {
     display: grid;
     gap: var(--s-10);
@@ -242,15 +436,7 @@
     margin: var(--s-3) 0 var(--s-5);
   }
   h1 span {
-    color: #1f6f43;
-  }
-  :global(:root[data-theme='dark']) h1 span {
-    color: #6fd39a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :global(:root:not([data-theme='light'])) h1 span {
-      color: #6fd39a;
-    }
+    color: var(--green);
   }
   .lede {
     font-size: 1.1875rem;
@@ -269,17 +455,53 @@
   }
   .visual {
     position: relative;
+    width: min(100%, 320px);
+    margin: 0 auto;
+  }
+
+  /* Device frames */
+  .device {
+    position: relative;
+    overflow: hidden;
+    background: #0e1511;
+    box-shadow:
+      0 30px 60px -20px rgb(10 30 18 / 0.35),
+      0 10px 24px -12px rgb(10 30 18 / 0.3);
+  }
+  .device :global(img) {
+    display: block;
+    width: 100%;
+    height: auto;
   }
   .phone {
-    position: relative;
-    max-width: 520px;
-    margin: 0 auto;
-    padding: 14px;
-    border-radius: 30px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--e-3);
+    border-radius: 38px;
+    padding: 9px;
   }
+  .phone :global(picture),
+  .phone :global(img) {
+    border-radius: 30px;
+    overflow: hidden;
+  }
+  .browser {
+    border-radius: 14px;
+    padding: 28px 0 0;
+    border: 1px solid var(--border);
+    background: var(--surface-2, #e9eee9);
+  }
+  .browser .dots {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    display: flex;
+    gap: 6px;
+  }
+  .browser .dots i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--border-strong);
+  }
+
   .float {
     position: absolute;
     background: var(--surface);
@@ -290,9 +512,9 @@
     font-size: 0.8125rem;
   }
   .avail {
-    left: -12px;
-    bottom: -22px;
-    width: 220px;
+    left: -48px;
+    bottom: 64px;
+    width: 210px;
   }
   .avail strong {
     display: block;
@@ -319,8 +541,8 @@
     color: var(--text-3);
   }
   .score {
-    right: -10px;
-    top: -18px;
+    right: -44px;
+    top: 72px;
     display: grid;
     grid-template-columns: auto auto auto;
     align-items: baseline;
@@ -339,67 +561,87 @@
     font-weight: 600;
     color: var(--text-2);
   }
-  .features {
-    padding: var(--s-12) 0;
+
+  /* Jump links */
+  .jump {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--s-2);
+    padding-bottom: var(--s-6);
   }
-  .features h2,
+  .jump a {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    font-size: var(--t-14);
+    text-decoration: none;
+  }
+
+  /* Feature rows */
+  .row {
+    display: grid;
+    gap: var(--s-8);
+    align-items: center;
+    padding: var(--s-12) 0;
+    scroll-margin-top: var(--s-6);
+  }
+  .row h2,
+  .club h2,
   .promise h2 {
-    font-size: clamp(1.6rem, 4vw, 2.25rem);
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    line-height: 1.1;
     letter-spacing: -0.03em;
+    margin: var(--s-2) 0 var(--s-4);
     max-width: 22ch;
   }
-  .features ul {
-    list-style: none;
-    padding: 0;
-    margin: var(--s-8) 0 0;
-    display: grid;
-    gap: var(--s-4);
-  }
-  .feat {
-    padding: var(--s-6);
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    border: 1px solid var(--border);
-  }
-  .feat h3 {
-    font-size: 1.125rem;
-    margin: var(--s-3) 0 var(--s-2);
-  }
-  .feat p {
+  .body {
+    font-size: 1.0625rem;
     color: var(--text-2);
-    font-size: 0.9375rem;
-  }
-  .dot {
-    display: block;
-    width: 28px;
-    height: 6px;
-    border-radius: 3px;
-    background: #1f6f43;
-  }
-  .sheet .dot,
-  .export .dot {
-    background: #f2c230;
-  }
-  .match .dot {
-    background: #c2410c;
-  }
-  .promise {
-    display: grid;
-    gap: var(--s-6);
-    padding: var(--s-10);
-    border-radius: 24px;
-    background: #13261a;
-    color: #e9f3ec;
-  }
-  .promise p {
-    color: #b9d2c1;
-    margin-top: var(--s-3);
     max-width: 46ch;
+  }
+  .art {
+    position: relative;
+    min-width: 0;
+  }
+  .art .overlay {
+    position: absolute;
+    right: -8px;
+    bottom: -32px;
+    width: 30%;
+    max-width: 190px;
+    border-radius: 26px;
+    padding: 6px;
+  }
+  .art .overlay :global(picture),
+  .art .overlay :global(img) {
+    border-radius: 21px;
+  }
+  .art .overlay.story {
+    border-radius: 18px;
+  }
+  .art .overlay.story :global(picture),
+  .art .overlay.story :global(img) {
+    border-radius: 13px;
+  }
+  .art.phones {
+    display: flex;
+    justify-content: center;
+    gap: var(--s-5);
+  }
+  .art.phones .phone {
+    width: min(46%, 270px);
+  }
+  .art.phones .second {
+    margin-top: var(--s-12);
   }
   .ticks {
     list-style: none;
     padding: 0;
-    margin: 0;
+    margin: var(--s-5) 0 0;
     display: grid;
     gap: var(--s-3);
     align-content: center;
@@ -421,28 +663,69 @@
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E")
       center / 12px no-repeat;
   }
-  .soon {
+
+  /* Club cards */
+  .club {
+    padding: var(--s-12) 0;
+  }
+  .club ul {
+    list-style: none;
+    padding: 0;
+    margin: var(--s-6) 0 0;
+    display: grid;
+    gap: var(--s-4);
+  }
+  .club li {
+    padding: var(--s-6);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .club h3 {
+    font-size: 1.125rem;
+    margin: 0 0 var(--s-2);
+  }
+  .club p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 0.9375rem;
+  }
+
+  .promise {
+    display: grid;
+    gap: var(--s-6);
+    padding: var(--s-10);
+    border-radius: 24px;
+    background: #13261a;
+    color: #e9f3ec;
+  }
+  .promise h2 {
+    margin-top: 0;
+  }
+  .promise p {
+    color: #b9d2c1;
+    margin-top: var(--s-3);
+    max-width: 46ch;
+  }
+  .demo {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--s-5);
     align-items: center;
     margin: var(--s-12) 0;
     padding: var(--s-6);
     border-radius: var(--r-lg);
-    border: 1px dashed var(--border-strong);
-  }
-  .soon {
-    flex-wrap: wrap;
-    border-style: solid;
+    border: 1px solid var(--border-strong);
     background: linear-gradient(
       135deg,
       color-mix(in srgb, #1f6f43 8%, var(--surface)),
       var(--surface)
     );
   }
-  .soon .grow {
+  .demo .grow {
     flex: 1 1 280px;
   }
-  .soon h2 {
+  .demo h2 {
     font-size: var(--t-24);
     margin: var(--s-1) 0 var(--s-2);
   }
@@ -458,18 +741,37 @@
   footer a {
     color: var(--text-2);
   }
+  @media (max-width: 520px) {
+    .avail {
+      left: -12px;
+      bottom: 40px;
+    }
+    .score {
+      right: -10px;
+    }
+  }
   @media (min-width: 640px) {
-    .features ul {
+    .club ul {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
   @media (min-width: 960px) {
     .hero {
-      grid-template-columns: 1.05fr minmax(0, 1fr);
-      padding: var(--s-16) 0;
+      grid-template-columns: 1.15fr minmax(0, 1fr);
+      padding: var(--s-12) 0 var(--s-16);
     }
-    .features ul {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+    .visual {
+      width: 320px;
+    }
+    .row {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: var(--s-12);
+    }
+    .row.flip .text {
+      order: 2;
+    }
+    .club ul {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .promise {
       grid-template-columns: 1.2fr minmax(0, 1fr);

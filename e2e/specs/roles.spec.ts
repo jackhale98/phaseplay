@@ -37,15 +37,11 @@ test('an admin makes a Captain role and the captain sees coach-only practice pla
     'Cap Carter',
   );
 
-  await expect
-    .poll(
-      async () => {
-        await cap.page.reload();
-        return cap.page.getByText('Captains preview').count();
-      },
-      { timeout: 20_000 },
-    )
-    .toBeGreaterThan(0);
+  // Reload until the captain's device has synced the new role (allow time to render each time).
+  await expect(async () => {
+    await cap.page.reload();
+    await expect(cap.page.getByText('Captains preview')).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
   // Still a player: no planning controls.
   await expect(cap.page.getByRole('link', { name: 'New plan' })).toHaveCount(0);
 

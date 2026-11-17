@@ -4,7 +4,7 @@ test('landing renders, is accessible and has no console errors', async ({ page, 
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('one calm place');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('from one app');
   await axe(page);
   expect(errors).toEqual([]);
 });

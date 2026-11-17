@@ -14,7 +14,7 @@ const doc = [
 ].join('\n');
 writeFileSync(
   join(out, '_headers'),
-  `/*\n${doc}\n\n/_app/immutable/*\n  Cache-Control: public, max-age=31536000, immutable\n\n/service-worker.js\n  Cache-Control: no-cache\n\n/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n`,
+  `/*\n${doc}\n\n/_app/immutable/*\n  Cache-Control: public, max-age=31536000, immutable\n\n/service-worker.js\n  Cache-Control: no-cache\n\n/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n\n/landing/*\n  Cache-Control: public, max-age=86400, stale-while-revalidate=604800\n`,
 );
 
 for (const f of [

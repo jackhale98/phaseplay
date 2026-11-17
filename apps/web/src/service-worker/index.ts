@@ -15,7 +15,11 @@ const SHELL = '/200';
 const PRECACHE = [
   ...new Set([
     ...build,
-    ...files.filter((f) => !/\.(txt|md)$/.test(f) && !f.startsWith('/icons/maskable')),
+    // Landing-page screenshots are for visitors, not the installed app: don't precache them.
+    ...files.filter(
+      (f) =>
+        !/\.(txt|md)$/.test(f) && !f.startsWith('/icons/maskable') && !f.startsWith('/landing/'),
+    ),
     ...prerendered,
     SHELL,
   ]),
@@ -59,7 +63,11 @@ sw.addEventListener('fetch', (event) => {
       const hit = await cache.match(req, { ignoreSearch: true });
       if (hit) return hit;
       const res = await fetch(req);
-      if (res.ok && (url.pathname.startsWith('/_app/') || files.includes(url.pathname)))
+      if (
+        res.ok &&
+        !url.pathname.startsWith('/landing/') &&
+        (url.pathname.startsWith('/_app/') || files.includes(url.pathname))
+      )
         void cache.put(req, res.clone());
       return res;
     })(),
