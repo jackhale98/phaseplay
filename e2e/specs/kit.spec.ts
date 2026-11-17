@@ -181,7 +181,7 @@ test('a player asks before marking kit lost, and hand-over suggests the coaches'
 
   // Hand over: with no replies to go on, coaches and kit managers come first.
   await openTeam(page, team.teamId, `/kit/${id}`);
-  await page.getByRole('button', { name: /Give it to someone else|Hand it over/ }).click();
+  await page.getByRole('button', { name: 'Hand over', exact: true }).click();
   const give = page.getByRole('dialog').first();
   await expect(
     give.locator('optgroup[label="Coaches and kit managers"] option', { hasText: 'Coach Casey' }),
@@ -194,7 +194,7 @@ test('a player asks before marking kit lost, and hand-over suggests the coaches'
   await expect(confirm).toContainText('only a coach or kit manager can mark it found');
   await axe(page);
   await confirm.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('region', { name: 'Where it is' })).toContainText('Pip Player');
+  await expect(page.getByRole('region', { name: 'Where it is' })).toContainText('With you');
   await page.getByRole('button', { name: 'Mark lost' }).click();
   await confirm.getByRole('button', { name: 'Mark lost' }).click();
   await expect(page.getByText(/Marked the .* lost/)).toBeVisible();
