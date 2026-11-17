@@ -88,6 +88,10 @@ export function drillRoutes(app: Hono<AppEnv>) {
   route(app, 'drills.update', async (c) => {
     const input = await body(c, DrillUpdate);
     const { sets, vals } = setsFrom(input as Record<string, unknown>, MAP, JSON_FIELDS);
+    if (input.archived !== undefined) {
+      sets.push('archived_at = ?');
+      vals.push(input.archived ? now() : null);
+    }
     if (
       input.playersMin !== undefined &&
       input.playersMax !== undefined &&

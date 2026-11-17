@@ -4,6 +4,7 @@
   and requestAnimationFrame runs continuously only while previewing.
 -->
 <script lang="ts">
+  import { shownTemplate } from '#lib/features/plays/templates';
   import { onMount, tick, untrack } from 'svelte';
   import type { Member, Play, Vec2 } from '@phaseplay/shared';
   import { History } from '@phaseplay/diagram/history';
@@ -1463,11 +1464,11 @@
 >
   <div class="choices">
     {#if drill}
-      {#each Object.entries(DRILL_TEMPLATES) as [id, t] (id)}
+      {#each Object.entries(DRILL_TEMPLATES).filter( ([k]) => shownTemplate(`drill:${k}`) ) as [id, t] (id)}
         <button class="choice" onclick={() => useTemplate(id as DrillTemplateId)}>{t.label}</button>
       {/each}
     {:else}
-      {#each Object.entries(PRESETS) as [id, p] (id)}
+      {#each Object.entries(PRESETS).filter(([k]) => shownTemplate(`preset:${k}`)) as [id, p] (id)}
         <button class="choice" onclick={() => usePreset(id as PresetId)}>{p.label}</button>
       {/each}
     {/if}

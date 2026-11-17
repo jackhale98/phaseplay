@@ -29,6 +29,8 @@ export type Team = {
   crestVersion: number | null;
   /** What players see of each other's replies. */
   rsvpVisibility: RsvpVisibility;
+  /** Built-in templates/presets hidden from this team's pickers (`drill:<id>`, `preset:<id>`). */
+  hiddenTemplates: string[];
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
@@ -146,6 +148,8 @@ export type PlayMeta = {
   updatedAt: number;
   deletedAt: number | null;
   frameCount: number;
+  /** Archived: hidden from lists and pickers; still opens and works where used. */
+  archivedAt?: number | null;
 };
 export type PlayFull = PlayMeta & { data: Play };
 
@@ -173,6 +177,8 @@ export type DrillMeta = {
   updatedAt: number;
   deletedAt: number | null;
   hasDiagram: boolean;
+  /** Archived: hidden from lists and pickers; still opens and works where used. */
+  archivedAt?: number | null;
 };
 export type DrillFull = DrillMeta & { diagram: Play | null };
 

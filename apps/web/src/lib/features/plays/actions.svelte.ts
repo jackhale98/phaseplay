@@ -128,6 +128,7 @@ export async function patchPlay(
   for (const k of ['title', 'category', 'tags', 'format', 'visibility', 'description'] as const)
     if (body[k] !== undefined) optimistic[k] = body[k];
   if (body.data) optimistic.frameCount = body.data.frames.length;
+  if (body.archived !== undefined) optimistic.archivedAt = body.archived ? Date.now() : null;
   await app.mutate({
     method: 'PATCH',
     path: teamPath(`/plays/${id}`),
@@ -254,6 +255,8 @@ export async function patchDrill(
 ) {
   const optimistic: Record<string, unknown> = { ...body, updatedAt: Date.now() };
   delete optimistic.diagram;
+  delete optimistic.archived;
+  if (body.archived !== undefined) optimistic.archivedAt = body.archived ? Date.now() : null;
   if (body.diagram !== undefined) optimistic.hasDiagram = !!body.diagram;
   await app.mutate({
     method: 'PATCH',
@@ -264,4 +267,12 @@ export async function patchDrill(
     ...(baseVersion !== undefined ? { baseVersion } : {}),
     optimistic: [{ op: 'patch', entity: 'drills', key: id, value: optimistic }],
   });
+}
+
+/** Archive or restore a play or drill: out of lists and pickers, still works where it's used. */
+export async function setArchived(kind: 'play' | 'drill', id: string, archived: boolean) {
+  if (kind === 'play') await patchPlay(id, { archived }, archived ? 'Archive' : 'Restore');
+  else await patchDrill(id, { archived }, archived ? 'Archive' : 'Restore');
+  if (archived) toasts.undo('Archived', () => void setArchived(kind, id, false));
+  else toasts.show('Restored');
 }

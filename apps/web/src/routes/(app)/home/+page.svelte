@@ -90,7 +90,7 @@
   const showSheet = $derived(sheet && (sheet.publishedAt || app.can('sheets.view_draft')));
   const newPlays = $derived(
     Object.values(s?.rows.plays ?? {})
-      .filter((p) => p.updatedAt > Date.now() - 14 * 86400e3)
+      .filter((p) => !p.archivedAt && p.updatedAt > Date.now() - 14 * 86400e3)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3),
   );

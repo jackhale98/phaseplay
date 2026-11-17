@@ -19,11 +19,17 @@
     IconClock,
     IconUsers,
     IconZap,
+    IconArchive,
   } from '#lib/icons';
   import DiagramPlayer from '#lib/features/plays/DiagramPlayer.svelte';
   import { loadDrill } from '#lib/features/plays/persist';
   import { describeFrame } from '#lib/features/plays/describe';
-  import { deleteDrill, duplicateDrill, hidden } from '#lib/features/plays/actions.svelte';
+  import {
+    deleteDrill,
+    duplicateDrill,
+    hidden,
+    setArchived,
+  } from '#lib/features/plays/actions.svelte';
   import {
     drillFacts,
     equipmentLines,
@@ -218,6 +224,11 @@
           {#if coach}
             <Button variant="quiet" onclick={variation}
               >{#snippet icon()}<IconCopy />{/snippet}Duplicate as variation</Button
+            >
+            <Button variant="quiet" onclick={() => setArchived('drill', id, !meta?.archivedAt)}
+              >{#snippet icon()}<IconArchive />{/snippet}{meta?.archivedAt
+                ? 'Restore'
+                : 'Archive'}</Button
             >
             {#if d.source === 'team'}<Button variant="quiet" onclick={remove}
                 >{#snippet icon()}<IconTrash />{/snippet}Delete</Button

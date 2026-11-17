@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shownTemplate } from '#lib/features/plays/templates';
   import { goto } from '$app/navigation';
   import {
     DRILL_CATEGORIES,
@@ -121,7 +122,7 @@
           />
           <span>Blank 20×20 m</span>
         </label>
-        {#each Object.entries(DRILL_TEMPLATES) as [id, t] (id)}
+        {#each Object.entries(DRILL_TEMPLATES).filter( ([k]) => shownTemplate(`drill:${k}`) ) as [id, t] (id)}
           <label class="opt" class:sel={start === id}>
             <input
               type="radio"

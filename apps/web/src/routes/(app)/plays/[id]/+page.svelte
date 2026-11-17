@@ -15,6 +15,7 @@
     IconStar,
     IconLock,
     IconUsers,
+    IconArchive,
   } from '#lib/icons';
   import DiagramPlayer from '#lib/features/plays/DiagramPlayer.svelte';
   import SeenBy from '#lib/features/plays/SeenBy.svelte';
@@ -24,6 +25,7 @@
   import {
     deletePlay,
     duplicatePlay,
+    setArchived,
     hidden,
     setPlayVisibility,
   } from '#lib/features/plays/actions.svelte';
@@ -164,6 +166,13 @@
           <div class="row wrap more">
             <Button variant="quiet" onclick={duplicate}
               >{#snippet icon()}<IconCopy />{/snippet}Duplicate</Button
+            >
+            <Button
+              variant="quiet"
+              onclick={() => view && setArchived('play', view.id, !meta?.archivedAt)}
+              >{#snippet icon()}<IconArchive />{/snippet}{meta?.archivedAt
+                ? 'Restore'
+                : 'Archive'}</Button
             >
             <Button variant="quiet" onclick={remove}
               >{#snippet icon()}<IconTrash />{/snippet}Delete</Button

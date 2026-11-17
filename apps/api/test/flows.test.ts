@@ -1019,3 +1019,58 @@ describe('invite links can be copied again', () => {
     expect((await list(a.coach.cookie)).find((i) => i.id === made.body.id)!.path).toBeNull();
   });
 });
+
+describe('archive and hidden templates', () => {
+  it('coaches archive and restore plays and drills; sync carries archivedAt', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const s0 = await sync(a.teamId, a.coach.cookie);
+    const drill = s0.body.drills[0]!;
+    expect(
+      (
+        await call('PATCH', `${t}/drills/${drill.id}`, {
+          cookie: a.player.cookie,
+          ifMatch: drill.version,
+          body: { archived: true },
+        })
+      ).status,
+    ).toBe(403);
+    const r = await call('PATCH', `${t}/drills/${drill.id}`, {
+      cookie: a.coach.cookie,
+      ifMatch: drill.version,
+      body: { archived: true },
+    });
+    expect(r.status).toBe(200);
+    const play = s0.body.plays[0]!;
+    await call('PATCH', `${t}/plays/${play.id}`, {
+      cookie: a.coach.cookie,
+      ifMatch: play.version,
+      body: { archived: true },
+    });
+    const s1 = await sync(a.teamId, a.coach.cookie, s0.body.cursor);
+    expect(s1.body.drills.find((d) => d.id === drill.id)?.archivedAt).toBeGreaterThan(0);
+    expect(s1.body.plays.find((p) => p.id === play.id)?.archivedAt).toBeGreaterThan(0);
+    await call('PATCH', `${t}/drills/${drill.id}`, {
+      cookie: a.coach.cookie,
+      ifMatch: drill.version + 1,
+      body: { archived: false },
+    });
+    const s2 = await sync(a.teamId, a.coach.cookie, s1.body.cursor);
+    expect(s2.body.drills.find((d) => d.id === drill.id)?.archivedAt).toBeNull();
+  });
+
+  it('hiding templates needs the matching permission', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}/templates`;
+    const put = (cookie: string, hidden: string[]) => call('PUT', t, { cookie, body: { hidden } });
+    expect((await put(a.player.cookie, ['drill:tackleBox'])).status).toBe(403);
+    expect((await put(a.coach.cookie, ['drill:tackleBox', 'preset:scrum7'])).status).toBe(200);
+    expect((await sync(a.teamId, a.player.cookie)).body.team.hiddenTemplates).toEqual([
+      'drill:tackleBox',
+      'preset:scrum7',
+    ]);
+    // Managers can't change drill templates (no drills.manage), and keys are validated.
+    expect((await put(a.manager.cookie, ['preset:scrum7'])).status).toBe(403);
+    expect((await put(a.coach.cookie, ['nonsense'])).status).toBe(400);
+  });
+});
