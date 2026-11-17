@@ -16,6 +16,7 @@ export * from './history';
 export * from './migrate';
 export * from './export/common';
 export * from './export/png';
+export * from './export/framing';
 export * from './export/sheet';
 export * from './export/match-report';
 export * from './export/video';

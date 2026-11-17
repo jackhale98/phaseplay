@@ -15,7 +15,7 @@ import { draw } from '../draw';
 import { getPitchLayer } from '../pitch';
 import { frameTimes, overviewScene, sample, type Scene } from '../sample';
 import { type Theme, type ThemeName, attackColours, resolveTheme } from '../themes';
-import { bestOrientation, makeTransform, playViewport, type Transform } from '../viewport';
+import { makeTransform, type Transform } from '../viewport';
 import {
   type ExportSize,
   type Monogram,
@@ -25,6 +25,7 @@ import {
   font,
   parseSize,
 } from './common';
+import { frameForRect } from './framing';
 
 export type PlayImageOptions = {
   play: Play;
@@ -47,7 +48,10 @@ export type PlayImageOptions = {
 
 type Rect = { x: number; y: number; w: number; h: number };
 
-/** Draw a scene into a rectangle, fitting the play's viewport in the best orientation. */
+/**
+ * Draw a scene into a rectangle, framed (framing.ts) so everything over the whole animation is in
+ * view at the rect's aspect ratio. Every frame of a play gets the same framing.
+ */
 export function drawSceneInRect(
   ctx: Ctx2D,
   play: Play,
@@ -62,15 +66,16 @@ export function drawSceneInRect(
     layerFactory?: CanvasFactory;
   } = {},
 ): Transform {
-  const viewport = playViewport(play);
+  const pad = extra.padding ?? 0;
+  const { viewport, orientation } = frameForRect(play, rect.w - 2 * pad, rect.h - 2 * pad);
   const t = makeTransform({
     viewport,
     width: rect.w,
     height: rect.h,
     originX: rect.x,
     originY: rect.y,
-    orientation: bestOrientation(viewport, rect.w, rect.h),
-    padding: extra.padding ?? 0,
+    orientation,
+    padding: pad,
   });
   ctx.save();
   ctx.beginPath();
@@ -223,7 +228,6 @@ function drawStoryboard(
   captions: boolean,
 ): void {
   const n = play.frames.length;
-  const vp = playViewport(play);
   const gap = 20 * u;
   const capH = captions && play.frames.some((f) => f.caption) ? 76 * u : 0;
   let best = { cols: 1, s: 0 };
@@ -232,7 +236,7 @@ function drawStoryboard(
     const cw = (area.w - gap * (cols - 1)) / cols;
     const ch = (area.h - gap * (rows - 1)) / rows - capH;
     if (ch <= 0) continue;
-    const s = Math.max(Math.min(cw / vp.w, ch / vp.h), Math.min(cw / vp.h, ch / vp.w));
+    const s = frameForRect(play, cw, ch).scale;
     if (s > best.s) best = { cols, s };
   }
   const cols = best.cols;

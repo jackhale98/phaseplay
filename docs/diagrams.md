@@ -175,6 +175,7 @@ Drills use the same model, renderer, editor and exports, with these additions. T
 - **PNG:** the current frame, or a **storyboard** grid of all frames with captions, which is great for printing.
   - Sizes: 1080×1080, 1920×1080 and 1080×1920, at 2× scale.
   - Optional title, crest or monogram, captions and a small "phaseplay.app" mark.
+- **Framing** (`export/framing.ts`, used by PNG, storyboard, video and drill card): the union of everything drawn over the whole animation (tokens, the ball's flight and kick height, labels, zones, arrows) plus a 2 m margin, fitted to the export's aspect ratio in the orientation that shows it largest, clamped to the pitch. Nearby touchlines and try lines are pulled into view (lineouts always show the touchline and the 15 m line). A play's own `viewport` or drill area is kept, grown only where it would crop something. The on-screen player and editor keep the play's view.
 - **Video:**
   - MP4 (H.264, 30 fps) with WebCodecs `VideoEncoder` and an MP4 muxer, in a Web Worker drawing to `OffscreenCanvas`
   - fallback 1: WebM via `MediaRecorder` on `canvas.captureStream()`
