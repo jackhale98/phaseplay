@@ -99,6 +99,9 @@ docs/                specs, decisions.md, runbooks
 | `audit_log` | id, team_id, actor_id, action, target_type, target_id, meta JSON, at | (team_id,at) |
 | `calendar_tokens` | token_hash PK, user_id, team_id?, scope, created_at, revoked_at | user_id |
 | `push_subscriptions` (M7) | id, user_id, endpoint UNIQUE, p256dh, auth, prefs JSON, created_at | user_id |
+| `inventory_items` (M9) | id, team_id, kind, name, tag?, quantity (> 1 = a set), condition, status (`available`/`with_someone`/`lost`/`retired`), holder_member_id?, home, notes (kit managers only), match_day, version, created_by, created_at, updated_at, deleted_at | (team_id,updated_at), holder_member_id, UNIQUE(team_id,tag) where set and not deleted |
+| `inventory_events` (M9) | append-only history: id, team_id, item_id, kind, actor_member_id, from_member_id, to_member_id, note (≤ 140, kit managers only), at; written in the same guarded batch as each change | (item_id,at) |
+| `inventory_handoffs` (M9) | id, team_id, item_id, from_member_id?, to_member_id, note, created_at, expires_at (7 days), resolved_at, outcome (`accepted`/`declined`/`cancelled`), updated_at | (team_id,updated_at), UNIQUE(item_id) while open |
 
 ### Practice plan blocks (JSON, schema in `packages/shared/practice.ts`)
 
@@ -140,7 +143,7 @@ type Block = {
 
 - REST over JSON under `/api/v1`. Request and response schemas come from `packages/shared`. Errors look like `{ "error": { "code": "not_found", "message": "…" } }`.
 - **Bootstrap:** `GET /v1/me` returns the user, memberships and team summaries in one call.
-- **Delta sync:** `GET /api/v1/teams/:teamId/sync?since=<cursor>` returns changed rows, tombstones included, for members, seasons, events, RSVPs (players: their own plus per-event counts), sheets (players: published snapshots), play/drill metadata and practice plans — in **one SQL statement** (`json_group_array` per table). The cursor is the server time at query start; the next sync re-reads a 10 s overlap. A first sync only includes RSVP history from the last 120 days.
+- **Delta sync:** `GET /api/v1/teams/:teamId/sync?since=<cursor>` returns changed rows, tombstones included, for members, seasons, events, RSVPs (players: their own plus per-event counts), sheets (players: published snapshots), play/drill metadata, practice plans, kit items and handovers (open ones, plus those resolved since the cursor) — in **one SQL statement** (`json_group_array` per table). The cursor is the server time at query start; the next sync re-reads a 10 s overlap. A first sync only includes RSVP history from the last 120 days.
 - **Writes:** `POST`, `PATCH` and `DELETE` on resource routes.
   - Clients generate IDs, and the server inserts with `ON CONFLICT DO NOTHING`, so outbox retries are idempotent.
   - Versioned resources (events, sheets, plays) take `If-Match: <version>`. A stale version gets `409` with the latest copy.

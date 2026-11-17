@@ -16,14 +16,14 @@
   const tz = $derived(s?.team.timezone ?? 'UTC');
   /** My at-risk kit, each item once (its soonest event). */
   const nudges = $derived.by(() => {
-    const seen = new Set<string>();
+    const seen: Record<string, true> = {};
     const out: { item: InventoryItem; event: TeamEvent; reply: 'no' | null }[] = [];
     for (const r of kitAtRisk(s)) {
-      if (r.holderMemberId !== s?.me.id || seen.has(r.itemId)) continue;
+      if (r.holderMemberId !== s?.me.id || seen[r.itemId]) continue;
       const item = s.rows.items?.[r.itemId];
       const event = s.rows.events[r.eventId];
       if (!item || !event) continue;
-      seen.add(r.itemId);
+      seen[r.itemId] = true;
       out.push({ item, event, reply: r.reply });
     }
     return out;

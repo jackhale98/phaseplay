@@ -15,6 +15,7 @@
   import { app } from '#lib/data/app.svelte';
   import { heldBy, kitItems, memberName, handoffFor } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
+  import Loader from '#lib/components/Loader.svelte';
   import Chip from '#lib/components/Chip.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
@@ -55,13 +56,13 @@
     const attention = inService.filter(
       (i) => i.status === 'lost' || i.condition === 'needs_repair',
     );
-    const byHolder = new Map<string, InventoryItem[]>();
+    const byHolder: Record<string, InventoryItem[]> = {};
     for (const i of all)
       if (i.status === 'with_someone' && i.holderMemberId)
-        byHolder.set(i.holderMemberId, [...(byHolder.get(i.holderMemberId) ?? []), i]);
+        (byHolder[i.holderMemberId] ??= []).push(i);
     return [
       { key: 'attention', title: 'Lost or needs repair', items: attention, warn: true },
-      ...[...byHolder]
+      ...Object.entries(byHolder)
         .map(([id, items]) => ({ key: id, title: memberName(s, id), items }))
         .sort((a, b) => a.title.localeCompare(b.title)),
       {
@@ -144,7 +145,7 @@
   <HandoffBanner />
 
   {#if !s}
-    <div aria-busy="true"></div>
+    <Loader label="Loading the kit" />
   {:else if !all.length}
     <EmptyState
       title={manage ? 'Log your first kit' : 'No kit logged yet'}

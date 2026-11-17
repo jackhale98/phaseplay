@@ -49,7 +49,7 @@ test('shields at risk: the holder is out, hands over to a teammate who accepts, 
   await give.getByLabel('Teammate').selectOption({ label: 'Pip Player' });
   await give.getByRole('button', { name: 'Give it to them' }).click();
   await expect(page.getByRole('region', { name: 'Where it is' })).toContainText('Pip Player');
-  await expect(page.getByText('Coach Casey gave it to Pip Player')).toBeVisible();
+  await expect(page.getByText('You gave it to Pip Player')).toBeVisible();
   await axe(page);
 
   // Pip can't make it.

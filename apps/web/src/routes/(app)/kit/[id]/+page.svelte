@@ -14,6 +14,7 @@
   import { teamPath } from '#lib/data/actions';
   import { handoffFor, kitItems, memberName } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
+  import Loader from '#lib/components/Loader.svelte';
   import Chip from '#lib/components/Chip.svelte';
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
@@ -112,7 +113,7 @@
   <HandoffBanner />
 
   {#if !s}
-    <div aria-busy="true"></div>
+    <Loader label="Loading the kit" />
   {:else if !item}
     <EmptyState
       title="Not in your team's kit"
@@ -228,7 +229,7 @@
       {#if historyError}
         <p class="muted">{historyError}</p>
       {:else if !events}
-        <p class="muted" aria-busy="true">Loading…</p>
+        <Loader label="Loading the history" size={56} />
       {:else}
         <ol class="list card hist">
           {#each events as e (e.id)}
