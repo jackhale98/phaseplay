@@ -1,13 +1,13 @@
 <!-- Pick who gets an item: a staff assign (immediate) or a handover (they accept first). -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { can, type InventoryItem } from '@phaseplay/shared';
+  import type { InventoryItem } from '@phaseplay/shared';
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import Button from '#lib/components/Button.svelte';
   import { app } from '#lib/data/app.svelte';
-  import { activeMembers } from '#lib/data/selectors';
-  import { itemLabel, itemPhrase } from './meta';
+  import MemberOptions from './MemberOptions.svelte';
+  import { itemLabel, itemPhrase, memberChoices } from './meta';
   import { moveItem, offerItem } from './actions';
   import { toasts } from '#lib/stores/toast.svelte';
 
@@ -25,23 +25,15 @@
   let note = $state('');
   let error = $state<string | null>(null);
 
-  const people = $derived(
-    // A handover needs someone who can sign in and accept it.
-    activeMembers(app.snap).filter(
-      (m) => m.id !== item?.holderMemberId && (mode === 'assign' || m.userId !== null),
-    ),
+  // A handover needs someone who can sign in and accept it.
+  const choices = $derived(
+    memberChoices(app.snap, {
+      exclude: item?.holderMemberId,
+      needsAccount: mode === 'handover',
+      suggest,
+    }),
   );
-  // Players can't see who else is going (they only sync their own replies), so when there's no
-  // one to suggest, put coaches and kit managers first: they can always take kit back.
-  const going = $derived(people.filter((m) => suggest.includes(m.id)));
-  const fallback = $derived(
-    going.length ? [] : people.filter((m) => can(m.role, 'inventory.manage')),
-  );
-  const first = $derived(going.length ? going : fallback);
-  const firstLabel = $derived(
-    going.length ? 'Going to the next session' : 'Coaches and kit managers',
-  );
-  const rest = $derived(people.filter((m) => !first.includes(m)));
+  const people = $derived(choices.people);
 
   $effect(() => {
     if (!open) return;
@@ -84,16 +76,7 @@
       {#snippet children({ id, describedby })}
         <select {id} aria-describedby={describedby} bind:value={to}>
           <option value="" disabled>Choose…</option>
-          {#if first.length}
-            <optgroup label={firstLabel}>
-              {#each first as m (m.id)}<option value={m.id}>{m.displayName}</option>{/each}
-            </optgroup>
-            <optgroup label="Everyone else">
-              {#each rest as m (m.id)}<option value={m.id}>{m.displayName}</option>{/each}
-            </optgroup>
-          {:else}
-            {#each rest as m (m.id)}<option value={m.id}>{m.displayName}</option>{/each}
-          {/if}
+          <MemberOptions {choices} />
         </select>
       {/snippet}
     </Field>

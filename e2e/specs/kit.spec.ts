@@ -151,6 +151,9 @@ test('kit list: table with filters on desktop, grouped list on phones; match-day
       'Bibs, red',
     );
     await expect(page.getByRole('region', { name: /Pip Player/ })).toContainText('Match balls');
+    // Bulk assign is a desktop table feature: phones keep the plain list.
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Assign…' })).toHaveCount(0);
   }
   await axe(page);
 
@@ -228,3 +231,147 @@ test('a device drops kit the server never got (self-healing full refresh)', asyn
   await expect(page.getByRole('link', { name: /Cones × 20/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Ghost shields/ })).toHaveCount(0);
 });
+
+/** Four assignable items (bibs already with Pip) and a lost tee that can't be given out. */
+async function bulkSetup(team: TeamFixture) {
+  const pip = await team.join('player', 'Pip Player');
+  const tess = await team.join('player', 'Tess Teammate');
+  const ids = {
+    balls: await addItem(team, { kind: 'balls', name: 'Training balls', quantity: 10 }),
+    shields: await addItem(team, { kind: 'tackle_shields', name: 'Tackle shields', quantity: 6 }),
+    cones: await addItem(team, { kind: 'cones', name: 'Cones', quantity: 40 }),
+    bibs: await addItem(team, { kind: 'bibs', name: 'Bibs, red', quantity: 15 }),
+    tee: await addItem(team, { kind: 'kicking_tees', name: 'Kicking tee', quantity: 1 }),
+  };
+  await team.post(`/teams/:teamId/inventory/${ids.bibs}/assign`, { memberId: pip.memberId });
+  await team.post(`/teams/:teamId/inventory/${ids.tee}/lost`, { note: null });
+  return { pip, tess, ids };
+}
+const holders = async (team: TeamFixture) =>
+  Object.fromEntries(
+    (await team.post(`/teams/:teamId/sync?since=0`, undefined, 'GET')).items.map(
+      (i: { id: string; holderMemberId: string | null }) => [i.id, i.holderMemberId],
+    ),
+  );
+
+for (const scheme of ['light', 'dark'] as const) {
+  test.describe(`bulk assign (${scheme})`, () => {
+    test.use({ colorScheme: scheme });
+
+    test('desktop: tick several items, give them all to one person, change one, assign', async ({
+      page,
+      team,
+      axe,
+    }) => {
+      test.skip(!test.info().project.name.startsWith('desktop'), 'Bulk assign is desktop-only');
+      const { pip, tess, ids } = await bulkSetup(team);
+      await openTeam(page, team.teamId, '/kit');
+      const table = page.getByRole('table');
+      const pick = (name: string) => table.getByRole('checkbox', { name: `Select ${name}` });
+      const all = page.getByRole('checkbox', { name: /Select all shown/ });
+      const bar = page.getByRole('group', { name: 'Selected kit' });
+      await expect(table.getByRole('row')).toHaveCount(6);
+      await expect(
+        table.getByRole('checkbox', { name: "Kicking tee is lost, so it can't be given out" }),
+      ).toBeDisabled();
+
+      await pick('Training balls × 10').check();
+      await pick('Tackle shields × 6').check();
+      await pick('Bibs, red × 15').check();
+      await expect(bar.getByRole('status')).toHaveText('3 selected');
+      await expect(all).not.toBeChecked();
+      expect(await all.evaluate((el: HTMLInputElement) => el.indeterminate)).toBe(true);
+      await axe(page);
+
+      await bar.getByRole('button', { name: 'Assign…' }).click();
+      const sheet = page.getByRole('dialog', { name: 'Assign 3 items' });
+      await sheet.getByLabel('Give them all to').selectOption({ label: 'Pip Player' });
+      await expect(sheet.getByLabel('Training balls × 10')).toHaveValue(pip.memberId);
+      await expect(sheet.getByLabel('Tackle shields × 6')).toHaveValue(pip.memberId);
+      // Pip already has the bibs: skipped.
+      await expect(sheet).toContainText('already with them, skipped');
+      await sheet.getByLabel('Tackle shields × 6').selectOption({ label: 'Tess Teammate' });
+      await axe(page);
+      await sheet.getByRole('button', { name: 'Assign 2 items' }).click();
+      await expect(sheet).toBeHidden();
+      await expect(page.getByText('Assigned 2 items')).toBeVisible();
+
+      // Optimistic straight away, then on the server; the selection clears.
+      await expect(table.getByRole('row', { name: /Training balls/ })).toContainText('Pip Player');
+      await expect(table.getByRole('row', { name: /Tackle shields/ })).toContainText(
+        'Tess Teammate',
+      );
+      await expect(table.getByRole('row', { name: /Bibs, red/ })).toContainText('Pip Player');
+      await expect(table.getByRole('row', { name: /Cones/ })).toContainText('In the store');
+      await expect(table.getByRole('checkbox', { checked: true })).toHaveCount(0);
+      await expect(bar.getByRole('button', { name: 'Assign…' })).toHaveCount(0);
+      await expect
+        .poll(() => holders(team))
+        .toMatchObject({
+          [ids.balls]: pip.memberId,
+          [ids.shields]: tess.memberId,
+          [ids.bibs]: pip.memberId,
+          [ids.cones]: null,
+          [ids.tee]: null,
+        });
+      await axe(page);
+    });
+
+    test('desktop: bulk assign with the keyboard only', async ({ page, team, axe }) => {
+      test.skip(!test.info().project.name.startsWith('desktop'), 'Bulk assign is desktop-only');
+      const { pip, tess, ids } = await bulkSetup(team);
+      await openTeam(page, team.teamId, '/kit');
+      const table = page.getByRole('table');
+      const all = page.getByRole('checkbox', { name: /Select all shown/ });
+      const bar = page.getByRole('group', { name: 'Selected kit' });
+
+      // Select all (the lost tee is left out), then untick the bibs.
+      await all.focus();
+      await page.keyboard.press('Space');
+      await expect(bar.getByRole('status')).toHaveText('4 selected');
+      await expect(all).toBeChecked();
+      await table.getByRole('checkbox', { name: 'Select Bibs, red × 15' }).focus();
+      await page.keyboard.press('Space');
+      await expect(bar.getByRole('status')).toHaveText('3 selected');
+
+      // From the table, back up to the bar: Clear, then Assign….
+      await all.focus();
+      await page.keyboard.press('Shift+Tab');
+      await expect(bar.getByRole('button', { name: 'Clear' })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(bar.getByRole('button', { name: 'Assign…' })).toBeFocused();
+      await page.keyboard.press('Enter');
+      const sheet = page.getByRole('dialog', { name: 'Assign 3 items' });
+      await expect(sheet).toBeVisible();
+
+      const everyone = sheet.getByLabel('Give them all to');
+      while (!(await everyone.evaluate((el) => el === document.activeElement)))
+        await page.keyboard.press('Tab');
+      await page.keyboard.press('ArrowDown'); // Coach Casey
+      await page.keyboard.press('ArrowDown'); // Pip Player
+      await expect(everyone).toHaveValue(pip.memberId);
+      const cones = sheet.getByLabel('Cones × 40');
+      while (!(await cones.evaluate((el) => el === document.activeElement)))
+        await page.keyboard.press('Tab');
+      await page.keyboard.press('ArrowDown'); // Tess Teammate
+      await expect(cones).toHaveValue(tess.memberId);
+      await axe(page);
+      const go = sheet.getByRole('button', { name: 'Assign 3 items' });
+      while (!(await go.evaluate((el) => el === document.activeElement)))
+        await page.keyboard.press('Tab');
+      await page.keyboard.press('Enter');
+      await expect(sheet).toBeHidden();
+      await expect(page.getByText('Assigned 3 items')).toBeVisible();
+      await expect(all).toBeFocused();
+      await expect(table.getByRole('row', { name: /Cones/ })).toContainText('Tess Teammate');
+      await expect
+        .poll(() => holders(team))
+        .toMatchObject({
+          [ids.balls]: pip.memberId,
+          [ids.shields]: pip.memberId,
+          [ids.cones]: tess.memberId,
+          [ids.bibs]: pip.memberId,
+        });
+    });
+  });
+}
