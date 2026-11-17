@@ -24,7 +24,7 @@ import {
   type Optimistic,
   type VersionedEntity,
 } from './idb';
-import { rsvpKey, type TeamSnapshot } from './types';
+import { answerKey, rsvpKey, type TeamSnapshot } from './types';
 import { toasts } from '#lib/stores/toast.svelte';
 import { theme } from '#lib/stores/theme.svelte';
 
@@ -64,6 +64,9 @@ function emptyRows(): TeamSnapshot['rows'] {
     roles: {},
     items: {},
     handoffs: {},
+    options: {},
+    answers: {},
+    answerCounts: {},
   };
 }
 
@@ -137,6 +140,18 @@ function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
     (h: { resolvedAt: number | null }) => !!h.resolvedAt,
   );
   rows.counts = res.full ? { ...res.rsvpCounts } : { ...rows.counts, ...res.rsvpCounts };
+  rows.options ??= {};
+  rows.answers ??= {};
+  upsert('options', res.options ?? [], byId, deleted);
+  upsert(
+    'answers',
+    (res.answers ?? []) as never[],
+    (a: { optionId: string; memberId: string }) => answerKey(a.optionId, a.memberId),
+    () => false,
+  );
+  rows.answerCounts = res.full
+    ? { ...res.answerCounts }
+    : { ...rows.answerCounts, ...res.answerCounts };
   return {
     ...base,
     teamId: res.team.id,

@@ -1,6 +1,10 @@
 /** Event writes for the schedule feature. All optimistic through the outbox, with undo where destructive. */
 import {
+  byStart,
+  defaultAnswerBy,
   uuidv7,
+  type EventOption,
+  type ProposalOption,
   type EventCreate,
   type EventUpdate,
   type Recurrence,
@@ -11,10 +15,16 @@ import {
 import { api, ApiError } from '#lib/api';
 import { app } from '#lib/data/app.svelte';
 import { teamPath } from '#lib/data/actions';
+import type { Optimistic } from '#lib/data/idb';
+import { answerKey } from '#lib/data/types';
+import { optionsOf } from '#lib/data/selectors';
 import { toasts } from '#lib/stores/toast.svelte';
 
-export async function createEvent(input: Omit<EventCreate, 'id'>): Promise<string> {
+export async function createEvent(
+  input: Omit<EventCreate, 'id' | 'status'> & { status?: EventCreate['status'] },
+): Promise<string> {
   const id = uuidv7();
+  const options = input.status === 'proposed' ? [...(input.options ?? [])].sort(byStart) : [];
   const value: TeamEvent = {
     id,
     teamId: app.teamId!,
@@ -33,18 +43,62 @@ export async function createEvent(input: Omit<EventCreate, 'id'>): Promise<strin
     recurrenceId: null,
     cancelledAt: null,
     settings: input.settings ?? null,
+    status: options.length ? 'proposed' : 'confirmed',
+    answerBy: options.length
+      ? (input.answerBy ?? defaultAnswerBy(Date.now(), options[0]!.startsAt))
+      : null,
+    target: options.length ? (input.target ?? null) : null,
+    checkPositions: input.checkPositions !== false,
     version: 1,
     updatedAt: Date.now(),
     deletedAt: null,
   };
+  if (options[0]) {
+    value.startsAt = options[0].startsAt;
+    value.meetAt = options[0].meetAt ?? null;
+    value.endsAt = options[0].endsAt ?? null;
+  }
   await app.mutate({
     method: 'POST',
     path: teamPath('/events'),
     body: { id, ...input },
-    label: 'New event',
-    optimistic: [{ op: 'put', entity: 'events', key: id, value }],
+    label: options.length ? 'New proposal' : 'New event',
+    optimistic: [{ op: 'put', entity: 'events', key: id, value }, ...optionOps(id, options, [])],
   });
   return id;
+}
+
+/** Optimistic rows for a proposal's dates: put the listed ones, drop the rest (and their answers). */
+function optionOps(eventId: string, next: ProposalOption[], prev: EventOption[]): Optimistic[] {
+  const t = Date.now();
+  const keep = new Set(next.map((o) => o.id));
+  const gone = prev.filter((o) => !keep.has(o.id)).map((o) => o.id);
+  const answers = Object.values(app.snap?.rows.answers ?? {}).filter((a) =>
+    gone.includes(a.optionId),
+  );
+  return [
+    ...next.map((o): Optimistic => ({
+      op: 'put',
+      entity: 'options',
+      key: o.id,
+      value: {
+        id: o.id,
+        eventId,
+        teamId: app.teamId!,
+        startsAt: o.startsAt,
+        meetAt: o.meetAt ?? null,
+        endsAt: o.endsAt ?? null,
+        updatedAt: t,
+        deletedAt: null,
+      } satisfies EventOption,
+    })),
+    ...gone.map((key): Optimistic => ({ op: 'delete', entity: 'options', key })),
+    ...answers.map((a): Optimistic => ({
+      op: 'delete',
+      entity: 'answers',
+      key: answerKey(a.optionId, a.memberId),
+    })),
+  ];
 }
 
 /** Weekly series: not optimistic (the server expands the dates), so it needs a connection. */
@@ -125,6 +179,18 @@ export async function updateEvent(
     delete value.cancelled;
     value.cancelledAt = patch.cancelled ? Date.now() : null;
   }
+  const extra: Optimistic[] = [];
+  if (patch.options) {
+    // The event mirrors its earliest date, as on the server.
+    delete value.options;
+    const first = [...patch.options].sort(byStart)[0]!;
+    Object.assign(value, {
+      startsAt: first.startsAt,
+      meetAt: first.meetAt ?? null,
+      endsAt: first.endsAt ?? null,
+    });
+    extra.push(...optionOps(id, patch.options, optionsOf(app.snap, id)));
+  }
   const mid = crypto.randomUUID();
   await app.mutate({
     id: mid,
@@ -133,7 +199,7 @@ export async function updateEvent(
     body: patch,
     label,
     versionOf: opts.versioned === false ? undefined : { entity: 'events', id },
-    optimistic: [{ op: 'patch', entity: 'events', key: id, value }],
+    optimistic: [{ op: 'patch', entity: 'events', key: id, value }, ...extra],
   });
   return mid;
 }

@@ -16,6 +16,12 @@ export const day = (ms: number, tz: string) =>
   fmt(tz, { weekday: 'short', day: 'numeric', month: 'short' }).format(ms);
 export const longDay = (ms: number, tz: string) =>
   fmt(tz, { weekday: 'long', day: 'numeric', month: 'long' }).format(ms);
+/** "Sat 12": weekday and day of the month (proposal dates). */
+export function shortDay(ms: number, tz: string) {
+  const parts = fmt(tz, { weekday: 'short', day: 'numeric' }).formatToParts(ms);
+  const get = (k: string) => parts.find((x) => x.type === k)?.value ?? '';
+  return `${get('weekday')} ${get('day')}`;
+}
 export const dateTime = (ms: number, tz: string) => `${day(ms, tz)}, ${time(ms, tz)}`;
 export const monthYear = (ms: number, tz: string) =>
   fmt(tz, { month: 'long', year: 'numeric' }).format(ms);

@@ -27,6 +27,8 @@ export async function setRsvp(
     status,
     note: note ?? (prev?.status === status ? (prev?.note ?? null) : null),
     attended: prev?.attended ?? null,
+    // Any reply answers a "Still in?".
+    reconfirm: false,
     updatedAt: Date.now(),
   };
   const counts = { ...(s.rows.counts[eventId] ?? { yes: 0, no: 0, maybe: 0 }) };

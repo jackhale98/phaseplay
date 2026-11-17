@@ -12,6 +12,9 @@ import type {
   TeamRole,
   InventoryItem,
   InventoryHandoff,
+  EventOption,
+  OptionAnswer,
+  AnswerCounts,
 } from '@phaseplay/shared';
 
 /** A handover as cached on this device: `queued` while my accept/decline waits in the outbox. */
@@ -43,7 +46,13 @@ export type TeamSnapshot = {
     items?: Record<string, InventoryItem>;
     /** Open handovers. Missing from snapshots cached before kit existed. */
     handoffs?: Record<string, LocalHandoff>;
+    /** Proposal dates, answers (by `${optionId}:${memberId}`) and per-date counts. Missing from
+     * snapshots cached before proposals existed. */
+    options?: Record<string, EventOption>;
+    answers?: Record<string, OptionAnswer>;
+    answerCounts?: Record<string, AnswerCounts>;
   };
 };
 
 export const rsvpKey = (eventId: string, memberId: string) => `${eventId}:${memberId}`;
+export const answerKey = (optionId: string, memberId: string) => `${optionId}:${memberId}`;
