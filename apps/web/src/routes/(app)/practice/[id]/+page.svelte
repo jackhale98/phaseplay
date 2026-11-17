@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, tick } from 'svelte';
+  import KitShortfall from '#lib/features/kit/KitShortfall.svelte';
   import { page } from '$app/state';
   import { beforeNavigate, goto } from '$app/navigation';
   import {
@@ -773,6 +774,7 @@
               </li>
             {/each}
           </ul>
+          <KitShortfall equipment={ov.equipment} eventId={plan?.eventId ?? null} />
         </section>
       {/if}
 

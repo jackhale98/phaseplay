@@ -13,6 +13,9 @@ import type {
   TeamSheet,
   Invite,
   TeamRole,
+  InventoryItem,
+  InventoryHandoff,
+  InventoryEvent,
 } from '@phaseplay/shared';
 import { bool, nullableBool } from '../lib/db';
 import { parseJson } from '../lib/http';
@@ -226,4 +229,55 @@ export const roleFromRow = (r: Row): TeamRole => ({
   permissions: parseJson(s(r.permissions), [] as string[]),
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
+});
+
+export const ITEM_COLS =
+  'id, team_id, kind, name, tag, quantity, condition, status, holder_member_id, home, notes, match_day, version, created_at, updated_at, deleted_at';
+/** Notes are coach-visible: `showNotes` is false for members without inventory.manage. */
+export const itemFromRow = (r: Row, showNotes = true): InventoryItem => ({
+  id: s(r.id),
+  teamId: s(r.team_id),
+  kind: s(r.kind) as InventoryItem['kind'],
+  name: s(r.name),
+  tag: ns(r.tag),
+  quantity: n(r.quantity),
+  condition: s(r.condition) as InventoryItem['condition'],
+  status: s(r.status) as InventoryItem['status'],
+  holderMemberId: ns(r.holder_member_id),
+  home: ns(r.home),
+  notes: showNotes ? ns(r.notes) : null,
+  matchDay: bool(r.match_day),
+  version: n(r.version),
+  createdAt: n(r.created_at),
+  updatedAt: n(r.updated_at),
+  deletedAt: nn(r.deleted_at),
+});
+
+export const HANDOFF_COLS =
+  'id, team_id, item_id, from_member_id, to_member_id, note, created_at, expires_at, resolved_at, outcome';
+/** The note is for the two people involved and kit managers. */
+export const handoffFromRow = (r: Row, showNote = true): InventoryHandoff => ({
+  id: s(r.id),
+  teamId: s(r.team_id),
+  itemId: s(r.item_id),
+  fromMemberId: ns(r.from_member_id),
+  toMemberId: s(r.to_member_id),
+  note: showNote ? ns(r.note) : null,
+  createdAt: n(r.created_at),
+  expiresAt: n(r.expires_at),
+  resolvedAt: nn(r.resolved_at),
+  outcome: (r.outcome ?? null) as InventoryHandoff['outcome'],
+});
+
+export const INVENTORY_EVENT_COLS =
+  'id, item_id, kind, actor_member_id, from_member_id, to_member_id, note, at';
+export const inventoryEventFromRow = (r: Row, showNote = true): InventoryEvent => ({
+  id: s(r.id),
+  itemId: s(r.item_id),
+  kind: s(r.kind) as InventoryEvent['kind'],
+  actorMemberId: ns(r.actor_member_id),
+  fromMemberId: ns(r.from_member_id),
+  toMemberId: ns(r.to_member_id),
+  note: showNote ? ns(r.note) : null,
+  at: n(r.at),
 });

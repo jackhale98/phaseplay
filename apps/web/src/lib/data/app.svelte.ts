@@ -39,6 +39,13 @@ const VERSIONED_RESPONSE_KEYS: Record<string, VersionedEntity> = {
   play: 'plays',
   drill: 'drills',
   plan: 'plans',
+  item: 'items',
+};
+/** Rows a write's response can carry, folded into the cache when it lands. */
+const RESPONSE_ROWS: Record<string, keyof TeamSnapshot['rows']> = {
+  ...VERSIONED_RESPONSE_KEYS,
+  created: 'items',
+  handoff: 'handoffs',
 };
 
 type ConflictListener = (entity: VersionedEntity, latest: { id: string }) => void;
@@ -55,6 +62,8 @@ function emptyRows(): TeamSnapshot['rows'] {
     drills: {},
     plans: {},
     roles: {},
+    items: {},
+    handoffs: {},
   };
 }
 
@@ -117,6 +126,16 @@ function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
   upsert('plans', res.plans, byId, deleted);
   if (!rows.roles) rows.roles = {};
   upsert('roles', res.roles ?? [], byId, deleted);
+  rows.items ??= {};
+  rows.handoffs ??= {};
+  upsert('items', res.items ?? [], byId, deleted);
+  // Resolved handovers arrive once so devices can drop them.
+  upsert(
+    'handoffs',
+    res.handoffs ?? [],
+    byId,
+    (h: { resolvedAt: number | null }) => !!h.resolvedAt,
+  );
   rows.counts = res.full ? { ...res.rsvpCounts } : { ...rows.counts, ...res.rsvpCounts };
   return {
     ...base,
@@ -532,7 +551,7 @@ class AppState {
     const stored = await d?.get('teams', teamId);
     if (!stored) return;
     let next = applyOps(stored, e.optimistic ?? []);
-    for (const [k, entity] of Object.entries(VERSIONED_RESPONSE_KEYS)) {
+    for (const [k, entity] of Object.entries(RESPONSE_ROWS)) {
       const row = res?.[k] as { id: string } | undefined;
       if (row?.id) next = applyOps(next, [{ op: 'put', entity, key: row.id, value: row }]);
     }

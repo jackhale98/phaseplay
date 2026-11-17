@@ -1,6 +1,9 @@
 /** Pure read helpers over the team snapshot. Screens derive from these with $derived. */
 import {
   RULES,
+  atRiskKit,
+  type InventoryItem,
+  type KitRisk,
   groupOf,
   isFrontRowCapable,
   type Format,
@@ -10,7 +13,7 @@ import {
   type RsvpStatus,
   type TeamEvent,
 } from '@phaseplay/shared';
-import type { TeamSnapshot } from './types';
+import type { LocalHandoff, TeamSnapshot } from './types';
 import { rsvpKey } from './types';
 
 export const activeMembers = (s: TeamSnapshot | null): Member[] =>
@@ -126,3 +129,37 @@ export const sheetFor = (s: TeamSnapshot | null, eventId: string) =>
 
 export const planFor = (s: TeamSnapshot | null, eventId: string) =>
   s ? Object.values(s.rows.plans).find((p) => p.eventId === eventId && !p.deletedAt) : undefined;
+
+/* ---------------------------------- Kit ---------------------------------- */
+
+/** The team's kit (not deleted), by kind then name. */
+export const kitItems = (s: TeamSnapshot | null): InventoryItem[] =>
+  Object.values(s?.rows.items ?? {})
+    .filter((i) => !i.deletedAt)
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+
+/** Handovers still waiting for an answer (expired ones drop out). */
+export const openHandoffs = (s: TeamSnapshot | null, now = Date.now()): LocalHandoff[] =>
+  Object.values(s?.rows.handoffs ?? {})
+    .filter((h) => !h.resolvedAt && h.expiresAt > now && s?.rows.items?.[h.itemId])
+    .sort((a, b) => a.createdAt - b.createdAt);
+
+export const handoffFor = (s: TeamSnapshot | null, itemId: string, now = Date.now()) =>
+  openHandoffs(s, now).find((h) => h.itemId === itemId);
+
+/** Kit someone wants to hand me. */
+export const incomingHandoffs = (s: TeamSnapshot | null, now = Date.now()) =>
+  openHandoffs(s, now).filter((h) => h.toMemberId === s?.me.id);
+
+export const heldBy = (s: TeamSnapshot | null, memberId: string | undefined) =>
+  kitItems(s).filter((i) => i.status === 'with_someone' && i.holderMemberId === memberId);
+
+/** Kit held by people who are out of, or haven't replied to, an event in the next 7 days. */
+export const kitAtRisk = (s: TeamSnapshot | null, now = Date.now()): KitRisk[] =>
+  s ? atRiskKit(kitItems(s), events(s), Object.values(s.rows.rsvps), now) : [];
+
+/** Kit tagged for game days that's still in service. */
+export const matchDayKit = (s: TeamSnapshot | null) =>
+  kitItems(s).filter(
+    (i) => i.matchDay && (i.status === 'available' || i.status === 'with_someone'),
+  );

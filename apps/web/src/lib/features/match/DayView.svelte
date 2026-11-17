@@ -10,6 +10,7 @@
   import { IconBack, IconMatch, IconPlay, IconChevronRight } from '#lib/icons';
   import { MatchView } from './view.svelte';
   import { dayMinutes, gameOffsetMs, MAX_GAMES } from './day';
+  import MatchDayKit from '#lib/features/kit/MatchDayKit.svelte';
 
   let { eventId }: { eventId: string } = $props();
   // svelte-ignore state_referenced_locally
@@ -62,6 +63,8 @@
         >
       {/if}
     </header>
+
+    <div class="kit"><MatchDayKit eventId={event.id} /></div>
 
     <h2 class="section-title">Games</h2>
     {#if started.length}
@@ -137,6 +140,9 @@
 </div>
 
 <style>
+  .kit:empty {
+    display: none;
+  }
   .head {
     display: flex;
     align-items: center;
