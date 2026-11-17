@@ -8,6 +8,7 @@
   import EventCard from '#lib/components/EventCard.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Button from '#lib/components/Button.svelte';
+  import NotifyPrompt from '#lib/features/notify/NotifyPrompt.svelte';
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
   import { relDay, time, ago } from '#lib/format';
@@ -145,6 +146,7 @@
         teamShort={s.team.shortName}
       />
     </section>
+    <NotifyPrompt />
 
     {#if avail}
       <section class="card glance" aria-labelledby="glance-h">
