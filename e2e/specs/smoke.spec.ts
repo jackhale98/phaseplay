@@ -138,4 +138,16 @@ test("Home's who's-in summary is for coaches and captains, not every player", as
   await openTeam(pip.page, team.teamId, '/home');
   await expect(pip.page.getByRole('heading', { name: /Tuesday training/ }).first()).toBeVisible();
   await expect(glance(pip.page)).toHaveCount(0);
+
+  // Even when the team lets players see who's going, Home stays clear; names are on the event.
+  await team.post(`/teams/${team.teamId}`, { rsvpVisibility: 'all' }, 'PATCH');
+  await pip.page.reload();
+  await expect(pip.page.getByRole('heading', { name: /Tuesday training/ }).first()).toBeVisible();
+  await expect(glance(pip.page)).toHaveCount(0);
+  await expect(pip.page.getByRole('heading', { name: "Who's going" })).toHaveCount(0);
+  await pip.page
+    .getByRole('link', { name: /Tuesday training/ })
+    .first()
+    .click();
+  await expect(pip.page.getByRole('heading', { name: "Who's going" })).toBeVisible();
 });
