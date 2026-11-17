@@ -132,6 +132,21 @@ export type TeamSheet = {
   version: number;
   publishedAt: number | null;
   updatedAt: number;
+  /**
+   * Staff copies only: the last published line-up (players' copies already are it). Match mode
+   * and season stats use it in preference to later draft edits; see `matchLineup`.
+   */
+  published?: PublishedSheet | null;
+};
+
+/** What players see of a published sheet (the `team_sheets.published` snapshot). */
+export type PublishedSheet = {
+  format: Format;
+  replacements: number;
+  slots: SheetSlots;
+  captainId: string | null;
+  viceId: string | null;
+  publishedAt: number;
 };
 
 export type PlayMeta = {

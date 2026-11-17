@@ -66,14 +66,25 @@ describe('season stats feed', () => {
     expect(p.body.marks).toEqual([
       { eventId: practice, memberId: a.player.memberId, status: 'no', attended: false },
     ]);
-    expect(p.body.turnout).toContainEqual({ eventId: practice, taken: true, present: 1, yes: 1 });
+    // Turnout counts people who play: the coach was there but doesn't count; nobody else was.
+    expect(p.body.turnout).toContainEqual({ eventId: practice, taken: true, present: 0, yes: 0 });
     // Games already played only; the future fixture's log isn't a stat yet.
     expect(Object.keys(p.body.matches)).toEqual([game]);
     expect(p.body.matches[game]).toHaveLength(2);
     expect(JSON.stringify(p.body)).not.toContain('secret reason');
+    // Even when players may see who's going, per-player attendance stays their own.
+    expect(
+      (await call('PATCH', base, { cookie: a.owner.cookie, body: { rsvpVisibility: 'all' } }))
+        .status,
+    ).toBe(200);
+    expect((await feed(a.teamId, a.player.cookie)).body.marks.map((m) => m.memberId)).toEqual([
+      a.player.memberId,
+    ]);
 
     const c = await feed(a.teamId, a.coach.cookie);
     expect(c.body.marks).toHaveLength(2);
+    // Staff work turnout out from the marks, so the server skips that query.
+    expect(c.body.turnout).toEqual([]);
     expect(JSON.stringify(c.body)).not.toContain('secret reason');
 
     // The window narrows everything.
@@ -81,7 +92,9 @@ describe('season stats feed', () => {
     expect(none.body.marks).toEqual([]);
     expect(none.body.matches).toEqual({});
     expect((await feed(a.teamId, a.coach.cookie, '?from=10&to=5')).status).toBe(400);
-    expect((await feed(a.teamId, a.coach.cookie, '?from=abc')).status).toBe(400);
+    for (const bad of ['?from=abc', '?from=', '?to=%20', '?from=-1', '?from=1.5', '?to=1e3'])
+      expect((await feed(a.teamId, a.coach.cookie, bad)).status, bad).toBe(400);
+    expect((await feed(a.teamId, a.coach.cookie, `?from=5&to=5`)).status).toBe(200);
   });
 
   it("a Captain role's availability.view shows everyone's marks", async () => {

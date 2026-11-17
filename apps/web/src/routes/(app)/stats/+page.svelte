@@ -60,9 +60,19 @@
   });
 
   const v = $derived(
-    s ? computeStats(s, { win, now, feed: src.feed, local: src.local, canAll }) : null,
+    s
+      ? computeStats(s, {
+          win,
+          now,
+          feed: src.feed,
+          extra: src.extra,
+          local: src.local,
+          canAll,
+        })
+      : null,
   );
-  const name = (id: string) => memberName(s, id);
+  /** Names players' devices don't have (names not yet joined) read as a squad member. */
+  const name = (id: string) => (s?.rows.members[id] ? memberName(s, id) : 'Squad member');
   const meId = $derived(s?.me.id ?? '');
 
   const status = $derived(
@@ -180,6 +190,16 @@
       </span>
     </p>
 
+    {#if v.missing.size}
+      <p class="hint" role="status">
+        <IconInfo />
+        <span
+          >{v.missing.size === 1 ? '1 game’s' : `${v.missing.size} games’`} match logs didn’t load, so
+          results, minutes and scorers leave {v.missing.size === 1 ? 'it' : 'them'} out for now. Pick
+          a single season, or try again when you’re online.</span
+        >
+      </p>
+    {/if}
     <ul class="list tiles" aria-label="Season at a glance">
       <li class="card tile">
         <span class="k">Record</span>
@@ -228,7 +248,9 @@
                     <strong>{vs(l.eventId, l.opponent)}</strong>
                     <small>{fmtDay(l.startsAt, tz)}{l.tournament ? ' · 7s tournament' : ''}</small>
                   </span>
-                  {#if !l.recorded}
+                  {#if v.missing.has(l.eventId)}
+                    <span class="subtle">Log not loaded</span>
+                  {:else if !l.recorded}
                     <span class="subtle">Not recorded</span>
                   {:else}
                     <span class="games">
@@ -328,51 +350,45 @@
       <section class="card sec" aria-labelledby="h-min">
         <h2 id="h-min">Minutes played</h2>
         <p class="subtle">
-          From {plural(v.tallies.minutesFrom, 'recorded game')} with a published team sheet.
+          From {plural(v.tallies.minutesFrom, 'recorded game')} with a team sheet, as in each match summary.
         </p>
-        {#if canAll}
-          {#if v.tallies.minutes.length}
-            <ul class="list bars">
-              {#each allMin ? v.tallies.minutes : v.tallies.minutes.slice(0, SHORT) as m (m.memberId)}
-                <li class:me={m.memberId === meId}>
-                  <span class="bl"
-                    >{name(m.memberId)}<small
-                      >{plural(m.appearances, 'game')} · {plural(m.starts, 'start')}</small
-                    ></span
-                  >
-                  <span class="track" aria-hidden="true"
-                    ><span class="fill" style:width="{(m.ms / maxMs) * 100}%"></span></span
-                  >
-                  <span class="tnum n">{mins(m.ms)}</span>
-                </li>
-              {/each}
-            </ul>
-            {#if v.tallies.minutes.length > SHORT}
-              <button
-                class="more"
-                type="button"
-                aria-expanded={allMin}
-                onclick={() => (allMin = !allMin)}
-                >{allMin ? 'Show fewer' : `Show all ${v.tallies.minutes.length} players`}</button
-              >
-            {/if}
-          {:else}<p class="subtle">No minutes yet: record a game with a published sheet.</p>{/if}
-        {:else if myMinutes}
+        {#if !canAll}
           <p class="mine">
-            <strong class="tnum big">{mins(myMinutes.ms)}</strong>
+            <strong class="tnum big">{mins(myMinutes?.ms ?? 0)}</strong>
             <span class="muted"
-              >for you, in {plural(myMinutes.appearances, 'game')} ({plural(
-                myMinutes.starts,
-                'start',
-              )})</span
+              >for you{#if myMinutes}, in {plural(myMinutes.appearances, 'game')} ({plural(
+                  myMinutes.starts,
+                  'start',
+                )}){/if}</span
             >
           </p>
-          <p class="subtle">Everyone else’s minutes are for coaches and captains.</p>
-        {:else}
-          <p class="subtle">
-            No minutes for you yet. Everyone else’s are for coaches and captains.
-          </p>
         {/if}
+        {#if v.tallies.minutes.length}
+          <ul class="list bars">
+            {#each allMin ? v.tallies.minutes : v.tallies.minutes.slice(0, SHORT) as m (m.memberId)}
+              <li class:me={m.memberId === meId}>
+                <span class="bl"
+                  >{name(m.memberId)}<small
+                    >{plural(m.appearances, 'game')} · {plural(m.starts, 'start')}</small
+                  ></span
+                >
+                <span class="track" aria-hidden="true"
+                  ><span class="fill" style:width="{(m.ms / maxMs) * 100}%"></span></span
+                >
+                <span class="tnum n">{mins(m.ms)}</span>
+              </li>
+            {/each}
+          </ul>
+          {#if v.tallies.minutes.length > SHORT}
+            <button
+              class="more"
+              type="button"
+              aria-expanded={allMin}
+              onclick={() => (allMin = !allMin)}
+              >{allMin ? 'Show fewer' : `Show all ${v.tallies.minutes.length} players`}</button
+            >
+          {/if}
+        {:else}<p class="subtle">No minutes yet: record a game with a team sheet.</p>{/if}
       </section>
 
       <section class="card sec" aria-labelledby="h-sc">

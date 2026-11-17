@@ -21,6 +21,7 @@ import {
 } from './match';
 import { RULES, type Format } from './rugby';
 import type { SheetSlots } from './sheets';
+import type { PublishedSheet, TeamSheet } from './api';
 
 export const MAX_GAMES = MAX_PERIODS / 2;
 
@@ -66,9 +67,21 @@ export const gameOffsetMs = (game: number, halfMs: number) => (game - 1) * 2 * h
 
 export type DayGame = { game: number; state: MatchState; events: MatchEvent[] };
 
-export function reduceDay(events: MatchEvent[], cfg: MatchConfig, now: number): DayGame[] {
+/**
+ * Reduce each game of the day. With `settle`, a game is reduced at its own last entry rather than
+ * `now`, so one left without a full-time whistle stops counting there (season stats); live views
+ * leave it off so the game in progress keeps its running clock.
+ */
+export function reduceDay(
+  events: MatchEvent[],
+  cfg: MatchConfig,
+  now: number,
+  opts: { settle?: boolean } = {},
+): DayGame[] {
   return splitGames(events).map((evs, i) => {
-    const state = reduceMatch(evs, cfg, now);
+    const at =
+      opts.settle && evs.length ? Math.min(now, Math.max(...evs.map((e) => e.wallAt))) : now;
+    const state = reduceMatch(evs, cfg, at);
     // The reducer starts starters' first stint at game-clock 0; game 2 kicks off later on the
     // shared clock, so shift that first stint to the game's own kick-off.
     const offset = gameOffsetMs(i + 1, cfg.halfMs);
@@ -122,4 +135,23 @@ export function sheetLineup(format: Format, slots: SheetSlots | null | undefined
     (slot <= n ? starters : bench).push(id);
   }
   return { format, starters, bench, shirt, hasSheet: filled.length > 0 };
+}
+
+/**
+ * The line-up a game is played and counted with, the same on every device: the last published
+ * sheet when there is one (players only ever have that copy), otherwise the sheet as it stands
+ * (a coach recording with a sheet they never published). Later draft edits don't rewrite history.
+ */
+export function matchLineup(
+  sheet:
+    | (Pick<TeamSheet, 'format' | 'slots' | 'status' | 'publishedAt'> & {
+        published?: Pick<PublishedSheet, 'format' | 'slots'> | null;
+      })
+    | null
+    | undefined,
+  fallbackFormat: Format,
+): SheetLineup {
+  if (!sheet) return sheetLineup(fallbackFormat, null);
+  const src = sheet.published ?? sheet;
+  return sheetLineup(src.format ?? fallbackFormat, src.slots);
 }

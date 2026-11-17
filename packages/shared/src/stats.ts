@@ -5,7 +5,8 @@
  * always agrees with each match summary. No health data: nothing here reads stoppage reasons,
  * RSVP notes or anything else about a player's body.
  */
-import type { Member, PracticePlan, Season, TeamEvent, TeamSheet } from './api';
+import * as v from 'valibot';
+import type { Member, PracticePlan, Season, TeamEvent } from './api';
 import { eventCategory, type RsvpStatus } from './events';
 import {
   effectiveLog,
@@ -15,7 +16,7 @@ import {
   type MatchEvent,
   type ScoreType,
 } from './match';
-import { reduceDay, sheetLineup } from './match-day';
+import { matchLineup, reduceDay } from './match-day';
 import {
   ALL_LANE,
   blockMinutes,
@@ -116,10 +117,17 @@ export type AttendanceStats = {
   lines: AttendanceLine[];
 };
 
-/** Turnout from complete marks (staff devices). Players get turnout from the server instead. */
-export function turnoutFromMarks(marks: AttendanceMark[]): EventTurnout[] {
+/**
+ * Turnout from complete marks (staff devices); players get the same numbers from the server.
+ * Only people who play count (`plays`, e.g. `playsForTeam`), as in the server's turnout.
+ */
+export function turnoutFromMarks(
+  marks: AttendanceMark[],
+  plays: (memberId: string) => boolean = () => true,
+): EventTurnout[] {
   const by = new Map<string, EventTurnout>();
   for (const m of marks) {
+    if (!plays(m.memberId)) continue;
     const t = by.get(m.eventId) ?? { eventId: m.eventId, taken: false, present: 0, yes: 0 };
     if (m.attended !== null) t.taken = true;
     if (m.attended === true) t.present += 1;
@@ -218,7 +226,7 @@ export type MatchLine = {
   tournament: boolean;
   /** The log has at least one kick-off. Unrecorded games count nowhere but the fixture list. */
   recorded: boolean;
-  /** Minutes need a published team sheet (the lineup at kick-off). */
+  /** Minutes need a team sheet (the line-up at kick-off, see `matchLineup`). */
   hasSheet: boolean;
   /** One per match; one per recorded game of a tournament day. */
   games: GameScore[];
@@ -256,18 +264,14 @@ const blankPlayer = (): PlayerTally => ({
 /** Reduce one game event's log with the same reducer (and lineup) match mode uses. */
 export function matchLine(input: {
   event: Pick<TeamEvent, 'id' | 'type' | 'startsAt' | 'opponent' | 'format' | 'settings'>;
-  /** The event's team sheet; only a published one gives a lineup. */
-  sheet: Pick<TeamSheet, 'format' | 'slots' | 'status' | 'publishedAt'> | null | undefined;
+  /** The event's team sheet; the line-up follows `matchLineup` (published first). */
+  sheet: Parameters<typeof matchLineup>[0];
   log: MatchEvent[];
   defaultFormat: Format;
 }): MatchLine {
   const { event, log } = input;
-  const published =
-    input.sheet && (input.sheet.status === 'published' || input.sheet.publishedAt !== null)
-      ? input.sheet
-      : null;
-  const format = published?.format ?? event.format ?? input.defaultFormat;
-  const lineup = sheetLineup(format, published?.slots);
+  const lineup = matchLineup(input.sheet, event.format ?? input.defaultFormat);
+  const format = lineup.format;
   const cfg = matchConfig(format, event.settings ?? null, lineup);
   const eff = effectiveLog(log);
   const recorded = eff.some((e) => e.payload.kind === 'period_start');
@@ -275,7 +279,11 @@ export function matchLine(input: {
   const at = log.reduce((m, e) => Math.max(m, e.wallAt), 0);
   const tournament = event.type === 'tournament';
   const whole = reduceMatch(log, cfg, at);
-  const states = tournament ? reduceDay(log, cfg, at).map((g) => g.state) : [whole];
+  // Each game of a day settles at its own last entry, so a game left without full time never
+  // keeps counting through the games after it.
+  const states = tournament
+    ? reduceDay(log, cfg, at, { settle: true }).map((g) => g.state)
+    : [whole];
 
   const minutes: Record<string, number> = {};
   if (recorded && lineup.hasSheet)
@@ -348,7 +356,7 @@ export type SeasonTallies = {
   /** Members with any points or cards, most points first. */
   scorers: (PlayerTally & { memberId: string })[];
   cards: { us: CardCount; them: CardCount };
-  /** Recorded game events with a published sheet (the ones minutes come from). */
+  /** Recorded game events with a team sheet (the ones minutes come from). */
   minutesFrom: number;
 };
 
@@ -580,6 +588,23 @@ function add(into: GroupLoad, g: GroupLoad) {
 
 /* ------------------------------- Server feed ------------------------------- */
 
+/** A query-string instant in ms: digits only (no blanks, signs or decimals). */
+const QueryMs = v.pipe(
+  v.string(),
+  v.regex(/^\d{1,16}$/, 'Use a time in milliseconds'),
+  v.transform(Number),
+  v.maxValue(8.64e15, 'Out of range'),
+);
+/** `stats.feed` query: an optional [from, to) window; omitted ends mean all time / now. */
+export const StatsQuery = v.pipe(
+  v.object({ from: v.optional(QueryMs), to: v.optional(QueryMs) }),
+  v.check(
+    (q) => q.from === undefined || q.to === undefined || q.from <= q.to,
+    'from must be before to',
+  ),
+);
+export type StatsQuery = v.InferOutput<typeof StatsQuery>;
+
 /**
  * `stats.feed`: what the snapshot doesn't carry. Match logs aren't synced, players only sync their
  * own RSVP rows, and a first sync only has 120 days of RSVP history. Never RSVP notes.
@@ -589,7 +614,10 @@ export type StatsFeed = {
   to: number;
   /** Everyone's marks with `availability.view`; otherwise only the caller's own. */
   marks: AttendanceMark[];
-  /** Team-wide counts per held event (everyone may see these). */
+  /**
+   * Team-wide counts per held event, players only (everyone may see these). Empty for callers
+   * with `availability.view`: they get every mark and work it out on the device.
+   */
   turnout: EventTurnout[];
   /** Match logs of game events in the window, by event id. */
   matches: Record<string, MatchEvent[]>;

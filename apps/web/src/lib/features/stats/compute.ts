@@ -7,6 +7,7 @@ import {
   attendanceStats,
   heldEvents,
   isGame,
+  playsForTeam,
   matchLine,
   penaltyTrend,
   seasonTallies,
@@ -29,13 +30,18 @@ import type { TeamSnapshot } from '#lib/data/types';
 import { mergeLogs } from '#lib/features/match/log';
 
 export type StatsView = {
-  /** Everyone's attendance and minutes (availability.view); otherwise only my own line. */
+  /** Everyone's attendance (availability.view); otherwise only my own line. Minutes are for all. */
   canAll: boolean;
   held: TeamEvent[];
   practicesHeld: number;
   attendance: AttendanceStats;
   /** Held game events, newest first. */
   lines: MatchLine[];
+  /**
+   * Games whose logs couldn't be loaded (the feed hit its row cap and fetching them one by one
+   * failed). They're left out of results, minutes and scorers rather than counted as unrecorded.
+   */
+  missing: Set<string>;
   tallies: SeasonTallies;
   penalties: PenaltyTrend;
   load: LoadWeek[];
@@ -51,6 +57,8 @@ export function computeStats(
     win: StatsWindow | null;
     now: number;
     feed: StatsFeed | null;
+    /** Logs fetched one by one after a capped feed (an empty array means nothing recorded). */
+    extra?: Record<string, MatchEvent[]>;
     /** Match logs on this device (match mode's local copies), by event id. */
     local: Record<string, MatchEvent[]>;
     canAll: boolean;
@@ -74,7 +82,11 @@ export function computeStats(
         attended: r.attended,
       });
   const markList = [...marks.values()];
-  const turnout = o.canAll ? turnoutFromMarks(markList) : (o.feed?.turnout ?? null);
+  const plays = (id: string) => {
+    const m = s.rows.members[id];
+    return !!m && m.status !== 'removed' && playsForTeam(m);
+  };
+  const turnout = o.canAll ? turnoutFromMarks(markList, plays) : (o.feed?.turnout ?? null);
   const roster = o.canAll ? players(s) : [s.rows.members[me] ?? s.me];
   const attendance = attendanceStats({
     events: held,
@@ -84,18 +96,26 @@ export function computeStats(
   });
 
   const games = held.filter((e) => isGame(e.type));
+  const extra = o.extra ?? {};
+  const missing = new Set(
+    o.feed?.truncated
+      ? games
+          .filter((e) => !o.feed!.matches[e.id] && !extra[e.id] && !o.local[e.id])
+          .map((e) => e.id)
+      : [],
+  );
   const lines = games
     .map((e) =>
       matchLine({
         event: e,
         sheet: sheetFor(s, e.id),
-        log: mergeLogs(o.feed?.matches[e.id] ?? [], o.local[e.id] ?? []),
+        log: mergeLogs(o.feed?.matches[e.id] ?? extra[e.id] ?? [], o.local[e.id] ?? []),
         defaultFormat: s.team.defaultFormat,
       }),
     )
     .reverse();
-  const tallies = seasonTallies(lines);
-  if (!o.canAll) tallies.minutes = tallies.minutes.filter((m) => m.memberId === me);
+  // Minutes are for the whole team, like each match summary; attendance stays private above.
+  const tallies = seasonTallies(lines.filter((l) => !missing.has(l.eventId)));
 
   const formats: Record<Format, number> = { '15s': 0, '7s': 0 };
   for (const l of lines) if (l.recorded) formats[l.format] += 1;
@@ -103,6 +123,7 @@ export function computeStats(
   return {
     canAll: o.canAll,
     held,
+    missing,
     practicesHeld: held.length - games.length,
     attendance,
     lines,

@@ -1,6 +1,9 @@
 import type { Hono } from 'hono';
+import * as v from 'valibot';
 import {
   can,
+  PLAYS_FOR_TEAM_SQL,
+  StatsQuery,
   typesInCategory,
   type AttendanceMark,
   type EventTurnout,
@@ -31,42 +34,46 @@ export function statsRoutes(app: Hono<AppEnv>) {
   route(app, 'stats.feed', async (c) => {
     const me = c.var.member;
     const t = Date.now();
-    const num = (k: string, d: number) => {
-      const raw = c.req.query(k);
-      const n = raw === undefined || raw === '' ? d : Number(raw);
-      if (!Number.isFinite(n) || n < 0) throw badRequest(`Invalid ${k}`);
-      return Math.floor(n);
-    };
-    const from = num('from', 0);
-    const to = Math.min(num('to', t + 1), 8.64e15);
-    if (to < from) throw badRequest('from must be before to');
-    const all = can(c.var.perms, 'availability.view') ? 1 : 0;
+    const q = v.safeParse(StatsQuery, { from: c.req.query('from'), to: c.req.query('to') });
+    if (!q.success)
+      throw badRequest(
+        'Invalid stats window',
+        q.issues.map((i) => i.message),
+      );
+    const from = q.output.from ?? 0;
+    const to = q.output.to ?? t + 1;
+    const all = can(c.var.perms, 'availability.view');
     const args = [me.teamId, from, to, t] as const;
-    const [marks, turnout, logs] = await c.var.db.batch([
-      c.var.db
-        .prepare(
-          `SELECT r.event_id, r.member_id, r.status, r.attended FROM events e
-           JOIN rsvps r ON r.event_id = e.id AND r.team_id = ?1
-           WHERE ${HELD(HELD_TYPES)} AND (?5 = 1 OR r.member_id = ?6)`,
-        )
-        .bind(...args, all, me.id),
-      c.var.db
-        .prepare(
-          `SELECT r.event_id, max(r.attended IS NOT NULL) AS taken, sum(r.attended = 1) AS present,
-             sum(r.status = 'yes') AS yes FROM events e
-           JOIN rsvps r ON r.event_id = e.id AND r.team_id = ?1
-           WHERE ${HELD(HELD_TYPES)} GROUP BY r.event_id`,
-        )
-        .bind(...args),
-      c.var.db
-        .prepare(
-          `SELECT m.event_id, m.id, m.seq, m.payload, m.game_ms, m.wall_at FROM events e
-           JOIN match_events m ON m.event_id = e.id AND m.team_id = ?1
-           WHERE ${HELD(GAME_TYPES)}
-           ORDER BY e.starts_at DESC, m.event_id, m.wall_at, m.seq LIMIT ?5`,
-        )
-        .bind(...args, MATCH_ROW_CAP + 1),
-    ]);
+    const db = c.var.db;
+    const marksStmt = db
+      .prepare(
+        `SELECT r.event_id, r.member_id, r.status, r.attended FROM events e
+         JOIN rsvps r ON r.event_id = e.id AND r.team_id = ?1
+         WHERE ${HELD(HELD_TYPES)} AND (?5 = 1 OR r.member_id = ?6)`,
+      )
+      .bind(...args, all ? 1 : 0, me.id);
+    const logsStmt = db
+      .prepare(
+        `SELECT m.event_id, m.id, m.seq, m.payload, m.game_ms, m.wall_at FROM events e
+         JOIN match_events m ON m.event_id = e.id AND m.team_id = ?1
+         WHERE ${HELD(GAME_TYPES)}
+         ORDER BY e.starts_at DESC, m.event_id, m.wall_at, m.seq LIMIT ?5`,
+      )
+      .bind(...args, MATCH_ROW_CAP + 1);
+    // Turnout is only for callers who can't see everyone's marks (staff work it out from those).
+    // Only people who play count, as on the device (`playsForTeam`).
+    const turnoutStmt = db
+      .prepare(
+        `SELECT r.event_id, max(r.attended IS NOT NULL) AS taken, sum(r.attended = 1) AS present,
+           sum(r.status = 'yes') AS yes FROM events e
+         JOIN rsvps r ON r.event_id = e.id AND r.team_id = ?1
+         JOIN memberships m ON m.id = r.member_id AND m.team_id = ?1 AND m.status != 'removed'
+         WHERE ${HELD(HELD_TYPES)} AND ${PLAYS_FOR_TEAM_SQL} GROUP BY r.event_id`,
+      )
+      .bind(...args);
+    const [marks, logs, turnout] = await db.batch(
+      all ? [marksStmt, logsStmt] : [marksStmt, logsStmt, turnoutStmt],
+    );
     type Row = Record<string, unknown>;
     const rows = (r: { results?: unknown[] } | undefined) => (r?.results ?? []) as Row[];
     const logRows = rows(logs);

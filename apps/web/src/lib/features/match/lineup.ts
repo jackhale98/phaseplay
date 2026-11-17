@@ -6,7 +6,7 @@ import {
   STOPPAGE_LABELS,
   isFrontRowCapable,
   matchConfig,
-  sheetLineup,
+  matchLineup,
   type MatchConfig,
   type SheetLineup,
   type MatchEvent,
@@ -18,10 +18,9 @@ import type { TeamSnapshot } from '#lib/data/types';
 
 export type Lineup = SheetLineup;
 
-/** The event's team sheet: slots 1..starters start, the rest are the bench. */
+/** The event's line-up (published sheet first, see `matchLineup`): starters, then the bench. */
 export function lineupFor(s: TeamSnapshot | null, e: TeamEvent): Lineup {
-  const sheet = sheetFor(s, e.id);
-  return sheetLineup(sheet?.format ?? eventFormat(s, e), sheet?.slots);
+  return matchLineup(sheetFor(s, e.id), eventFormat(s, e));
 }
 
 export function configFor(s: TeamSnapshot | null, e: TeamEvent, lineup: Lineup): MatchConfig {

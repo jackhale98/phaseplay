@@ -1,7 +1,8 @@
 <!--
   Bars per category on one shared y-axis (one or two series, grouped). Same conventions as the
   match summary's score progression: series identity is never colour alone (fixed order, legend,
-  the second series is hatched), a hover tooltip per category, and a data table one tap away.
+  the second series is hatched), a hover tooltip per category (Esc dismisses it), and a data
+  table one tap away.
 -->
 <script lang="ts">
   type Series = { key: string; label: string; values: number[] };
@@ -57,6 +58,13 @@
   const fmt = (v: number) => `${Math.round(v * 10) / 10}${unit}`;
   const uid = $props.id();
 </script>
+
+<!-- Hover tooltips can be dismissed without moving the pointer (WCAG 1.4.13). -->
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === 'Escape') hover = null;
+  }}
+/>
 
 <figure class="bc">
   {#if series.length > 1}

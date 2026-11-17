@@ -124,7 +124,6 @@ describe('computeStats visibility', () => {
       canAll: false,
     });
     expect(v.attendance.lines.map((l) => l.memberId)).toEqual(['a']);
-    expect(v.tallies.minutes.every((m) => m.memberId === 'a')).toBe(true);
   });
 
   it('offline without a feed, team averages for players are unknown', () => {
@@ -138,5 +137,81 @@ describe('computeStats visibility', () => {
     expect(v.attendance.practices.avgPresent).toBeNull();
     expect(v.lines).toHaveLength(1);
     expect(v.lines[0]!.recorded).toBe(false);
+  });
+
+  it('minutes are for everyone, players included', () => {
+    const s = snap('b');
+    s.rows.sheets = {
+      sh: {
+        id: 'sh',
+        eventId: 'g1',
+        teamId: 't1',
+        format: '15s',
+        replacements: 8,
+        slots: { '1': 'a', '2': 'b', '3': 'c' },
+        captainId: null,
+        viceId: null,
+        status: 'published',
+        version: 1,
+        publishedAt: 1,
+        updatedAt: 1,
+      },
+    };
+    const log = [
+      {
+        id: 'e1',
+        seq: 0,
+        gameMs: 0,
+        wallAt: NOW - 2 * DAY,
+        payload: { kind: 'period_start' as const, period: 1 },
+      },
+      {
+        id: 'e2',
+        seq: 1,
+        gameMs: 40 * 60e3,
+        wallAt: NOW - 2 * DAY + 40 * 60e3,
+        payload: { kind: 'period_end' as const, period: 1 },
+      },
+    ];
+    const v = computeStats(s, {
+      win: null,
+      now: NOW,
+      feed: { ...feed, matches: { g1: log } },
+      local: {},
+      canAll: false,
+    });
+    expect(v.tallies.minutes.map((m) => m.memberId).sort()).toEqual(['a', 'b', 'c']);
+    expect(v.attendance.lines.map((l) => l.memberId)).toEqual(['b']);
+  });
+
+  it("a capped feed: games whose logs didn't load aren't counted as unrecorded", () => {
+    const capped = { ...feed, truncated: true };
+    const v = computeStats(snap('a'), {
+      win: null,
+      now: NOW,
+      feed: capped,
+      local: {},
+      canAll: true,
+    });
+    expect([...v.missing]).toEqual(['g1']);
+    expect(v.tallies.results.unrecorded).toBe(0);
+    // Once fetched one by one (here: nothing recorded), it's known again.
+    const filled = computeStats(snap('a'), {
+      win: null,
+      now: NOW,
+      feed: capped,
+      extra: { g1: [] },
+      local: {},
+      canAll: true,
+    });
+    expect(filled.missing.size).toBe(0);
+    expect(filled.tallies.results.unrecorded).toBe(1);
+  });
+
+  it('staff turnout only counts people who play', () => {
+    const s = snap('a');
+    s.rows.members.c = { ...s.rows.members.c!, role: 'coach' };
+    const v = computeStats(s, { win: null, now: NOW, feed: null, local: {}, canAll: true });
+    expect(v.attendance.practices.avgPresent).toBe(1);
   });
 });
