@@ -37,3 +37,8 @@ Anyone can try Phaseplay without an account: **Explore the demo** on the landing
 
 - Backups: D1 Time Travel (`wrangler d1 time-travel restore phaseplay --env production --timestamp <iso>`), 7 days on the free plan, 30 on Workers Paid.
 - Free plan: fine for a handful of teams. Move to Workers Paid ($5/month) when D1 reads pass about half the 5M/day cap (roughly 5–8 active teams) or before a big tournament weekend; free limits are hard daily caps.
+
+## Secrets
+
+- `PUSH_KEY_SECRET` (optional, recommended): encrypts the stored push-notification signing key, so a copy of the database alone can't send notifications. Make a long random value (e.g. `openssl rand -base64 48`), then in the Cloudflare dashboard: Workers & Pages → phaseplay → Settings → Variables and Secrets → Add → type **Secret**, name `PUSH_KEY_SECRET` (or `pnpm --filter @phaseplay/api exec wrangler secret put PUSH_KEY_SECRET --env production`). The existing key is encrypted on the next notification send; nothing else changes.
+- **Never change or delete it once set**: the stored key could no longer be read and notifications stop. Recovery: delete the `vapid` row from `server_keys`; a new key is made and everyone has to turn notifications on again.

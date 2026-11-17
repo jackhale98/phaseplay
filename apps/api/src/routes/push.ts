@@ -23,7 +23,7 @@ export function pushRoutes(app: Hono<AppEnv>) {
   route(app, 'push.key', async (c) => {
     const u = requireUser(c);
     const [keys, { results }] = await Promise.all([
-      vapidKeys(c.var.db),
+      vapidKeys(c.var.db, c.env.PUSH_KEY_SECRET),
       c.var.db
         .prepare(
           'SELECT id, label, created_at, last_ok_at FROM push_subscriptions WHERE user_id = ? ORDER BY created_at DESC',

@@ -8,6 +8,8 @@ export type Env = {
   RP_ID: string;
   ORIGINS: string;
   VERSION: string;
+  /** Worker secret: encrypts the stored VAPID private key (lib/push/vapid.ts). Optional. */
+  PUSH_KEY_SECRET?: string;
 };
 
 export type SessionUser = {

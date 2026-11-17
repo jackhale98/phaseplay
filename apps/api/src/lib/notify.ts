@@ -97,6 +97,7 @@ const fakeFetch: typeof fetch = async () => new Response(null, { status: 201 });
 export function drainOptions(env: Env, limit?: number) {
   return {
     subject: vapidSubject(env),
+    secret: env.PUSH_KEY_SECRET,
     limit,
     fetch: env.ENV === 'test' ? fakeFetch : undefined,
   };

@@ -37,7 +37,7 @@ export type DrainResult = { sent: number; failed: number; removed: number; claim
 
 export async function drainQueue(
   db: D1Database,
-  opts: { subject: string; limit?: number; now?: number; fetch?: typeof fetch },
+  opts: { subject: string; secret?: string; limit?: number; now?: number; fetch?: typeof fetch },
 ): Promise<DrainResult> {
   const limit = opts.limit ?? DRAIN_LIMIT;
   const t = opts.now ?? Date.now();
@@ -74,7 +74,7 @@ export async function drainQueue(
   const failedSubs = new Set<string>();
   const gone = new Set<string>();
   if (work.length) {
-    const vapid = await vapidKeys(db);
+    const vapid = await vapidKeys(db, opts.secret);
     await Promise.all(
       work.map(async ({ row, subs }) => {
         const res = await Promise.all(

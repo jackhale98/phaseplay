@@ -157,3 +157,48 @@ describe('RFC 8292 VAPID', () => {
     expect(isPushEndpoint('https://localhost:8787/x')).toBe(false);
   });
 });
+
+describe('VAPID key at rest', () => {
+  const SECRET = 'a-long-random-worker-secret-for-tests-0123456789';
+  const stored = async () =>
+    (await env.DB.prepare(
+      "SELECT public_key, private_key FROM server_keys WHERE id = 'vapid'",
+    ).first<{
+      public_key: string;
+      private_key: string;
+    }>())!;
+
+  it('encrypts a plain-text key once the secret is set, keeping the same public key', async () => {
+    await env.DB.prepare("DELETE FROM server_keys WHERE id = 'vapid'").run();
+    resetVapidCache();
+    const plain = await vapidKeys(env.DB);
+    expect((await stored()).private_key.startsWith('{')).toBe(true);
+
+    resetVapidCache();
+    const sealed = await vapidKeys(env.DB, SECRET);
+    expect(sealed.publicKey).toBe(plain.publicKey);
+    const row = await stored();
+    expect(row.private_key.startsWith('enc:v1:')).toBe(true);
+    expect(row.private_key).not.toContain('"d"');
+
+    // Still usable after a cold start, and still signs.
+    resetVapidCache();
+    const again = await vapidKeys(env.DB, SECRET);
+    expect(again.publicKey).toBe(plain.publicKey);
+    await expect(
+      vapidAuth(again, 'https://fcm.googleapis.com/fcm/send/x', 'https://x.test'),
+    ).resolves.toMatch(/^vapid t=/);
+  });
+
+  it('a new key is stored encrypted, and reading it needs the right secret', async () => {
+    await env.DB.prepare("DELETE FROM server_keys WHERE id = 'vapid'").run();
+    resetVapidCache();
+    await vapidKeys(env.DB, SECRET);
+    expect((await stored()).private_key.startsWith('enc:v1:')).toBe(true);
+    resetVapidCache();
+    await expect(vapidKeys(env.DB)).rejects.toThrow(/PUSH_KEY_SECRET/);
+    resetVapidCache();
+    await expect(vapidKeys(env.DB, 'the-wrong-secret-entirely-xxxxxxxxxxxx')).rejects.toThrow();
+    resetVapidCache();
+  });
+});
