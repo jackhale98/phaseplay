@@ -131,6 +131,8 @@ class AppState {
   private timer: ReturnType<typeof setInterval> | null = null;
   private syncing: Promise<void> | null = null;
   private flushing = false;
+  /** entity:id → (version we sent → version the server returned) for our own writes. */
+  private ownVersions = new Map<string, Map<number, number>>();
   /** Id of the outbox entry currently being sent; it can no longer be cancelled. */
   private sending: string | null = null;
   private conflictListeners = new Set<ConflictListener>();
@@ -309,6 +311,13 @@ class AppState {
   ) {
     const teamId = entry.teamId ?? this.teamId;
     if (!teamId) throw new Error('No team selected');
+    if (entry.versionOf && entry.baseVersion === undefined) {
+      const rows = this.snap?.teamId === teamId ? this.snap.rows : undefined;
+      const row = (
+        rows?.[entry.versionOf.entity] as Record<string, { version?: number }> | undefined
+      )?.[entry.versionOf.id];
+      entry = { ...entry, baseVersion: row?.version ?? 0 };
+    }
     if (this.demo) {
       // Demo: show the change straight away, keep it on this device, never send it.
       const ops = entry.optimistic ?? [];
@@ -392,7 +401,14 @@ class AppState {
       if (e.seq !== undefined) await d?.delete('outbox', e.seq);
     };
     let ifMatch: number | null = null;
-    if (e.versionOf) {
+    if (e.versionOf && e.baseVersion !== undefined) {
+      // Follow our own earlier successful writes to this row (chained edits), nothing else.
+      const chain = this.ownVersions.get(`${e.versionOf.entity}:${e.versionOf.id}`);
+      let v = e.baseVersion ?? 0;
+      for (let i = 0; chain?.has(v) && i < 1000; i++) v = chain.get(v)!;
+      ifMatch = v || null;
+    } else if (e.versionOf) {
+      // Entries queued by an older app version: resolve from the cache as before.
       const s = e.teamId === this.snap?.teamId ? this.snap : await d?.get('teams', e.teamId);
       const row = (
         s?.rows[e.versionOf.entity] as Record<string, { version?: number }> | undefined
@@ -406,6 +422,19 @@ class AppState {
         body: e.body,
         ifMatch,
       });
+      this.sending = null;
+      if (e.versionOf) {
+        const k = Object.entries(VERSIONED_RESPONSE_KEYS).find(
+          ([, ent]) => ent === e.versionOf!.entity,
+        )?.[0];
+        const row = k ? (res?.[k] as { version?: number } | undefined) : undefined;
+        if (row?.version) {
+          const key = `${e.versionOf.entity}:${e.versionOf.id}`;
+          const chain = this.ownVersions.get(key) ?? new Map<number, number>();
+          chain.set(ifMatch ?? 0, row.version);
+          this.ownVersions.set(key, chain);
+        }
+      }
       await drop();
       await this.absorb(e.teamId, res, e);
       return true;
@@ -447,13 +476,10 @@ class AppState {
             later.versionOf.id === vo.id
           )
             await d?.delete('outbox', later.seq);
-        // Screens that offer their own choice (e.g. the play editor's Keep mine / Take theirs)
-        // register a listener; otherwise tell the user what happened.
-        if (!this.conflictListeners.size)
-          toasts.show(`${e.label}: someone else changed this, so you're seeing their version.`, {
-            tone: 'warn',
-            timeout: 7000,
-          });
+        toasts.show(`${e.label}: someone else changed this at the same time.`, {
+          tone: 'warn',
+          timeout: 7000,
+        });
         for (const fn of this.conflictListeners) fn(e.versionOf.entity, latest);
       } else {
         toasts.error(`${e.label} didn't save: ${err.message}`);

@@ -12,6 +12,11 @@ export type OutboxEntry = {
   body?: unknown;
   /** Resolve If-Match at send time from the cache, so queued edits chain correctly. */
   versionOf?: { entity: VersionedEntity; id: string };
+  /**
+   * The version the user's edit was based on, pinned when it was made. Sent as If-Match (advanced
+   * only through this device's own successful writes), so another person's change is a 409.
+   */
+  baseVersion?: number | null;
   /** Applied to the cache optimistically and re-applied after every sync until sent. */
   optimistic?: Optimistic[];
   label: string;
