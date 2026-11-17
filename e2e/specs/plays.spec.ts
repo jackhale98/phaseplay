@@ -368,6 +368,25 @@ test.describe('play designer', () => {
     expect(dl.suggestedFilename()).toMatch(/zeus-frame-4\.png/);
   });
 
+  test('exports a video (MP4 via WebCodecs in a worker where available)', async ({
+    page,
+    team,
+  }, info) => {
+    test.skip(info.project.name !== 'desktop-chromium', 'downloads on desktop');
+    test.setTimeout(60_000);
+    const id = await makePlay(team, 'team');
+    await openTeam(page, team.teamId, `/plays/${id}`);
+    await page.getByRole('button', { name: 'Export' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Export' });
+    await dialog.getByRole('radio', { name: 'Video' }).click();
+    const [dl] = await Promise.all([
+      page.waitForEvent('download', { timeout: 45_000 }),
+      dialog.getByRole('button', { name: /Download video/ }).click(),
+    ]);
+    expect(dl.suggestedFilename()).toMatch(/^zeus\.(mp4|webm|gif)$/);
+    expect(readFileSync((await dl.path())!).length).toBeGreaterThan(1000);
+  });
+
   test('view tracking shows the player in Seen by, and highlights her token', async ({
     page,
     team,
