@@ -1,6 +1,7 @@
 <!-- Pick positions in order: the first one chosen is the primary position. -->
 <script lang="ts">
   import { POSITIONS_15 } from '@phaseplay/shared';
+  import { IconCheck, IconStar } from '#lib/icons';
   let { value = $bindable(), disabled = false }: { value: number[]; disabled?: boolean } = $props();
   const rows = [
     [1, 2, 3],
@@ -31,6 +32,9 @@
           aria-label="{pos.name}{idx === 0 ? ', primary' : ''}"
         >
           <span class="n tnum">{n}</span><span class="s">{pos.short}</span>
+          {#if idx >= 0}<span class="mark" aria-hidden="true"
+              >{#if idx === 0}<IconStar />{:else}<IconCheck />{/if}</span
+            >{/if}
         </button>
       {/each}
     </div>
@@ -53,6 +57,7 @@
     gap: var(--s-2);
   }
   button {
+    position: relative;
     display: grid;
     place-items: center;
     width: 64px;
@@ -70,17 +75,39 @@
     color: var(--text-3);
     font-weight: 650;
   }
+  button:not([aria-pressed='true']):not(:disabled):hover {
+    background: var(--surface-2);
+    border-color: var(--text-3);
+  }
+  /* Chosen: solid selected fill (tokens.css --sel) plus a check, so it never relies on hue alone.
+     The primary position adds a filled star and an outer ring. */
   button[aria-pressed='true'] {
-    background: var(--accent-soft);
-    border-color: var(--accent);
+    background: var(--sel);
+    border-color: var(--sel);
+    color: var(--on-sel);
+  }
+  button[aria-pressed='true'] .s {
+    color: inherit;
+  }
+  .mark {
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    display: grid;
+  }
+  .mark :global(svg) {
+    width: 13px;
+    height: 13px;
+    stroke-width: 3;
   }
   .primary {
-    background: var(--accent) !important;
-    color: var(--on-accent);
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 4px var(--sel);
   }
-  .primary .s {
-    color: inherit;
-    opacity: 0.85;
+  .primary .mark :global(svg) {
+    fill: currentColor;
+    stroke-width: 2;
   }
   p {
     text-align: center;

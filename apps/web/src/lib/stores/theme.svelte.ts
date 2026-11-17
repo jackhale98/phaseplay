@@ -13,8 +13,17 @@ function read(): ThemePref {
 
 class Theme {
   pref = $state<ThemePref>('system');
+  /** Last team colours applied (undefined until the first applyTeam), re-applied on theme change. */
+  #colors: TeamColors | null | undefined;
   init() {
     this.pref = read();
+    // --accent-text (and so the --sel fill) is nudged per theme: recompute when the system flips.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (this.pref === 'system') this.#reapply();
+    });
+  }
+  #reapply() {
+    if (this.#colors !== undefined) this.applyTeam(this.#colors);
   }
   set(p: ThemePref) {
     this.pref = p;
@@ -24,9 +33,11 @@ class Theme {
     } catch {}
     if (p === 'system') delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = p;
+    this.#reapply();
   }
   /** Apply a team's colours as the accent, nudged until text and fills pass WCAG AA. */
   applyTeam(colors: TeamColors | null) {
+    this.#colors = colors;
     const root = document.documentElement.style;
     if (!colors) {
       for (const k of [

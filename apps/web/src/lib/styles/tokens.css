@@ -63,6 +63,12 @@
   --accent-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
   --accent-softer: color-mix(in srgb, var(--accent) 6%, var(--surface));
   --secondary: var(--brand-amber);
+  /* Selected state for tabs, segmented controls, nav and tool palettes: a solid fill, never a tint.
+     --accent-text is nudged to >= 4.5:1 against --surface in each theme for any team colour, so as
+     a fill it differs from the surface by >= 3:1, and --on-sel (white in light, ink in dark) keeps
+     >= 4.5:1 text on it. */
+  --sel: var(--accent-text);
+  --on-sel: #ffffff;
 
   --ok: #156a3a;
   --ok-soft: #e3f3e8;
@@ -143,6 +149,7 @@
     --text-3: #8d9a91;
     --scrim: rgb(0 0 0 / 0.6);
     --accent-text: #6fd39a;
+    --on-sel: #0b0f0c;
     --ok: #5cc98a;
     --ok-soft: #12291b;
     --warn: #f0b44c;
@@ -170,6 +177,7 @@
   --text-3: #8d9a91;
   --scrim: rgb(0 0 0 / 0.6);
   --accent-text: #6fd39a;
+  --on-sel: #0b0f0c;
   --ok: #5cc98a;
   --ok-soft: #12291b;
   --warn: #f0b44c;
