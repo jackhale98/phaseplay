@@ -129,7 +129,7 @@ test.describe('drill library', () => {
 
     await page.getByRole('button', { name: 'Done editing' }).click();
     await expect(page.getByRole('heading', { name: 'Box tackle reps' })).toBeVisible();
-    await expect(page.getByText('Ring of steel')).toBeVisible();
+    await expect(page.getByText('Ring of steel', { exact: true })).toBeVisible();
     await expect(page.getByText('12 min')).toBeVisible();
 
     await page.getByRole('button', { name: 'Duplicate as variation' }).click();
