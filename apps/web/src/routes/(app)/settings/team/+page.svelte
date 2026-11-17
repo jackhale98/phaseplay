@@ -17,7 +17,8 @@
     type RsvpVisibility,
   } from '@phaseplay/shared';
   import Segmented from '#lib/components/Segmented.svelte';
-  import { crestUrl, prepareCrest } from '#lib/crest';
+  import { crestUrl } from '#lib/crest';
+  import CrestUploadSheet from '#lib/components/CrestUploadSheet.svelte';
   import { IconBack, IconTrash } from '#lib/icons';
 
   const team = $derived(app.team);
@@ -36,25 +37,15 @@
   let pick = $state('');
 
   let fileInput = $state<HTMLInputElement>();
-  async function uploadCrest(e: Event) {
+  let crestFile = $state<File | null>(null);
+  let crestSheet = $state(false);
+  function pickCrest(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
+    const file = input.files?.[0] ?? null;
     input.value = '';
     if (!file) return;
-    busy = true;
-    try {
-      const body = await prepareCrest(file);
-      await api(teamPath('/crest'), { method: 'PUT', body });
-      await app.sync();
-      await app.refreshMe();
-      toasts.success('Emblem updated');
-    } catch (err) {
-      toasts.error(
-        err instanceof ApiError || err instanceof Error ? err.message : 'Could not upload',
-      );
-    } finally {
-      busy = false;
-    }
+    crestFile = file;
+    crestSheet = true;
   }
   async function removeCrest() {
     busy = true;
@@ -158,7 +149,8 @@
           <Crest colors={team.colors} text={team.shortName} src={crestUrl(team)} size={72} />
           <p class="muted">
             Upload your club badge to use it across the app and on shared team sheets. PNG, SVG,
-            JPEG or WebP; a square image with a transparent background looks best.
+            JPEG or WebP. If it has a plain background, we can take it out so it looks right in
+            light and dark mode.
           </p>
         </div>
         <div class="row wrap">
@@ -169,7 +161,7 @@
             accept="image/png,image/jpeg,image/webp,image/svg+xml"
             tabindex="-1"
             aria-hidden="true"
-            onchange={uploadCrest}
+            onchange={pickCrest}
           />
           <Button disabled={busy} onclick={() => fileInput?.click()}
             >{team.crestVersion ? 'Replace emblem' : 'Upload emblem'}</Button
@@ -313,6 +305,8 @@
     >
   {/snippet}
 </Sheet>
+
+<CrestUploadSheet bind:open={crestSheet} file={crestFile} />
 
 <style>
   .sect {
