@@ -264,20 +264,6 @@
             true,
           )}
         </div>
-        <div class="float avail" aria-hidden="true">
-          <strong>Who's in for Saturday?</strong>
-          <div class="bars">
-            <span class="y" style="width:68%"></span><span class="m" style="width:14%"></span><span
-              class="n"
-              style="width:18%"
-            ></span>
-          </div>
-          <small>19 in · 4 maybe · 5 out</small>
-        </div>
-        <div class="float score" aria-hidden="true">
-          <span class="tnum">24</span><small>v</small><span class="tnum">17</span>
-          <em>Try 63′ · J. Taylor</em>
-        </div>
       </div>
     </section>
 
@@ -585,66 +571,6 @@
     background: var(--border-strong);
   }
 
-  .float {
-    position: absolute;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    box-shadow: var(--e-2);
-    padding: 12px 14px;
-    font-size: 0.8125rem;
-  }
-  .avail {
-    left: -48px;
-    bottom: 64px;
-    width: 210px;
-  }
-  .avail strong {
-    display: block;
-    margin-bottom: 8px;
-  }
-  .bars {
-    display: flex;
-    height: 8px;
-    border-radius: 4px;
-    overflow: hidden;
-    gap: 2px;
-    margin-bottom: 6px;
-  }
-  .bars .y {
-    background: var(--ok);
-  }
-  .bars .m {
-    background: #d79a1e;
-  }
-  .bars .n {
-    background: var(--border-strong);
-  }
-  .avail small {
-    color: var(--text-3);
-  }
-  .score {
-    right: -44px;
-    top: 72px;
-    display: grid;
-    grid-template-columns: auto auto auto;
-    align-items: baseline;
-    gap: 6px;
-    font-weight: 800;
-    font-size: 1.5rem;
-  }
-  .score small {
-    font-size: 0.75rem;
-    color: var(--text-3);
-  }
-  .score em {
-    grid-column: 1 / -1;
-    font-style: normal;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-2);
-  }
-
   /* Jump links */
   .jump {
     display: flex;
@@ -827,15 +753,6 @@
   }
   footer a {
     color: var(--text-2);
-  }
-  @media (max-width: 520px) {
-    .avail {
-      left: -12px;
-      bottom: 40px;
-    }
-    .score {
-      right: -10px;
-    }
   }
   @media (min-width: 640px) {
     .club ul {
