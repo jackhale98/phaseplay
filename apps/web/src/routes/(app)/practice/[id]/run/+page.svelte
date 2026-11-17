@@ -21,13 +21,21 @@
     crossed,
     dueAdvances,
     formatClock,
+    laneStatus,
     mergeEvents,
+    transitionId,
     runView,
     stepInfo,
     summary,
     type StepInfo,
   } from '#lib/features/practice/runner';
-  import { appendRun, fetchDrill, loadRun, newRunEventId } from '#lib/features/practice/store';
+  import {
+    appendRun,
+    fetchDrill,
+    fetchRun,
+    loadRun,
+    newRunEventId,
+  } from '#lib/features/practice/store';
   import { chime, keepAwake, unlockAudio, vibrate } from '#lib/features/practice/device';
   import { loadPrefs, savePrefs, type RunnerPrefs } from '#lib/features/practice/ui.svelte';
   import {
@@ -77,6 +85,27 @@
     };
   });
 
+  // Every coach and manager can open the live session on their own phone (e.g. one with the
+  // forwards, one with the backs). Devices stay in step by merging the shared log every 5 s.
+  $effect(() => {
+    const teamId = app.teamId;
+    if (!teamId || !id || !allowed) return;
+    let alive = true;
+    const pull = () => {
+      if (document.visibilityState !== 'visible' || !app.online) return;
+      void fetchRun(teamId, id)
+        .then((remote) => alive && (events = mergeEvents(events, remote)))
+        .catch(() => {});
+    };
+    const t = setInterval(pull, 5000);
+    document.addEventListener('visibilitychange', pull);
+    return () => {
+      alive = false;
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', pull);
+    };
+  });
+
   // Re-render only; every number comes from timestamps.
   $effect(() => {
     const t = setInterval(() => (now = Date.now()), 250);
@@ -91,9 +120,11 @@
   const view = $derived(plan ? runView(plan.data, events, now) : null);
   const status = $derived(view?.state.status ?? 'idle');
   const live = $derived(status === 'running' || status === 'paused');
+  /** Split slots (forwards / backs): each group's own countdown. */
+  const lanesNow = $derived(view ? laneStatus(view) : []);
 
-  function push(kind: RunEvent['kind'], payload: RunEvent['payload'] = {}) {
-    const e: RunEvent = { id: newRunEventId(), kind, at: Date.now(), payload };
+  function push(kind: RunEvent['kind'], payload: RunEvent['payload'] = {}, eventId?: string) {
+    const e: RunEvent = { id: eventId ?? newRunEventId(), kind, at: Date.now(), payload };
     commit([e]);
   }
   function commit(added: RunEvent[]) {
@@ -106,7 +137,7 @@
   // Auto-advance: append advances stamped at their exact due times.
   $effect(() => {
     if (!view || !prefs.auto || view.state.status !== 'running' || view.remainingMs > 0) return;
-    commit(dueAdvances(view.steps, events, now, newRunEventId));
+    commit(dueAdvances(view.steps, events, now));
   });
 
   // Chimes, vibration and polite announcements at milestones.
@@ -183,8 +214,8 @@
   }
   function next() {
     if (!view) return;
-    if (!view.next) push('end');
-    else push('advance');
+    if (!view.next) push('end', {}, transitionId(events, 'end', 0));
+    else push('advance', {}, transitionId(events, 'advance', view.state.index));
   }
 
   const finish = $derived(view?.projectedFinishAt ?? null);
@@ -202,12 +233,30 @@
     {@const b = info.slot.blocks[0]!}
     <p class={big ? 'now-title' : 'next-title'}>{blockTitle(b, drills)}</p>
   {:else}
-    <ul class="list lanes" class:big>
+    {@const laneRows = big ? lanesNow : []}
+    <ul class="list lanes" class:big class:split={big && laneRows.length > 1}>
       {#each info.slot.blocks as b (b.id)}
-        <li>
-          <span class="lane">{laneLabel(b.lane)}</span><span class="lt"
-            >{blockTitle(b, drills)}</span
-          >
+        {@const ln = laneRows.find((x) => x.block.id === b.id)}
+        {@const mine = !!b.coachId && b.coachId === s?.me.id}
+        <li class:mine class:done={ln?.done}>
+          <span class="lane"
+            >{laneLabel(b.lane)}{#if mine}<span class="you">
+                · You</span
+              >{/if}{#if b.coachId && !mine}<span class="coach">
+                · {s?.rows.members[b.coachId]?.displayName.split(' ')[0] ?? ''}</span
+              >{/if}</span
+          ><span class="lt">{blockTitle(b, drills)}</span>
+          {#if ln}
+            {#if ln.done}
+              <span class="lc">Done · waiting for the others ({view?.clock})</span>
+            {:else}
+              <span
+                class="lc tnum"
+                aria-label="{laneLabel(b.lane)}: {formatClock(ln.remainingMs)} left"
+                >{formatClock(ln.remainingMs)} left</span
+              >
+            {/if}
+          {/if}
         </li>
       {/each}
     </ul>
@@ -322,8 +371,14 @@
               >{#snippet icon()}<IconPause />{/snippet}Pause</Button
             >
           {/if}
-          <Button size="lg" onclick={() => push('skip', { index: view.state.index })}
-            >{#snippet icon()}<IconSkip />{/snippet}Skip</Button
+          <Button
+            size="lg"
+            onclick={() =>
+              push(
+                'skip',
+                { index: view.state.index },
+                transitionId(events, 'skip', view.state.index),
+              )}>{#snippet icon()}<IconSkip />{/snippet}Skip</Button
           >
           <Button
             size="lg"
@@ -390,7 +445,12 @@
             <Button
               size="sm"
               variant="ghost"
-              onclick={() => push('skip', { index: view.next!.index })}>Skip it</Button
+              onclick={() =>
+                push(
+                  'skip',
+                  { index: view.next!.index },
+                  transitionId(events, 'skip', view.next!.index),
+                )}>Skip it</Button
             >
           </div>
         {:else}
@@ -459,7 +519,7 @@
       variant="danger"
       onclick={() => {
         confirmEnd = false;
-        push('end');
+        push('end', {}, transitionId(events, 'end', 0));
       }}>End session</Button
     >
   </div>
@@ -632,6 +692,44 @@
   .lt {
     font-weight: 700;
     font-size: var(--t-16);
+  }
+  .lanes.split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--s-3);
+  }
+  .lanes.split li {
+    padding: var(--s-3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    text-align: left;
+  }
+  .lanes.split li.mine {
+    border: 2px solid var(--accent);
+    background: var(--accent-softer);
+  }
+  .lanes.split li.done {
+    opacity: 1;
+    background: var(--surface-2);
+  }
+  .lanes.split .lt {
+    font-size: clamp(1.15rem, 4.2vw, 1.6rem);
+  }
+  .you {
+    color: var(--accent-text);
+  }
+  .coach {
+    color: var(--text-3);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+  .lc {
+    margin-top: var(--s-1);
+    font-size: var(--t-14);
+    font-weight: 700;
+    color: var(--text-2);
   }
   .lanes.big .lt {
     font-size: clamp(1.4rem, 5.5vw, 2.25rem);

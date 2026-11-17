@@ -224,3 +224,73 @@ test('runner is accessible before and during a session', async ({ page, team, ax
   await page.reload();
   await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
 });
+
+test('assistant coaches follow the live session: both groups, their own countdowns, shared controls', async ({
+  page,
+  team,
+}) => {
+  const ids = await drillIds(team);
+  const assistant = await team.join('coach', 'Assistant Ash');
+  const planId = uuid();
+  await team.post(`/teams/${team.teamId}/plans`, {
+    id: planId,
+    title: 'Split session',
+    data: {
+      lanes: ['forwards', 'backs'],
+      slots: [
+        {
+          id: 's0',
+          blocks: [
+            {
+              id: 'f0',
+              kind: 'drill',
+              drillId: ids['Ruck-clearing lanes'],
+              durationMin: 20,
+              lane: 'forwards',
+              coachId: team.owner.memberId,
+            },
+            {
+              id: 'k0',
+              kind: 'drill',
+              drillId: ids['3 v 2 overload'],
+              durationMin: 15,
+              lane: 'backs',
+              coachId: assistant.memberId,
+            },
+          ],
+        },
+        {
+          id: 's1',
+          blocks: [
+            {
+              id: 'a1',
+              kind: 'drill',
+              drillId: ids['Touch rugby game'],
+              durationMin: 15,
+              lane: 'all',
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  // Head coach starts the session.
+  await openTeam(page, team.teamId, `/practice/${planId}/run`);
+  await page.getByRole('button', { name: 'Start session' }).click();
+  await expect(page.getByText('Block 1 of 2')).toBeVisible();
+
+  // The assistant opens the same live session on their phone and sees both groups.
+  await openTeam(assistant.page, team.teamId, `/practice/${planId}/run`);
+  await expect(assistant.page.getByText('Block 1 of 2')).toBeVisible({ timeout: 15_000 });
+  const lanes = assistant.page.locator('.lanes.split li');
+  await expect(lanes).toHaveCount(2);
+  await expect(lanes.filter({ hasText: 'Forwards' })).toContainText('Ruck-clearing lanes');
+  await expect(lanes.filter({ hasText: 'Backs' })).toContainText('You');
+  await expect(lanes.filter({ hasText: 'Backs' })).toContainText(/1[45]:\d\d left/);
+
+  // The assistant moves everyone on; the head coach's screen follows.
+  await assistant.page.getByRole('button', { name: /^Next/ }).click();
+  await expect(assistant.page.getByText('Block 2 of 2')).toBeVisible();
+  await expect(page.getByText('Block 2 of 2')).toBeVisible({ timeout: 15_000 });
+});

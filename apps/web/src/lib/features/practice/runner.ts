@@ -7,6 +7,8 @@
  * changeable mid-session and still gives exact timings after the screen was locked.
  */
 import {
+  blockMinutes,
+  uuidv7,
   runState,
   runSteps,
   type Block,
@@ -86,6 +88,55 @@ export function runView(plan: PlanData, events: RunEvent[], now: number): RunVie
   };
 }
 
+/**
+ * Ids for step transitions (advance / skip / end) are derived from the run's start event and the
+ * step index, so when two coaches' phones both move on from the same block (auto-advance on
+ * both, or both tap Next) they produce the same event and the merge keeps one.
+ */
+export function transitionId(
+  events: RunEvent[],
+  kind: 'advance' | 'skip' | 'end',
+  index: number,
+): string {
+  const start = mergeEvents(events, [])
+    .filter((e) => e.kind === 'start')
+    .at(-1);
+  if (!start) return uuidv7();
+  const code = { advance: 'a', skip: 'b', end: 'c' }[kind];
+  const h = start.id.replace(/-/g, '').slice(0, 20) + code + index.toString(16).padStart(11, '0');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+export type LaneNow = {
+  lane: string;
+  block: Block;
+  /** Time left in this group's own block (its drill may be shorter than the slot). */
+  remainingMs: number;
+  /** This group has finished and is waiting for the others to finish the slot. */
+  done: boolean;
+};
+
+/**
+ * Per-group countdowns for a split slot (e.g. forwards at the scrum machine, backs on strike
+ * moves). +2 min extensions apply to every group. Empty for single-block or rotation steps.
+ */
+export function laneStatus(view: RunView): LaneNow[] {
+  const info = view.current;
+  if (!info || info.round || info.slot.blocks.length < 2) return [];
+  const live = view.state.status === 'running' || view.state.status === 'paused';
+  const extra = (view.state.durations[info.index] ?? 0) - info.step.plannedMs;
+  const elapsed = live ? view.state.elapsedMs : 0;
+  return info.slot.blocks.map((b) => {
+    const remainingMs = blockMinutes(b) * 60e3 + extra - elapsed;
+    return {
+      lane: b.lane,
+      block: b,
+      remainingMs,
+      done: live && remainingMs <= 0 && view.remainingMs > 0,
+    };
+  });
+}
+
 /** Indexes queued to skip (skip events with a future index) since the last start. */
 export function skippedIndexes(events: RunEvent[]): Set<number> {
   const sorted = [...events].sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
@@ -100,19 +151,20 @@ export function skippedIndexes(events: RunEvent[]): Set<number> {
  * Auto-advance: the `advance` events due by `now`, each stamped with its exact due time.
  * Returns [] when nothing is due (or the run is paused/ended).
  */
-export function dueAdvances(
-  steps: RunStep[],
-  events: RunEvent[],
-  now: number,
-  newId: () => string,
-): RunEvent[] {
+export function dueAdvances(steps: RunStep[], events: RunEvent[], now: number): RunEvent[] {
   const out: RunEvent[] = [];
   let all = events;
   for (let guard = 0; guard <= steps.length; guard++) {
     const s = runState(steps, all, now);
     if (s.status !== 'running' || s.remainingMs > 0) break;
     const at = Math.round(now + s.remainingMs);
-    const e: RunEvent = { id: newId(), kind: 'advance', payload: { auto: true }, at };
+    const e: RunEvent = {
+      id: transitionId(all, 'advance', s.index),
+      kind: 'advance',
+      payload: { auto: true },
+      at,
+    };
+    if (all.some((x) => x.id === e.id)) break;
     out.push(e);
     all = [...all, e];
   }

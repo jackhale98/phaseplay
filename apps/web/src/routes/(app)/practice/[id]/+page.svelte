@@ -518,7 +518,7 @@
         <div class="actions">
           {#if canRun && draft.slots.length}
             <Button variant="primary" href="/practice/{id}/run"
-              >{#snippet icon()}<IconPlay />{/snippet}Run session</Button
+              >{#snippet icon()}<IconPlay />{/snippet}Live session</Button
             >
           {/if}
           {#if canEdit}

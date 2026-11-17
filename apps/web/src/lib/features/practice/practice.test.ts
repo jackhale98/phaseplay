@@ -17,7 +17,16 @@ import {
   splitSlot,
   updateBlock,
 } from './model';
-import { crossed, dueAdvances, formatClock, runView, summary } from './runner';
+import {
+  crossed,
+  dueAdvances,
+  formatClock,
+  laneStatus,
+  mergeEvents,
+  runView,
+  summary,
+  transitionId,
+} from './runner';
 
 const drill = (id: string, o: Partial<DrillMeta>): DrillMeta =>
   ({
@@ -200,7 +209,7 @@ describe('runner view-model', () => {
   function tickThrough(plan: PlanData, events: RunEvent[], times: number[]) {
     const steps = runSteps(plan);
     let log = [...events];
-    for (const t of times) log = [...log, ...dueAdvances(steps, log, t, id)];
+    for (const t of times) log = [...log, ...dueAdvances(steps, log, t)];
     return log;
   }
 
@@ -289,5 +298,64 @@ describe('runner view-model', () => {
     expect(
       crossed({ index: 0, remainingMs: 61e3 }, { index: 1, remainingMs: 59e3, running: true }),
     ).toBeNull();
+  });
+});
+
+describe('shared live session (assistant coaches)', () => {
+  const T0 = 1_760_000_000_000;
+  const start: RunEvent = {
+    id: '01990000-0000-7000-8000-000000000001',
+    kind: 'start',
+    at: T0,
+    payload: { auto: false },
+  };
+  /** Forwards 20 min / backs 15 min in one split slot, then 10 min all together. */
+  function forked(): PlanData {
+    let p = setLanes(emptyPlan(), ['forwards', 'backs']);
+    p = addSlot(p, { ...makeBlock('drill', 'forwards', DRILLS.ruck), durationMin: 20 });
+    p = setLaneBlock(p, p.slots.at(-1)!.id, {
+      ...makeBlock('drill', 'backs', DRILLS.threev2),
+      durationMin: 15,
+    });
+    p = addSlot(p, { ...makeBlock('drill', 'all', DRILLS.touch), durationMin: 10 });
+    return p;
+  }
+
+  it('gives each group its own countdown in a split slot', () => {
+    const v = runView(forked(), [start], T0 + 16 * 60e3);
+    const lanes = laneStatus(v);
+    expect(lanes.map((l) => [l.lane, Math.round(l.remainingMs / 60e3), l.done])).toEqual([
+      ['forwards', 4, false],
+      ['backs', -1, true],
+    ]);
+    expect(v.clock).toBe('4:00');
+  });
+
+  it('+2 min extends every group', () => {
+    const ext: RunEvent = {
+      id: '01990000-0000-7000-8000-000000000002',
+      kind: 'extend',
+      at: T0 + 60e3,
+      payload: { ms: 120e3 },
+    };
+    const lanes = laneStatus(runView(forked(), [start, ext], T0 + 16 * 60e3));
+    expect(lanes.map((l) => Math.round(l.remainingMs / 60e3))).toEqual([6, 1]);
+  });
+
+  it("two coaches' phones moving on from the same block create one event", () => {
+    const plan = forked();
+    const steps = runView(plan, [start], T0).steps;
+    // Both phones auto-advance independently, then their logs merge.
+    const a = dueAdvances(steps, [start], T0 + 21 * 60e3);
+    const b = dueAdvances(steps, [start], T0 + 22 * 60e3);
+    expect(a.map((e) => e.id)).toEqual(b.map((e) => e.id));
+    const merged = mergeEvents([start, ...a], [start, ...b]);
+    expect(runView(plan, merged, T0 + 22 * 60e3).state.index).toBe(1);
+    // Two coaches tapping Next on the same block also produce the same id.
+    expect(transitionId([start], 'advance', 0)).toBe(transitionId([start], 'advance', 0));
+    expect(transitionId([start], 'advance', 0)).not.toBe(transitionId([start], 'advance', 1));
+    expect(transitionId([start], 'advance', 0)).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
   });
 });

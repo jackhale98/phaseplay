@@ -78,7 +78,7 @@
         <div class="row wrap">
           {#if runner}
             <Button variant="primary" href="/practice/{p.id}/run"
-              >{#snippet icon()}<IconPlay />{/snippet}Run session</Button
+              >{#snippet icon()}<IconPlay />{/snippet}Live session</Button
             >
           {/if}
           <Button href="/practice/{p.id}">{#snippet icon()}<IconEye />{/snippet}View plan</Button>
@@ -129,8 +129,8 @@
             <div class="acts">
               {#if p}
                 {#if runner}
-                  <Button size="sm" href="/practice/{p.id}/run" aria-label="Run {p.title}"
-                    >{#snippet icon()}<IconPlay />{/snippet}Run</Button
+                  <Button size="sm" href="/practice/{p.id}/run" aria-label="Live session: {p.title}"
+                    >{#snippet icon()}<IconPlay />{/snippet}Live</Button
                   >
                 {:else}
                   <Button size="sm" href="/practice/{p.id}">View</Button>

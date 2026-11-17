@@ -153,6 +153,7 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
   - if a block runs long, "+2 min" shifts the blocks after it, and the projected finish time updates live
   - pause, skip, and the Screen Wake Lock API keeps the screen on
   - timers are computed from timestamps, so they stay accurate when the screen locks
+  - every coach and manager can open the same live session on their own phone (e.g. one with the forwards, one with the backs): split slots show each group's drill and its own countdown, the coach's own group is highlighted, and any of them can move the session on. Devices stay in step through the shared run log (synced every 5 s); step transitions have deterministic ids so two phones moving on together create one event
   - players see the shared plan beforehand; there is no live player view during practice (phones away on the pitch)
 - **After the session:** record what actually ran (actual durations, skipped blocks). Attendance from M2 links to the plan.
 
