@@ -75,6 +75,8 @@ The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py
     - notifications (M7)
     - privacy
 
+**Proposals ("Not confirmed yet")** look provisional everywhere: a dashed outline (`--tent-line`), a lighter fill (`--tent-fill`) and a "Tentative" or "Date poll" chip; the month view shows a dashed "?" pill on each candidate date. One card (`ProposalCard`) serves Home, the agenda and the event page: open with the answer buttons until every date has an answer, then folded to one line with Change (the Home replies' slide, instant with reduced motion). The form keeps one new control (Confirmed | Not confirmed yet) and one defaults line with Change for the rest.
+
 ## Interaction details
 
 - **Optimistic writes** come with an undo toast. Sync status is a small dot (synced, pending or offline) with an `aria-live` announcement on change.

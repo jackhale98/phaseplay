@@ -279,6 +279,20 @@ Know what the club owns, who has it, and get a nudge before a practice when the 
 5. Event flags, practice-plan shortfalls, Home nudge.
 6. QR labels (print sheet) and scan-to-open.
 
+### M10 — Tentative games and events ("Not confirmed yet") ✅ done
+
+Float a friendly or a social before it's fixed, and pick the date most people can make.
+
+- **Concept:** a proposal is a normal Game or Event (never a Practice) with `events.status = 'proposed'`. One date is a tentative item; 2–4 dates are a date poll (inferred from the number of dates). Permissions are the schedule's: `events.manage` creates, edits, confirms and drops; everyone answers for themselves (`rsvp.self`).
+- **Contracts:** `packages/shared/proposals.ts` (statuses, answers, schemas, `defaultAnswerBy`, `proposalTarget`, `proposalCover`, `bestOption`), `frontRowCover` in `sheets.ts` (also used by the availability board), migration `0011_proposals.sql` (additive). Route ids `proposals.answer`, `proposals.confirm`, `proposals.drop`; create/edit go through `events.create` / `events.update` with `status`, `options[]`, `answerBy`, `target`, `checkPositions`.
+- **Answers:** "I'm in / Can't" (one date) or "Works / Can't" per date plus "None work". Everyone sees per-date counts; names follow the team's "who's going" setting; staff always see names.
+- **Players needed:** a team default per format (Settings → Team, 20 for 15s and 10 for 7s), overridable per proposal. Proposed games check front-row cover (the Law 3 scale for the target squad size).
+- **Confirm:** one step; the event takes the date's times, everyone who was in becomes a Yes with `rsvps.reconfirm = 1` and gets "It's on … Still in?" (Home shows "Still in?" cards); the rest of the team hears it's on. Retries are no-ops. **Drop** hides it everywhere and tells people who answered.
+- **Notifications:** on propose, a reminder two days before answers are due (frequent cron, once per proposal), on confirm and on drop.
+- **Kept out of** the calendar feed, season stats, attendance, reply and kit-at-risk reminders, Home's next event and replies, the availability board, team sheets, match mode and practice links. The command palette lists proposals, labelled.
+- **UI:** dashed outline, lighter fill and a "Tentative"/"Date poll" chip everywhere; month view "?" pills on each candidate date; agenda "N need your answer" bar; Home "Would you play?" one card at a time; a proposal page with progress, cover, the best date, confirm, nudge and drop.
+- **Tests:** shared unit tests, API tests (answers, visibility, confirm/drop idempotency, notification counts, exclusions, query budget), web selector tests, `e2e/specs/proposals.spec.ts` on all three projects in light and dark.
+
 ## 5. Definition of Done (every PR)
 
 - [ ] `pnpm check`, `pnpm test` and the e2e tests for touched features pass on desktop-chromium, mobile-chromium and mobile-webkit.
