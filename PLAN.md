@@ -103,7 +103,7 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
   - coverage warnings, e.g. "only 2 available front-rowers"
   - non-responders, with "copy a nudge" for the group chat
 - **Attendance:** a fast checklist after training, pre-filled from RSVPs.
-- **Calendar feeds:** a revocable ICS subscription feed per user, plus a team feed for coaches.
+- **Calendar:** one team ICS calendar every member can subscribe to; staff can reset its link.
 - ~~CSV import from TeamSnap~~ Removed (product call). Coaches add names by hand ("Add name"); pending names are claimed when players join.
 - **Weekly series**: practices and other non-game events can repeat weekly with an end date. Editing a session offers "This session" or "All upcoming" (time, days, details, end date to stop or extend, or delete the rest).
 - **Who's going** (team setting, owner/admin): players see just the numbers (default), names for games, or names for every event. Never RSVP notes.

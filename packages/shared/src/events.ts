@@ -202,3 +202,9 @@ export const AttendancePut = v.object({
 });
 
 export const RSVP_NOTE_TTL_MS = 30 * 86400e3;
+
+/** `teams.calendar.get` / `teams.calendar.reset`: the team's calendar subscription link. */
+export type TeamCalendar = {
+  /** Path on this origin, e.g. `/cal/<token>.ics` (the app adds https:// or webcal://). */
+  path: string;
+};

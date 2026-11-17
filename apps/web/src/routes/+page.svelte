@@ -40,7 +40,7 @@
       points: [
         'Weekly practices with an end date, editable as a whole series',
         'Nudge the players who haven’t replied, straight from the board',
-        'Calendar feed for everyone’s phone',
+        'A team calendar everyone can add to their phone',
       ],
       main: shot(
         'desktop-availability',

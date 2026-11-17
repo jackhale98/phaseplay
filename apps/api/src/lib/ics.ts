@@ -41,8 +41,8 @@ export function buildIcs(name: string, events: IcsEvent[]): string {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${esc(name)}`,
-    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
-    'X-PUBLISHED-TTL:PT1H',
+    'REFRESH-INTERVAL;VALUE=DURATION:PT30M',
+    'X-PUBLISHED-TTL:PT30M',
   ];
   for (const e of events) {
     lines.push(

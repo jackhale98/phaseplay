@@ -355,6 +355,59 @@ describe('writes', () => {
     expect((await call('GET', f.body.path)).status).toBe(404);
   });
 
+  it('one team calendar link for every member; staff can reset it', async () => {
+    const a = await fixtureTeam();
+    await env.DB.prepare("UPDATE teams SET timezone = 'America/New_York' WHERE id = ?")
+      .bind(a.teamId)
+      .run();
+    const t0 = Date.now() + 3 * 86400e3;
+    await call('POST', `/api/v1/teams/${a.teamId}/events`, {
+      cookie: a.coach.cookie,
+      body: {
+        id: uuidv7(),
+        type: 'training',
+        title: 'Training',
+        startsAt: t0,
+        meetAt: t0 - 15 * 60e3,
+      },
+    });
+    const mine = await call('GET', `/api/v1/teams/${a.teamId}/calendar`, {
+      cookie: a.player.cookie,
+    });
+    expect(mine.status).toBe(200);
+    // Everyone gets the same link.
+    const theirs = await call('GET', `/api/v1/teams/${a.teamId}/calendar`, {
+      cookie: a.coach.cookie,
+    });
+    expect(theirs.body.path).toBe(mine.body.path);
+    const ics = await call('GET', mine.body.path);
+    expect(ics.status).toBe(200);
+    expect(ics.headers.get('cache-control')).toContain('max-age=300');
+    const text = String(ics.body);
+    expect(text).toContain('SUMMARY:PRFC Game: v Rivals');
+    expect(text).toContain('SUMMARY:PRFC Practice: Training');
+    // Meet times in the team's own timezone, not UTC.
+    expect(text).toMatch(/Meet \d{1,2}:\d{2}\s?[AP]M\./);
+    expect(text).not.toContain('UTC');
+
+    // A player can't reset it; staff can, and the old link stops working.
+    expect(
+      (
+        await call('POST', `/api/v1/teams/${a.teamId}/calendar`, {
+          cookie: a.player.cookie,
+          body: {},
+        })
+      ).status,
+    ).toBe(403);
+    const reset = await call('POST', `/api/v1/teams/${a.teamId}/calendar`, {
+      cookie: a.coach.cookie,
+      body: {},
+    });
+    expect(reset.body.path).not.toBe(mine.body.path);
+    expect((await call('GET', mine.body.path)).status).toBe(404);
+    expect((await call('GET', reset.body.path)).status).toBe(200);
+  });
+
   it('new teams get the starter drill pack', async () => {
     const a = await fixtureTeam();
     const drills = (await sync(a.teamId, a.player.cookie)).body.drills;

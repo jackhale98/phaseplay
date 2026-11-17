@@ -259,28 +259,33 @@ test('attendance is pre-filled from replies and saves', async ({ page, team, axe
   await expect(row('Cal Carter')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('calendar feed: create, add links, revoke', async ({ page, team }) => {
+test('team calendar: one link to subscribe to, staff can reset it', async ({ page, team, axe }) => {
   await openTeam(page, team.teamId, '/settings/calendar');
-  await page.getByRole('button', { name: 'Create my feed' }).click();
+  await expect(page.getByRole('heading', { name: 'Team calendar' })).toBeVisible();
   const apple = page.getByRole('link', { name: 'Add to Apple Calendar' });
   await expect(apple).toHaveAttribute('href', /^webcal:\/\/.+\/cal\/.+\.ics$/);
   await expect(page.getByRole('link', { name: /Add to Google Calendar/ })).toHaveAttribute(
     'href',
     /^https:\/\/calendar\.google\.com\/calendar\/render\?cid=webcal%3A%2F%2F/,
   );
-  const url = await page.getByLabel(/Subscription link/).inputValue();
+  const url = await page.getByLabel(/Calendar link/).inputValue();
   const ics = await page.request.get(url);
   expect(ics.headers()['content-type']).toContain('text/calendar');
-  await page.getByRole('button', { name: /Create a team feed/ }).click();
-  await expect(page.getByRole('heading', { name: 'Your team feed is ready' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Turn off/ })).toHaveCount(2);
-  await page.getByRole('button', { name: /^Turn off personal feed/ }).click();
+  await axe(page);
+
+  // The same link every visit.
+  await page.reload();
+  await expect(page.getByLabel(/Calendar link/)).toHaveValue(url);
+
+  await page.getByRole('button', { name: 'Reset link' }).click();
   await page
-    .getByRole('dialog', { name: 'Turn off this feed?' })
-    .getByRole('button', { name: 'Turn off' })
+    .getByRole('dialog', { name: 'Reset the team calendar link?' })
+    .getByRole('button', { name: 'Reset link' })
     .click();
-  await expect(page.getByRole('button', { name: /^Turn off/ })).toHaveCount(1);
+  await expect(page.getByLabel(/Calendar link/)).not.toHaveValue(url);
   expect((await page.request.get(url)).status()).toBe(404);
+  const fresh = await page.getByLabel(/Calendar link/).inputValue();
+  expect((await page.request.get(fresh)).status()).toBe(200);
 });
 
 test("players see who's going only when the team allows it", async ({ page, team, axe }) => {

@@ -97,7 +97,7 @@ docs/                specs, decisions.md, runbooks
 | `practice_runs` | id (client), plan_id, team_id, kind (`start`/`advance`/`extend`/`pause`/`resume`/`skip`/`end`), payload JSON, at | plan_id |
 | `match_events` | id (client), event_id, team_id, seq, kind, payload JSON, game_ms, wall_at, supersedes_id?, created_by, created_at | event_id, (team_id,created_at) |
 | `audit_log` | id, team_id, actor_id, action, target_type, target_id, meta JSON, at | (team_id,at) |
-| `calendar_tokens` | token_hash PK, user_id, team_id?, scope, created_at, revoked_at | user_id |
+| `calendar_tokens` | token_hash PK, user_id, team_id?, scope, created_at, revoked_at (older personal links; new ones use `teams.calendar_token`) | user_id |
 | `push_subscriptions` (M7) | id, user_id, endpoint UNIQUE, p256dh, auth, prefs JSON, created_at | user_id |
 | `inventory_items` (M9) | id, team_id, kind, name, tag?, quantity (> 1 = a set), condition, status (`available`/`with_someone`/`lost`/`retired`), holder_member_id?, home, notes (kit managers only), match_day, version, created_by, created_at, updated_at, deleted_at | (team_id,updated_at), holder_member_id, UNIQUE(team_id,tag) where set and not deleted |
 | `inventory_events` (M9) | append-only history: id, team_id, item_id, kind, actor_member_id, from_member_id, to_member_id, note (≤ 140, kit managers only), at; written in the same guarded batch as each change | (item_id,at) |
@@ -147,7 +147,7 @@ type Block = {
 - **Writes:** `POST`, `PATCH` and `DELETE` on resource routes.
   - Clients generate IDs, and the server inserts with `ON CONFLICT DO NOTHING`, so outbox retries are idempotent.
   - Versioned resources (events, sheets, plays) take `If-Match: <version>`. A stale version gets `409` with the latest copy.
-- **Calendar:** `GET /cal/:token.ics` is public with a secret token, sent with cache headers.
+- **Calendar:** one team calendar per team (`teams.calendar_token`, made on first `teams.calendar.get`, shown to every member, reset by staff with `events.manage`). `GET /cal/:token.ics` is public with that token; older per-user tokens (`calendar_tokens`) still resolve. Feeds send `max-age=300` and `REFRESH-INTERVAL`/`X-PUBLISHED-TTL` of 30 minutes (Google Calendar ignores these and polls on its own schedule). Meet times are written in the team's timezone.
 - **Bulk writes** (recurring series, attendance, match/run logs, imports) use one `INSERT ... SELECT FROM json_each(?)` statement; imports are sent in chunks of 40 rows.
 - **Query budget:** at most 6 D1 queries per request (the free cap is 50). Use `db.batch()`, and avoid N+1 queries.
 
@@ -178,7 +178,7 @@ type Block = {
   - `style-src 'self' 'unsafe-inline'` (only if Svelte needs it)
   - HSTS (with preload), Permissions-Policy and COOP are real headers from day one.
 - **Secrets** come from `wrangler secret` only. The frontend holds none.
-- **Invite and calendar tokens** are 128-bit random and stored hashed. Invite tokens travel in the URL fragment (`/join#t=…`), so they never reach server logs or referrers.
+- **Invite and personal calendar tokens** are 128-bit random and stored hashed (the team calendar token is stored as is, since every member is shown it). Invite tokens travel in the URL fragment (`/join#t=…`), so they never reach server logs or referrers.
 - **Validation and output:** every route validates input with shared schemas and returns only the fields the caller's role may see. For example, RSVP notes are never sent to players.
 - **Privacy:**
   - collect no email or phone, and no health data

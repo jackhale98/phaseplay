@@ -76,6 +76,20 @@ export const ROUTES = {
     action: 'team.manage',
   },
   /** Hide built-in drill templates / play presets (drills.manage / plays.manage checked per key). */
+  /** The team's calendar link (made on first request). Any member. */
+  'teams.calendar.get': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/calendar',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** A new team calendar link; the old one stops working. */
+  'teams.calendar.reset': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/calendar',
+    auth: 'team',
+    action: 'events.manage',
+  },
   'teams.templates': {
     method: 'PUT',
     path: '/api/v1/teams/:teamId/templates',

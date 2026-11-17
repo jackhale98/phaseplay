@@ -1,72 +1,86 @@
+<!--
+  The team calendar: one link per team that every member subscribes to in their calendar app.
+  Staff can reset it if it ends up somewhere it shouldn't. Older per-person links still work and
+  can be turned off here.
+-->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { isStaff } from '@phaseplay/shared';
+  import type { TeamCalendar } from '@phaseplay/shared';
   import { api, ApiError, v1 } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
+  import { teamPath } from '#lib/data/actions';
   import Button from '#lib/components/Button.svelte';
   import Sheet from '#lib/components/Sheet.svelte';
+  import Loader from '#lib/components/Loader.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { copyText } from '#lib/share';
   import { ago } from '#lib/format';
-  import {
-    IconBack,
-    IconCalendar,
-    IconCopy,
-    IconTrash,
-    IconUsers,
-    IconUser,
-    IconLock,
-  } from '#lib/icons';
+  import { IconBack, IconCalendar, IconCopy, IconTrash, IconLock } from '#lib/icons';
   import IconExternal from '@lucide/svelte/icons/external-link';
 
   type Feed = { id: string; team_id: string | null; scope: 'me' | 'team'; created_at: number };
-  type Created = { scope: 'me' | 'team'; https: string; webcal: string };
 
-  const staff = $derived(isStaff(app.role));
   const team = $derived(app.team);
-  let feeds = $state<Feed[] | null>(null);
-  let created = $state<Created | null>(null);
-  let busy = $state<'me' | 'team' | null>(null);
+  const canReset = $derived(app.can('events.manage'));
+  let path = $state<string | null>(null);
+  let error = $state<string | null>(null);
+  let feeds = $state<Feed[]>([]);
+  let resetOpen = $state(false);
+  let resetting = $state(false);
   let revoking = $state<Feed | null>(null);
-  let confirmOpen = $state(false);
+  let revokeOpen = $state(false);
 
-  async function load() {
+  const https = $derived(path ? `${location.origin}${path}` : '');
+  const webcal = $derived(https.replace(/^https?:/, 'webcal:'));
+  const google = $derived(
+    `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`,
+  );
+
+  // Once the open team is known (on a fresh load it arrives after the first render).
+  $effect(() => {
+    const id = app.teamId;
+    if (!id) return;
+    let alive = true;
+    path = null;
+    error = null;
+    api<TeamCalendar>(v1(`/teams/${id}/calendar`))
+      .then((r) => alive && (path = r.path))
+      .catch(
+        (e: unknown) =>
+          alive && (error = e instanceof ApiError ? e.message : "Couldn't load the calendar link"),
+      );
+    return () => {
+      alive = false;
+    };
+  });
+  onMount(async () => {
     try {
       feeds = (await api<{ feeds: Feed[] }>(v1('/me/calendar-feeds'))).feeds.sort(
         (a, b) => b.created_at - a.created_at,
       );
-    } catch (e) {
-      feeds = feeds ?? [];
-      toasts.error(e instanceof ApiError ? e.message : "Couldn't load your feeds");
-    }
-  }
-  onMount(load);
+    } catch {}
+  });
 
-  async function create(scope: 'me' | 'team') {
-    busy = scope;
+  async function reset() {
+    resetting = true;
     try {
-      const r = await api<{ id: string; path: string }>(v1('/me/calendar-feeds'), {
-        method: 'POST',
-        body: { teamId: app.teamId, scope },
-      });
-      const https = `${location.origin}${r.path}`;
-      created = { scope, https, webcal: https.replace(/^https?:/, 'webcal:') };
-      await load();
+      path = (await api<TeamCalendar>(teamPath('/calendar'), { method: 'POST', body: {} })).path;
+      resetOpen = false;
+      toasts.success('New link made. Share it with the team; the old one has stopped working.');
     } catch (e) {
-      toasts.error(e instanceof ApiError ? e.message : "Couldn't create the feed");
+      toasts.error(e instanceof ApiError ? e.message : "Couldn't reset the link");
     } finally {
-      busy = null;
+      resetting = false;
     }
   }
   async function revoke() {
     const f = revoking;
-    confirmOpen = false;
+    revokeOpen = false;
     if (!f) return;
     try {
       await api(v1(`/me/calendar-feeds/${f.id}`), { method: 'DELETE' });
-      toasts.show('Feed turned off. Calendars using it stop updating.');
-      if (created && feeds?.[0]?.id === f.id) created = null;
-      await load();
+      feeds = feeds.filter((x) => x.id !== f.id);
+      toasts.show('Old link turned off.');
     } catch (e) {
       toasts.error(e instanceof ApiError ? e.message : "Couldn't turn it off");
     }
@@ -75,112 +89,88 @@
     id
       ? (app.me?.memberships.find((m) => m.team.id === id)?.team.name ?? 'A former team')
       : 'All your teams';
-  const google = (webcal: string) =>
-    `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`;
-  async function copy(url: string) {
+  async function copy() {
     toasts.show(
-      (await copyText(url)) ? 'Link copied' : "Couldn't copy, select the link and copy it",
+      (await copyText(https)) ? 'Link copied' : "Couldn't copy, select the link and copy it",
     );
   }
 </script>
 
-<svelte:head><title>Calendar feed · Phaseplay</title></svelte:head>
+<svelte:head><title>Team calendar · Phaseplay</title></svelte:head>
 
 <div class="page narrow">
   <a class="back" href="/more"><IconBack /> More</a>
   <header class="page-head">
     <div>
-      <h1>Calendar feed</h1>
+      <h1>Team calendar</h1>
       <p class="muted lead">
-        Get {team?.shortName ?? 'the team'}'s practices, games and events in Apple, Google or
-        Outlook Calendar. Changes and cancellations show up on their own, usually within a few
-        hours.
+        Subscribe once and {team?.name ?? 'the team'}'s practices, games and events show up in your
+        calendar app. New events, time changes and cancellations follow on their own.
       </p>
     </div>
   </header>
 
-  {#if created}
-    <section class="card pad made" aria-labelledby="made-h" aria-live="polite">
-      <h2 id="made-h" class="h">
-        Your {created.scope === 'team' ? 'team' : 'personal'} feed is ready
-      </h2>
-      <p class="muted">Add it now. For your privacy we only show this link once.</p>
+  <section class="card pad made" aria-labelledby="sub-h">
+    <h2 id="sub-h" class="h">Add it to your calendar</h2>
+    {#if error}
+      <p class="err" role="alert">{error}</p>
+    {:else if !path}
+      <Loader label="Getting the link" size={48} />
+    {:else}
       <div class="actions">
-        <Button variant="primary" href={created.webcal}
+        <Button variant="primary" href={webcal}
           >{#snippet icon()}<IconCalendar />{/snippet}Add to Apple Calendar</Button
         >
-        <a class="btnlike" href={google(created.webcal)} target="_blank" rel="noopener noreferrer"
+        <a class="btnlike" href={google} target="_blank" rel="noopener noreferrer"
           >Add to Google Calendar<IconExternal /><span class="sr-only">(opens in a new tab)</span
           ></a
         >
       </div>
       <div class="url">
-        <label for="feed-url">Subscription link (for Outlook and others)</label>
+        <label for="feed-url">Calendar link (for Outlook and others, or to share)</label>
         <span class="row">
-          <input
-            id="feed-url"
-            readonly
-            value={created.https}
-            onfocus={(e) => e.currentTarget.select()}
-          />
-          <Button onclick={() => copy(created!.https)}
-            >{#snippet icon()}<IconCopy />{/snippet}Copy</Button
-          >
+          <input id="feed-url" readonly value={https} onfocus={(e) => e.currentTarget.select()} />
+          <Button onclick={copy}>{#snippet icon()}<IconCopy />{/snippet}Copy</Button>
         </span>
       </div>
-      <p class="subtle warn">
-        <IconLock /> Anyone with this link can see the schedule. If it gets shared, turn it off below
-        and make a new one.
+      <p class="subtle small">
+        Apple Calendar and Outlook check for changes every 30 minutes or so. Google Calendar
+        refreshes on its own schedule, which can take several hours.
       </p>
-    </section>
-  {/if}
-
-  <section class="card pad" aria-labelledby="me-h">
-    <div class="opt">
-      <span class="ic"><IconUser /></span>
-      <div class="grow">
-        <h2 id="me-h" class="h">Just my schedule</h2>
-        <p class="muted">Everything at {team?.name ?? 'your team'} that you can reply to.</p>
-      </div>
-    </div>
-    <Button loading={busy === 'me'} onclick={() => create('me')}>Create my feed</Button>
+    {/if}
   </section>
 
-  {#if staff}
-    <section class="card pad" aria-labelledby="team-h">
-      <div class="opt">
-        <span class="ic"><IconUsers /></span>
-        <div class="grow">
-          <h2 id="team-h" class="h">Team feed for coaches</h2>
-          <p class="muted">
-            For a shared coaches' calendar. Only works for staff, and stops if you leave the team.
-          </p>
-        </div>
-      </div>
-      <Button loading={busy === 'team'} onclick={() => create('team')}>Create a team feed</Button>
+  {#if canReset && path}
+    <section class="card pad" aria-labelledby="reset-h">
+      <h2 id="reset-h" class="h">Reset the link</h2>
+      <p class="muted warn">
+        <IconLock /> Anyone with the link can see the schedule. If it's been shared somewhere it shouldn't
+        be, make a new one: calendars on the old link stop updating.
+      </p>
+      <Button onclick={() => (resetOpen = true)}>Reset link</Button>
     </section>
   {/if}
 
-  <h2 class="section-title">Your feeds</h2>
-  {#if feeds === null}
-    <p class="subtle">Loading…</p>
-  {:else if !feeds.length}
-    <p class="subtle">No feeds yet.</p>
-  {:else}
+  {#if feeds.length}
+    <h2 class="section-title">Your older links</h2>
+    <p class="subtle small">
+      Personal links made before the team calendar. They still work; turn them off if you've
+      switched to the team calendar.
+    </p>
     <ul class="list card feeds">
       {#each feeds as f (f.id)}
         <li>
           <span class="grow">
-            <strong>{f.scope === 'team' ? 'Team feed' : 'Personal feed'}</strong>
+            <strong>{f.scope === 'team' ? 'Coaches feed' : 'Personal feed'}</strong>
             <small class="muted">{teamName(f.team_id)} · made {ago(f.created_at)}</small>
           </span>
           <Button
             size="sm"
             variant="ghost"
-            aria-label="Turn off {f.scope === 'team' ? 'team' : 'personal'} feed made {ago(
+            aria-label="Turn off {f.scope === 'team' ? 'coaches' : 'personal'} feed made {ago(
               f.created_at,
             )}"
-            onclick={() => ((revoking = f), (confirmOpen = true))}
+            onclick={() => ((revoking = f), (revokeOpen = true))}
             >{#snippet icon()}<IconTrash />{/snippet}Turn off</Button
           >
         </li>
@@ -190,14 +180,30 @@
 </div>
 
 <Sheet
-  bind:open={confirmOpen}
-  title="Turn off this feed?"
-  description="Calendars subscribed to it stop updating. You can make a new one any time."
+  bind:open={resetOpen}
+  title="Reset the team calendar link?"
+  description="Everyone will need to subscribe again with the new link."
   size="sm"
 >
-  <p class="muted">Anyone already subscribed keeps the events they have, but gets no updates.</p>
+  <p class="muted">
+    Calendars on the old link keep the events they have but stop getting updates. Share the new link
+    with the team afterwards.
+  </p>
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (confirmOpen = false)}>Keep it</Button>
+    <Button variant="ghost" onclick={() => (resetOpen = false)}>Keep it</Button>
+    <Button variant="danger" loading={resetting} onclick={reset}>Reset link</Button>
+  {/snippet}
+</Sheet>
+
+<Sheet
+  bind:open={revokeOpen}
+  title="Turn off this link?"
+  description="Calendars subscribed to it stop updating."
+  size="sm"
+>
+  <p class="muted">They keep the events they have. The team calendar isn't affected.</p>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (revokeOpen = false)}>Keep it</Button>
     <Button variant="danger" onclick={revoke}>Turn off</Button>
   {/snippet}
 </Sheet>
@@ -217,6 +223,13 @@
   .back :global(svg) {
     width: 18px;
     height: 18px;
+  }
+  .err {
+    color: var(--danger);
+    font-weight: 600;
+  }
+  .small {
+    font-size: var(--t-14);
   }
   .lead {
     margin-top: var(--s-2);
