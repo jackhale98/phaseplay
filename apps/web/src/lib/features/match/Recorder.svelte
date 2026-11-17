@@ -813,7 +813,7 @@
   }
   .board {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: var(--s-2);
     padding: var(--s-3) var(--s-4);
@@ -968,6 +968,7 @@
       position: sticky;
       top: 80px;
       max-height: calc(100dvh - 80px - 88px);
+      overflow-x: hidden;
       overflow-y: auto;
     }
     .act {

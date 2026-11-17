@@ -81,7 +81,7 @@
   }
   @media (min-width: 900px) {
     .rows {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
 </style>

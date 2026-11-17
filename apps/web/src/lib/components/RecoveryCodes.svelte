@@ -50,7 +50,7 @@
   }
   .codes {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--s-2) var(--s-4);
     margin: 0;
     padding: var(--s-4) var(--s-4) var(--s-4) var(--s-8);

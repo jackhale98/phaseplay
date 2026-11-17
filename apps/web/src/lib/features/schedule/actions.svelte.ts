@@ -3,7 +3,9 @@ import {
   uuidv7,
   type EventCreate,
   type EventUpdate,
+  type Recurrence,
   type RecurrenceCreate,
+  type RecurrenceUpdate,
   type TeamEvent,
 } from '@phaseplay/shared';
 import { api, ApiError } from '#lib/api';
@@ -61,6 +63,54 @@ export async function createSeries(input: Omit<RecurrenceCreate, 'id'>): Promise
         : `Couldn't create the series: ${(e as Error).message}`,
     );
     return null;
+  }
+}
+
+/** Load a weekly series (needs a connection). */
+export async function loadSeries(id: string): Promise<Recurrence | null> {
+  try {
+    return (await api<{ recurrence: Recurrence }>(teamPath(`/recurrences/${id}`))).recurrence;
+  } catch (e) {
+    toasts.error(
+      e instanceof ApiError && e.code === 'network'
+        ? "You're offline. Editing a whole series needs a connection."
+        : `Couldn't load the series: ${(e as Error).message}`,
+    );
+    return null;
+  }
+}
+
+/** Change every upcoming session in a series. Returns what changed, or null on failure. */
+export async function updateSeries(
+  id: string,
+  input: RecurrenceUpdate,
+): Promise<{ updated: number; added: number; removed: number } | null> {
+  try {
+    const r = await api<{ updated: number; added: number; removed: number }>(
+      teamPath(`/recurrences/${id}`),
+      { method: 'PUT', body: input },
+    );
+    await app.sync();
+    return r;
+  } catch (e) {
+    toasts.error(
+      e instanceof ApiError && e.code === 'network'
+        ? "You're offline. Editing a whole series needs a connection."
+        : `Couldn't update the series: ${(e as Error).message}`,
+    );
+    return null;
+  }
+}
+
+/** Remove every upcoming session in a series (past ones stay). */
+export async function deleteSeries(id: string): Promise<boolean> {
+  try {
+    await api(teamPath(`/recurrences/${id}`), { method: 'DELETE' });
+    await app.sync();
+    return true;
+  } catch (e) {
+    toasts.error(`Couldn't delete the series: ${(e as Error).message}`);
+    return false;
   }
 }
 

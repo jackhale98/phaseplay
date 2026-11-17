@@ -245,7 +245,7 @@
     right: 0;
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     height: calc(var(--tabbar-h) + var(--safe-b));
     padding-bottom: var(--safe-b);
     background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -484,7 +484,7 @@
   }
   .keys {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: var(--s-3) var(--s-4);
     margin: 0 0 var(--s-4);
   }

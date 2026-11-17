@@ -10,6 +10,7 @@
     RULES,
     eventCategory,
     isGame,
+    isRepeatable,
     typesInCategory,
     addDays,
     weekdayOf,
@@ -18,6 +19,8 @@
     type EventType,
     type EventUpdate,
     type Format,
+    type Recurrence,
+    type RepeatableType,
     type TeamEvent,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
@@ -30,8 +33,16 @@
   import { toasts } from '#lib/stores/toast.svelte';
   import { IconChevronLeft, IconChevronRight } from '#lib/icons';
   import { CATEGORY_ICON, CATEGORY_BLURB, TYPE_ICON } from './category';
-  import { createEvent, createSeries, updateEvent } from './actions.svelte';
   import {
+    createEvent,
+    createSeries,
+    deleteSeries,
+    loadSeries,
+    updateEvent,
+    updateSeries,
+  } from './actions.svelte';
+  import {
+    addMinutes,
     hhmm,
     minutesBetween,
     movedFrom,
@@ -61,6 +72,40 @@
   let settingsTouched = $state(false);
   let markMoved = $state(true);
   let wasOpen = false;
+  /** Editing a session that belongs to a weekly series: change just it, or every upcoming one. */
+  let scope = $state<'one' | 'series'>('one');
+  let series = $state<Recurrence | null>(null);
+  let loadingSeries = $state(false);
+  let confirmDeleteSeries = $state(false);
+  const inSeries = $derived(!!event?.recurrenceId);
+  const seriesMode = $derived(inSeries && scope === 'series' && !!series);
+
+  async function chooseScope(next: 'one' | 'series') {
+    scope = next;
+    if (next !== 'series' || !event?.recurrenceId) return;
+    if (!series) {
+      loadingSeries = true;
+      series = await loadSeries(event.recurrenceId);
+      loadingSeries = false;
+      if (!series) {
+        scope = 'one';
+        return;
+      }
+    }
+    // Show the series' own pattern: its days, times and end date.
+    const r = series.rule;
+    v.weekdays = [...r.weekdays];
+    v.until = r.until;
+    v.start = r.time;
+    v.finish = addMinutes(r.time, r.durationMin);
+    v.meet = r.meetBeforeMin ? addMinutes(r.time, -r.meetBeforeMin) : '';
+    v.title = series.title;
+    v.locationName = series.locationName ?? '';
+    v.locationUrl = series.locationUrl ?? '';
+    v.notes = series.notes ?? '';
+    v.type = series.type;
+    errors = {};
+  }
 
   const DEFAULT_TITLE: Record<EventType, string> = {
     training: 'Practice',
@@ -145,6 +190,9 @@
       busy = false;
       settingsTouched = false;
       markMoved = true;
+      scope = 'one';
+      series = null;
+      confirmDeleteSeries = false;
       if (event) {
         v = fromEvent(event);
         step = 'form';
@@ -188,7 +236,7 @@
 
   function validate(): boolean {
     const e: Record<string, string> = {};
-    if (!v.date) e.date = 'Pick a date';
+    if (!v.date && !seriesMode) e.date = 'Pick a date';
     if (!v.start) e.start = 'Pick a start time';
     if (!game && !v.title.trim() && !DEFAULT_TITLE[v.type]) e.title = 'Give it a name';
     if (v.title.length > 80) e.title = 'At most 80 characters';
@@ -206,11 +254,12 @@
       if (!(v.replacements >= 0 && v.replacements <= r.maxReplacements))
         e.replacements = `0 to ${r.maxReplacements} for ${v.format}`;
     }
-    if (v.repeat && !editing) {
+    if ((v.repeat && !editing) || seriesMode) {
+      const first = seriesMode ? series!.rule.startsOn : v.date;
       if (!v.weekdays.length) e.weekdays = 'Pick at least one day';
-      if (!v.until || v.until < v.date) e.until = 'End date must be after the first session';
-      else if (Date.parse(v.until) - Date.parse(v.date) > 366 * 86400e3)
-        e.until = 'A series can run for up to a year';
+      if (!v.until || v.until < first) e.until = 'End date must be after the first session';
+      else if (Date.parse(v.until) - Date.parse(first) > 366 * 86400e3)
+        e.until = 'A series can run for up to a year from its first session';
       const dur = v.finish ? minutesBetween(v.start, v.finish) : 90;
       if (dur < 15 || dur > 300) e.finish = 'Sessions run 15 minutes to 5 hours';
     }
@@ -258,7 +307,33 @@
         : null,
     };
     try {
-      if (event) {
+      if (event?.recurrenceId && seriesMode && series) {
+        const res = await updateSeries(event.recurrenceId, {
+          type: v.type as RepeatableType,
+          title,
+          locationName: fields.locationName,
+          locationUrl: fields.locationUrl,
+          notes: fields.notes,
+          rule: {
+            weekdays: [...v.weekdays].sort(),
+            time: v.start,
+            durationMin: v.finish ? minutesBetween(v.start, v.finish) : series.rule.durationMin,
+            meetBeforeMin: v.meet ? minutesBetween(v.meet, v.start) : 0,
+            startsOn: series.rule.startsOn,
+            until: v.until,
+          },
+        });
+        if (res) {
+          const bits = [
+            `${res.updated} updated`,
+            res.added ? `${res.added} added` : '',
+            res.removed ? `${res.removed} removed` : '',
+          ].filter(Boolean);
+          toasts.success(`Series saved: ${bits.join(', ')}`);
+          open = false;
+          onsaved?.(res.updated ? event.id : null);
+        }
+      } else if (event) {
         const prevMoved = movedFrom(event.notes);
         if (moved && markMoved) fields.notes = movedNote(event.startsAt, tz, fields.notes);
         else if (prevMoved)
@@ -272,8 +347,9 @@
         toasts.success('Saved');
         open = false;
         onsaved?.(event.id);
-      } else if (v.repeat && v.type === 'training') {
+      } else if (v.repeat && isRepeatable(v.type)) {
         const count = await createSeries({
+          type: v.type,
           title,
           locationName: fields.locationName,
           locationUrl: fields.locationUrl,
@@ -289,7 +365,8 @@
           },
         });
         if (count !== null) {
-          toasts.success(`Added ${count} practice${count === 1 ? '' : 's'}`);
+          const noun = v.type === 'training' ? 'practice' : 'event';
+          toasts.success(`Added ${count} ${noun}${count === 1 ? '' : 's'}`);
           open = false;
           onsaved?.(null);
         }
@@ -317,11 +394,13 @@
 {#snippet formFooter()}
   <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
   <Button variant="primary" type="submit" form="event-form" loading={busy}>
-    {editing
-      ? 'Save changes'
-      : v.repeat && v.type === 'training'
-        ? 'Add series'
-        : 'Add to schedule'}
+    {seriesMode
+      ? 'Save series'
+      : editing
+        ? 'Save changes'
+        : v.repeat && isRepeatable(v.type)
+          ? 'Add series'
+          : 'Add to schedule'}
   </Button>
 {/snippet}
 
@@ -350,6 +429,23 @@
     </ul>
   {:else}
     <form id="event-form" class="stack form" onsubmit={submit} novalidate>
+      {#if inSeries}
+        <div class="scope">
+          <Segmented
+            label="Change"
+            bind:value={() => scope, (x) => void chooseScope(x)}
+            options={[
+              { value: 'one', label: 'This session' },
+              { value: 'series', label: 'All upcoming' },
+            ]}
+          />
+          <p class="subtle" aria-live="polite">
+            {#if loadingSeries}Loading the series…{:else if seriesMode}Changes apply to every
+              upcoming session in this weekly series. Past sessions stay as they were.{:else}Only
+              this date changes; the rest of the series stays the same.{/if}
+          </p>
+        </div>
+      {/if}
       {#if !editing}
         <button type="button" class="change" onclick={() => (step = 'pick')}>
           <IconChevronLeft />{EVENT_CATEGORY_LABELS[cat]} · change
@@ -418,18 +514,20 @@
       {/if}
 
       <div class="grid2">
-        <Field label="Date" error={errors.date}>
-          {#snippet children({ id, describedby })}
-            <input
-              {id}
-              type="date"
-              aria-describedby={describedby}
-              aria-invalid={!!errors.date}
-              bind:value={v.date}
-              required
-            />
-          {/snippet}
-        </Field>
+        {#if !seriesMode}
+          <Field label="Date" error={errors.date}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="date"
+                aria-describedby={describedby}
+                aria-invalid={!!errors.date}
+                bind:value={v.date}
+                required
+              />
+            {/snippet}
+          </Field>
+        {/if}
         <Field label={game ? 'Kickoff' : 'Starts'} error={errors.start} hint={tzName(tz)}>
           {#snippet children({ id, describedby })}
             <input
@@ -466,7 +564,7 @@
         </Field>
       </div>
 
-      {#if moved && event}
+      {#if moved && event && !seriesMode}
         <label class="check">
           <input type="checkbox" bind:checked={markMoved} />
           <span
@@ -475,17 +573,21 @@
         </label>
       {/if}
 
-      {#if v.type === 'training' && !editing}
+      {#if (isRepeatable(v.type) && !editing) || seriesMode}
         <div class="repeat card">
-          <label class="check">
-            <input type="checkbox" bind:checked={v.repeat} />
-            <span
-              ><strong>Repeat every week</strong><br /><small class="muted"
-                >Adds a session on each chosen day until the end date</small
-              ></span
-            >
-          </label>
-          {#if v.repeat}
+          {#if seriesMode}
+            <p class="series-h"><strong>Repeats every week</strong></p>
+          {:else}
+            <label class="check">
+              <input type="checkbox" bind:checked={v.repeat} />
+              <span
+                ><strong>Repeat every week</strong><br /><small class="muted"
+                  >Adds one on each chosen day until the end date</small
+                ></span
+              >
+            </label>
+          {/if}
+          {#if v.repeat || seriesMode}
             <fieldset class="kinds">
               <legend>On</legend>
               <div class="row wrap days">
@@ -497,7 +599,13 @@
               </div>
               {#if errors.weekdays}<p class="err" role="alert">{errors.weekdays}</p>{/if}
             </fieldset>
-            <Field label="Until" error={errors.until}>
+            <Field
+              label="Ends on"
+              error={errors.until}
+              hint={seriesMode
+                ? 'Pick an earlier date to stop the series, or a later one to extend it.'
+                : 'The last week it repeats. You can change it later.'}
+            >
               {#snippet children({ id, describedby })}
                 <input
                   {id}
@@ -505,10 +613,35 @@
                   aria-describedby={describedby}
                   aria-invalid={!!errors.until}
                   bind:value={v.until}
-                  min={v.date}
+                  min={seriesMode ? undefined : v.date}
                 />
               {/snippet}
             </Field>
+            {#if seriesMode}
+              {#if confirmDeleteSeries}
+                <div class="row wrap del" role="group" aria-label="Delete the series">
+                  <span>Remove all {series?.upcoming} upcoming sessions?</span>
+                  <Button size="sm" variant="ghost" onclick={() => (confirmDeleteSeries = false)}
+                    >Keep</Button
+                  >
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onclick={async () => {
+                      if (event?.recurrenceId && (await deleteSeries(event.recurrenceId))) {
+                        toasts.show('Series removed');
+                        open = false;
+                        onsaved?.(null);
+                      }
+                    }}>Remove them</Button
+                  >
+                </div>
+              {:else}
+                <Button size="sm" variant="ghost" onclick={() => (confirmDeleteSeries = true)}
+                  >Delete all upcoming sessions</Button
+                >
+              {/if}
+            {/if}
           {/if}
         </div>
       {/if}
@@ -553,16 +686,18 @@
               : 'Anything the squad should know'}></textarea>
         {/snippet}
       </Field>
-      <Field label="Reply by (optional)" hint="We'll show a deadline on the event · {tzName(tz)}">
-        {#snippet children({ id, describedby })}
-          <input
-            {id}
-            type="datetime-local"
-            aria-describedby={describedby}
-            bind:value={v.deadline}
-          />
-        {/snippet}
-      </Field>
+      {#if !seriesMode}
+        <Field label="Reply by (optional)" hint="We'll show a deadline on the event · {tzName(tz)}">
+          {#snippet children({ id, describedby })}
+            <input
+              {id}
+              type="datetime-local"
+              aria-describedby={describedby}
+              bind:value={v.deadline}
+            />
+          {/snippet}
+        </Field>
+      {/if}
 
       {#if game}
         <details class="settings card" open={editing}>
@@ -734,20 +869,32 @@
     justify-content: space-between;
     gap: var(--s-3);
   }
+  .scope {
+    display: grid;
+    gap: var(--s-2);
+  }
+  .scope p,
+  .series-h {
+    margin: 0;
+  }
+  .del {
+    align-items: center;
+    gap: var(--s-2);
+  }
   .grid2 {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--s-4) var(--s-3);
   }
   .grid3 {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--s-3);
     margin-top: var(--s-3);
   }
   @media (max-width: 420px) {
     .grid3 {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
   .check {

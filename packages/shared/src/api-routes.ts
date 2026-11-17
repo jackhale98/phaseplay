@@ -235,6 +235,18 @@ export const ROUTES = {
     auth: 'team',
     action: 'events.manage',
   },
+  'recurrences.get': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/recurrences/:recurrenceId',
+    auth: 'team',
+    action: 'events.manage',
+  },
+  'recurrences.update': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/recurrences/:recurrenceId',
+    auth: 'team',
+    action: 'events.manage',
+  },
   'recurrences.delete': {
     method: 'DELETE',
     path: '/api/v1/teams/:teamId/recurrences/:recurrenceId',

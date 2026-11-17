@@ -137,6 +137,7 @@
     background: transparent;
   }
   .rows {
+    overflow-x: hidden;
     overflow-y: auto;
     padding: var(--s-2);
   }

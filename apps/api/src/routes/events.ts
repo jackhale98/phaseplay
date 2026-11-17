@@ -1,10 +1,14 @@
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import {
   AttendancePut,
   EventCreate,
   EventUpdate,
   RSVP_NOTE_TTL_MS,
   RecurrenceCreate,
+  RecurrenceUpdate,
+  dateInTz,
+  type Recurrence,
+  type RecurrenceRule,
   RsvpPut,
   SeasonInput,
   can,
@@ -218,6 +222,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
       };
     });
     const template = {
+      type: input.type,
       title: input.title,
       locationName: input.locationName,
       locationUrl: input.locationUrl,
@@ -234,12 +239,13 @@ export function eventRoutes(app: Hono<AppEnv>) {
         .prepare(
           `INSERT INTO events (id, team_id, season_id, type, title, starts_at, meet_at, ends_at, location_name, location_url, notes,
              recurrence_id, version, created_by, updated_at)
-           SELECT j.value->>'id', ?, ?, 'training', ?, j.value->>'starts_at', j.value->>'meet_at', j.value->>'ends_at', ?, ?, ?, ?, 1, ?, ?
+           SELECT j.value->>'id', ?, ?, ?, ?, j.value->>'starts_at', j.value->>'meet_at', j.value->>'ends_at', ?, ?, ?, ?, 1, ?, ?
            FROM json_each(?) j WHERE true ON CONFLICT DO NOTHING`,
         )
         .bind(
           me.teamId,
           input.seasonId ?? null,
+          input.type,
           input.title,
           input.locationName ?? null,
           input.locationUrl ?? null,
@@ -251,6 +257,147 @@ export function eventRoutes(app: Hono<AppEnv>) {
         ),
     ]);
     return c.json({ ok: true, count: rows.length, ids: rows.map((r) => r.id) }, 201);
+  });
+
+  /** Load a live series with its team timezone and upcoming sessions, in one query. */
+  async function loadSeries(c: Context<AppEnv>, at: number) {
+    const row = await c.var.db
+      .prepare(
+        `SELECT r.rule, r.template, t.timezone,
+           (SELECT json_group_array(json_object('id', e.id, 'starts_at', e.starts_at))
+              FROM events e WHERE e.recurrence_id = r.id AND e.team_id = r.team_id
+                AND e.deleted_at IS NULL AND e.starts_at > ?) AS upcoming
+         FROM recurrences r JOIN teams t ON t.id = r.team_id
+         WHERE r.id = ? AND r.team_id = ? AND r.deleted_at IS NULL`,
+      )
+      .bind(at, c.req.param('recurrenceId'), c.var.member.teamId)
+      .first<{ rule: string; template: string; timezone: string; upcoming: string }>();
+    if (!row) throw notFound('Series not found');
+    const template = JSON.parse(row.template) as Partial<Recurrence>;
+    return {
+      tz: row.timezone,
+      rule: JSON.parse(row.rule) as RecurrenceRule,
+      template: { ...template, type: template.type ?? 'training' },
+      upcoming: JSON.parse(row.upcoming) as { id: string; starts_at: number }[],
+    };
+  }
+
+  route(app, 'recurrences.get', async (c) => {
+    const s = await loadSeries(c, now());
+    const recurrence: Recurrence = {
+      id: c.req.param('recurrenceId')!,
+      rule: s.rule,
+      type: s.template.type,
+      title: s.template.title ?? 'Practice',
+      locationName: s.template.locationName ?? null,
+      locationUrl: s.template.locationUrl ?? null,
+      notes: s.template.notes ?? null,
+      upcoming: s.upcoming.length,
+    };
+    return c.json({ recurrence });
+  });
+
+  route(app, 'recurrences.update', async (c) => {
+    const me = c.var.member;
+    const id = c.req.param('recurrenceId')!;
+    const input = await body(c, RecurrenceUpdate);
+    const t = now();
+    const s = await loadSeries(c, t);
+    const rule = input.rule;
+    // Upcoming sessions only: from today (team time) to the new end date, still in the future.
+    const today = dateInTz(t, s.tz);
+    const from = rule.startsOn > today ? rule.startsOn : today;
+    const wanted = new Map<
+      string,
+      { starts_at: number; meet_at: number | null; ends_at: number }
+    >();
+    for (const d of from <= rule.until ? weeklyDates(from, rule.until, rule.weekdays) : []) {
+      const startsAt = zonedToUtc(d, rule.time, s.tz);
+      if (startsAt <= t) continue;
+      wanted.set(d, {
+        starts_at: startsAt,
+        meet_at: rule.meetBeforeMin ? startsAt - rule.meetBeforeMin * 60e3 : null,
+        ends_at: startsAt + rule.durationMin * 60e3,
+      });
+    }
+    if (wanted.size > 160)
+      throw new HttpError(400, 'bad_request', 'That series has too many sessions');
+    // Sessions keep their id (and replies) when their date stays in the series.
+    const changes: Record<string, unknown>[] = [];
+    for (const e of s.upcoming) {
+      const d = dateInTz(e.starts_at, s.tz);
+      const w = wanted.get(d);
+      if (w) {
+        changes.push({ id: e.id, del: 0, ...w });
+        wanted.delete(d);
+      } else changes.push({ id: e.id, del: 1 });
+    }
+    const added = [...wanted.values()].map((w, i) => ({ id: uuidv7(t + i), ...w }));
+    const template = {
+      type: input.type,
+      title: input.title,
+      locationName: input.locationName ?? null,
+      locationUrl: input.locationUrl ?? null,
+      notes: input.notes ?? null,
+    };
+    await c.var.db.batch([
+      c.var.db
+        .prepare('UPDATE recurrences SET rule = ?, template = ? WHERE id = ? AND team_id = ?')
+        .bind(JSON.stringify(rule), JSON.stringify(template), id, me.teamId),
+      c.var.db
+        .prepare(
+          `UPDATE events SET
+             deleted_at = CASE WHEN j.value->>'del' = 1 THEN ?1 ELSE events.deleted_at END,
+             starts_at = coalesce(j.value->>'starts_at', events.starts_at),
+             meet_at = CASE WHEN j.value->>'del' = 1 THEN events.meet_at ELSE j.value->>'meet_at' END,
+             ends_at = coalesce(j.value->>'ends_at', events.ends_at),
+             type = CASE WHEN j.value->>'del' = 1 THEN events.type ELSE ?2 END,
+             title = CASE WHEN j.value->>'del' = 1 THEN events.title ELSE ?3 END,
+             location_name = CASE WHEN j.value->>'del' = 1 THEN events.location_name ELSE ?4 END,
+             location_url = CASE WHEN j.value->>'del' = 1 THEN events.location_url ELSE ?5 END,
+             notes = CASE WHEN j.value->>'del' = 1 THEN events.notes ELSE ?6 END,
+             version = events.version + 1, updated_at = ?1
+           FROM json_each(?7) j
+           WHERE events.id = j.value->>'id' AND events.team_id = ?8 AND events.recurrence_id = ?9`,
+        )
+        .bind(
+          t,
+          input.type,
+          input.title,
+          template.locationName,
+          template.locationUrl,
+          template.notes,
+          JSON.stringify(changes),
+          me.teamId,
+          id,
+        ),
+      c.var.db
+        .prepare(
+          `INSERT INTO events (id, team_id, type, title, starts_at, meet_at, ends_at, location_name, location_url, notes,
+             recurrence_id, version, created_by, updated_at)
+           SELECT j.value->>'id', ?, ?, ?, j.value->>'starts_at', j.value->>'meet_at', j.value->>'ends_at', ?, ?, ?, ?, 1, ?, ?
+           FROM json_each(?) j WHERE true ON CONFLICT DO NOTHING`,
+        )
+        .bind(
+          me.teamId,
+          input.type,
+          input.title,
+          template.locationName,
+          template.locationUrl,
+          template.notes,
+          id,
+          me.userId,
+          t,
+          JSON.stringify(added),
+        ),
+    ]);
+    const kept = changes.filter((x) => !x.del).length;
+    return c.json({
+      ok: true,
+      updated: kept,
+      added: added.length,
+      removed: changes.length - kept,
+    });
   });
 
   route(app, 'recurrences.delete', async (c) => {

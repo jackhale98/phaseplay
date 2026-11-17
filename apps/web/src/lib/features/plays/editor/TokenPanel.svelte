@@ -226,7 +226,7 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: var(--s-2) var(--s-3);
     align-items: center;
   }

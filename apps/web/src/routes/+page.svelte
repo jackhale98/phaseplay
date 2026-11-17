@@ -460,19 +460,19 @@
   }
   @media (min-width: 640px) {
     .features ul {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
   @media (min-width: 960px) {
     .hero {
-      grid-template-columns: 1.05fr 1fr;
+      grid-template-columns: 1.05fr minmax(0, 1fr);
       padding: var(--s-16) 0;
     }
     .features ul {
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .promise {
-      grid-template-columns: 1.2fr 1fr;
+      grid-template-columns: 1.2fr minmax(0, 1fr);
       padding: var(--s-12);
     }
   }

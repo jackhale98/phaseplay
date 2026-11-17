@@ -108,6 +108,13 @@ export function hhmm(ms: number, tz: string): string {
   return `${p.hour}:${p.minute}`;
 }
 
+/** "HH:MM" plus `min` minutes (wraps within the day). */
+export function addMinutes(t: string, min: number): string {
+  const [h, m] = t.split(':').map(Number) as [number, number];
+  const x = (((h * 60 + m + min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+}
+
 export const minutesBetween = (a: string, b: string) => {
   const [ah, am] = a.split(':').map(Number) as [number, number];
   const [bh, bm] = b.split(':').map(Number) as [number, number];

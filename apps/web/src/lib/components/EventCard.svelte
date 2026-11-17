@@ -85,7 +85,7 @@
   .ev {
     position: relative;
     display: grid;
-    grid-template-columns: 76px 1fr auto;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
     align-items: start;
     gap: var(--s-3);
     padding: var(--s-4);
@@ -209,7 +209,7 @@
     color: var(--text-3);
   }
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     padding: var(--s-5);
     background: linear-gradient(160deg, var(--accent-softer), var(--surface) 55%), var(--surface);
   }

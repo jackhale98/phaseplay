@@ -33,4 +33,6 @@ One line per decision: date — decision — why.
 - 2026-11-17 — Removed the TeamSnap CSV import (route, permission `import.run`, page, parsers); pending names are added by hand.
 - 2026-11-17 — US East Coast first: new teams default to America/New_York (US zones listed first); the demo team runs on New York time.
 - 2026-11-17 — "Who's going" is a team setting (`teams.rsvp_visibility`: counts | games | all). Sync filters reply rows for players by it in SQL; changing it bumps every membership so devices full-sync. Notes stay staff-only regardless.
+- 2026-11-17 — Weekly series are editable as a whole ("All upcoming"): times, days, details, type and end date apply to future sessions only; sessions keep their id (and replies) when their date stays, dropped dates are soft-deleted, new ones inserted, in one UPDATE … FROM json_each plus one INSERT. Any non-game event can repeat.
+- 2026-11-17 — No screen pans sideways on phones: html/body `overflow-x: clip`, sheets scroll vertically only, grid tracks are `minmax(0, 1fr)`, iOS date/time inputs use `appearance: none`, and inputs are ≥16px on touch screens (stops iOS focus-zoom). An e2e test checks scroll width on phone layouts.
 

@@ -340,3 +340,74 @@ test("players see who's going only when the team allows it", async ({ page, team
   await expect(pat.page.getByRole('heading', { name: 'Practice', level: 1 })).toBeVisible();
   await expect(pat.page.getByRole('heading', { name: "Who's going" })).toHaveCount(0);
 });
+
+test('edit a whole weekly series from one session, then stop it with an end date', async ({
+  page,
+  team,
+  axe,
+}) => {
+  const ymd = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const start = Date.now() + 2 * DAY;
+  const created = await team.post(`/teams/${team.teamId}/recurrences`, {
+    id: uuid(),
+    title: 'Practice',
+    rule: {
+      weekdays: [0, 1, 2, 3, 4, 5, 6].filter((d) => d === new Date(start).getUTCDay()),
+      time: '19:00',
+      durationMin: 90,
+      startsOn: ymd(start),
+      until: ymd(start + 7 * 7 * DAY),
+    },
+  });
+  expect(created.count).toBe(8);
+
+  await openTeam(page, team.teamId, `/events/${created.ids[0]}`);
+  await page.getByRole('button', { name: 'Edit' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit practice' });
+  await dialog.getByRole('radio', { name: 'All upcoming' }).click();
+  await expect(dialog.getByText('Repeats every week')).toBeVisible();
+  await expect(dialog.getByLabel('Date')).toHaveCount(0);
+  await axe(page);
+  await dialog.getByLabel('Title').fill('Evening practice');
+  await dialog.getByLabel('Starts').fill('18:30');
+  // Stop after the third week.
+  await dialog.getByLabel('Ends on').fill(ymd(start + 2 * 7 * DAY));
+  await dialog.getByRole('button', { name: 'Save series' }).click();
+  await expect(page.getByText(/Series saved: 3 updated, 5 removed/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Evening practice/, level: 1 })).toBeVisible();
+
+  const sync = await team.post(`/teams/${team.teamId}/sync?since=0`, undefined, 'GET');
+  const left = sync.events.filter(
+    (e: { recurrenceId: string | null; deletedAt: number | null }) =>
+      e.recurrenceId && !e.deletedAt,
+  );
+  expect(left).toHaveLength(3);
+  expect(left.every((e: { title: string }) => e.title === 'Evening practice')).toBe(true);
+});
+
+test('phone screens and the new-game form never pan sideways', async ({ page, team, isMobile }) => {
+  test.skip(!isMobile, 'Phone layout');
+  const wide = () =>
+    page.evaluate(() => {
+      const root = document.documentElement;
+      const dlg = document.querySelector<HTMLElement>('dialog[open] .body');
+      return {
+        page: root.scrollWidth - root.clientWidth,
+        sheet: dlg ? dlg.scrollWidth - dlg.clientWidth : 0,
+      };
+    });
+  for (const path of ['/home', '/schedule', '/squad', '/playbook', '/practice', '/more']) {
+    await openTeam(page, team.teamId, path);
+    await expect(page.locator('main h1').first()).toBeVisible();
+    expect(await wide(), path).toEqual({ page: 0, sheet: 0 });
+  }
+  for (const kind of ['Game', 'Practice', 'Event']) {
+    await openTeam(page, team.teamId, '/schedule?new=1');
+    await page
+      .getByRole('dialog', { name: 'Add to schedule' })
+      .getByRole('button', { name: new RegExp(`^${kind}`) })
+      .click();
+    await expect(page.locator('dialog[open] form')).toBeVisible();
+    expect(await wide(), kind).toEqual({ page: 0, sheet: 0 });
+  }
+});

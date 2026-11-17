@@ -10,9 +10,12 @@ html {
   text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   scrollbar-gutter: stable;
+  /* App-like: screens never pan sideways. Wide content scrolls inside its own container. */
+  overflow-x: clip;
 }
 body {
   margin: 0;
+  overflow-x: clip;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -66,6 +69,31 @@ textarea {
   font: inherit;
   color: inherit;
   letter-spacing: inherit;
+}
+input,
+select,
+textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+/* iOS date/time inputs keep a native minimum width and overflow narrow columns. */
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
+::-webkit-date-and-time-value {
+  text-align: left;
+}
+/* iOS zooms the page (and then lets it pan) when a field under 16px gets focus. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
 }
 button {
   cursor: pointer;

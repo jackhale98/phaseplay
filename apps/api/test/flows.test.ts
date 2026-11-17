@@ -900,3 +900,102 @@ describe("who's going setting", () => {
     expect(others(s3)).toEqual([]);
   });
 });
+
+describe('editing a weekly series', () => {
+  const series = (s: Awaited<ReturnType<typeof sync>>, id: string) =>
+    s.body.events
+      .filter((e) => e.recurrenceId === id && !e.deletedAt)
+      .sort((x, y) => x.startsAt - y.startsAt);
+
+  it('changes time, details and days for upcoming sessions, keeping replies', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const s0 = await sync(a.teamId, a.owner.cookie);
+    const before = series(s0, a.recurrenceId);
+    const firstTue = before[0]!;
+    await call('PUT', `${t}/events/${firstTue.id}/rsvps/${a.player.memberId}`, {
+      cookie: a.player.cookie,
+      body: { status: 'yes' },
+    });
+    const got = await call('GET', `${t}/recurrences/${a.recurrenceId}`, {
+      cookie: a.manager.cookie,
+    });
+    expect(got.status).toBe(200);
+    expect(got.body.recurrence.rule.weekdays).toEqual([2, 4]);
+    expect(got.body.recurrence.upcoming).toBe(10);
+    // Players can't.
+    expect(
+      (await call('GET', `${t}/recurrences/${a.recurrenceId}`, { cookie: a.player.cookie })).status,
+    ).toBe(403);
+
+    const res = await call('PUT', `${t}/recurrences/${a.recurrenceId}`, {
+      cookie: a.manager.cookie,
+      body: {
+        type: 'training',
+        title: 'Evening practice',
+        locationName: 'Main pitch',
+        rule: { ...got.body.recurrence.rule, weekdays: [2], time: '18:30', until: '2030-02-12' },
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 5, removed: 5, added: 2 });
+    const s1 = await sync(a.teamId, a.owner.cookie);
+    const after = series(s1, a.recurrenceId);
+    expect(after).toHaveLength(7); // 7 Tuesdays from 1 Jan to 12 Feb 2030
+    expect(
+      after.every((e) => e.title === 'Evening practice' && e.locationName === 'Main pitch'),
+    ).toBe(true);
+    expect(new Date(after[0]!.startsAt).toISOString()).toBe('2030-01-01T18:30:00.000Z');
+    // Same session, same id, reply kept.
+    expect(after[0]!.id).toBe(firstTue.id);
+    const mine = await sync(a.teamId, a.player.cookie);
+    expect(mine.body.rsvps.find((r) => r.eventId === firstTue.id)?.status).toBe('yes');
+  });
+
+  it('an earlier end date stops the series', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const got = await call('GET', `${t}/recurrences/${a.recurrenceId}`, { cookie: a.owner.cookie });
+    const r = got.body.recurrence;
+    const res = await call('PUT', `${t}/recurrences/${a.recurrenceId}`, {
+      cookie: a.owner.cookie,
+      body: { type: r.type, title: r.title, rule: { ...r.rule, until: '2030-01-09' } },
+    });
+    expect(res.body).toMatchObject({ added: 0, removed: 7 });
+    expect(series(await sync(a.teamId, a.player.cookie), a.recurrenceId)).toHaveLength(3);
+    // Another team can't touch it.
+    const b = await fixtureTeam('B');
+    expect(
+      (
+        await call('PUT', `/api/v1/teams/${b.teamId}/recurrences/${a.recurrenceId}`, {
+          cookie: b.owner.cookie,
+          body: { type: r.type, title: 'x', rule: r.rule },
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it('non-practice events can repeat too', async () => {
+    const a = await fixtureTeam();
+    const id = uuidv7();
+    const res = await call('POST', `/api/v1/teams/${a.teamId}/recurrences`, {
+      cookie: a.owner.cookie,
+      body: {
+        id,
+        type: 'meeting',
+        title: 'Committee',
+        rule: {
+          weekdays: [1],
+          time: '20:00',
+          durationMin: 60,
+          startsOn: '2030-03-04',
+          until: '2030-03-25',
+        },
+      },
+    });
+    expect(res.status).toBe(201);
+    const ev = series(await sync(a.teamId, a.owner.cookie), id);
+    expect(ev).toHaveLength(4);
+    expect(ev.every((e) => e.type === 'meeting')).toBe(true);
+  });
+});

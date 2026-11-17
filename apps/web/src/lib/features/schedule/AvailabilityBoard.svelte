@@ -243,7 +243,7 @@
   }
   @media (min-width: 640px) {
     .cols {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
   }
   h3 {
@@ -317,7 +317,7 @@
   }
   .pickst {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--s-2);
     padding-bottom: var(--s-2);
   }

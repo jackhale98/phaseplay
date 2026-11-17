@@ -124,10 +124,18 @@ export const RecurrenceRule = v.object({
 });
 export type RecurrenceRule = v.InferOutput<typeof RecurrenceRule>;
 
+/** Event types that can repeat weekly (games are one-offs). */
+export const REPEATABLE_TYPES = ['training', 'social', 'fundraiser', 'meeting', 'other'] as const;
+export type RepeatableType = (typeof REPEATABLE_TYPES)[number];
+export const isRepeatable = (t: EventType): t is RepeatableType =>
+  (REPEATABLE_TYPES as readonly string[]).includes(t);
+const SERIES_MAX_MS = 366 * 86400e3;
+
 export const RecurrenceCreate = v.pipe(
   v.object({
     id: Id,
     rule: RecurrenceRule,
+    type: v.optional(v.picklist(REPEATABLE_TYPES), 'training'),
     title: text(80, 1),
     locationName: OptionalText(120),
     locationUrl: v.optional(v.nullable(Url), null),
@@ -136,11 +144,46 @@ export const RecurrenceCreate = v.pipe(
   }),
   v.check((r) => r.rule.until >= r.rule.startsOn, 'End date must be after the start date'),
   v.check(
-    (r) => Date.parse(r.rule.until) - Date.parse(r.rule.startsOn) <= 366 * 86400e3,
+    (r) => Date.parse(r.rule.until) - Date.parse(r.rule.startsOn) <= SERIES_MAX_MS,
     'A series can run for up to a year',
   ),
 );
 export type RecurrenceCreate = v.InferOutput<typeof RecurrenceCreate>;
+
+/**
+ * Change a whole series. Applies to its upcoming sessions only (past ones are history): times,
+ * details and type are rewritten, sessions on dropped days or after the new end date are removed,
+ * and new days or a later end date add sessions. Replies stay on sessions that keep their date.
+ */
+export const RecurrenceUpdate = v.pipe(
+  v.object({
+    rule: RecurrenceRule,
+    type: v.picklist(REPEATABLE_TYPES),
+    title: text(80, 1),
+    locationName: OptionalText(120),
+    locationUrl: v.optional(v.nullable(Url), null),
+    notes: OptionalText(2000),
+  }),
+  v.check((r) => r.rule.until >= r.rule.startsOn, 'End date must be after the start date'),
+  v.check(
+    (r) => Date.parse(r.rule.until) - Date.parse(r.rule.startsOn) <= SERIES_MAX_MS,
+    'A series can run for up to a year from its first session',
+  ),
+);
+export type RecurrenceUpdate = v.InferOutput<typeof RecurrenceUpdate>;
+
+/** A weekly series as the API returns it. */
+export type Recurrence = {
+  id: string;
+  rule: RecurrenceRule;
+  type: RepeatableType;
+  title: string;
+  locationName: string | null;
+  locationUrl: string | null;
+  notes: string | null;
+  /** Upcoming sessions still in the series. */
+  upcoming: number;
+};
 
 export const RSVP_STATUSES = ['yes', 'no', 'maybe'] as const;
 export type RsvpStatus = (typeof RSVP_STATUSES)[number];

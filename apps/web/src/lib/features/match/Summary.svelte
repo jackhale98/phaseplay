@@ -528,7 +528,7 @@
   }
   .score {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: var(--s-3);
     margin: var(--s-4) 0;
@@ -589,7 +589,7 @@
   }
   @media (min-width: 900px) {
     .cols {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
     .wide {
       grid-column: 1 / -1;

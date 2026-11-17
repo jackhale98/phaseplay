@@ -134,6 +134,9 @@
   }
   .body {
     padding: var(--s-2) var(--s-5) var(--s-5);
+    min-width: 0;
+    /* Scroll vertically only: a sheet must never pan sideways like a web page. */
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
   }

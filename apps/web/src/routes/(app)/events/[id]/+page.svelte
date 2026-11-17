@@ -502,7 +502,7 @@
   }
   .facts div {
     display: grid;
-    grid-template-columns: 112px 1fr;
+    grid-template-columns: 112px minmax(0, 1fr);
     gap: var(--s-3);
     align-items: baseline;
   }

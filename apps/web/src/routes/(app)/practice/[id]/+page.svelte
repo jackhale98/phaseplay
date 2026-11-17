@@ -995,7 +995,7 @@
   .slot {
     position: relative;
     display: grid;
-    grid-template-columns: 58px 1fr auto;
+    grid-template-columns: 58px minmax(0, 1fr) auto;
     gap: var(--s-2);
     align-items: start;
     transition: transform var(--m-fast) var(--ease);
@@ -1239,7 +1239,7 @@
   }
   @media (max-width: 599px) {
     .lanes {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
   .water-hint {
@@ -1434,7 +1434,7 @@
       padding: var(--s-6) var(--s-8) 0;
     }
     .slot {
-      grid-template-columns: 64px 1fr auto;
+      grid-template-columns: 64px minmax(0, 1fr) auto;
     }
     .drop-above::before,
     .drop-below::after {

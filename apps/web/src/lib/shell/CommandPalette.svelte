@@ -154,7 +154,8 @@
     margin: 0;
     padding: var(--s-2);
     max-height: 50vh;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   button {
     display: flex;
