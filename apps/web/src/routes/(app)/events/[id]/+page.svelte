@@ -36,6 +36,7 @@
   import IconBan from '@lucide/svelte/icons/ban';
   import EventForm from '#lib/features/schedule/EventForm.svelte';
   import AvailabilityBoard from '#lib/features/schedule/AvailabilityBoard.svelte';
+  import KitEventFlag from '#lib/features/kit/KitEventFlag.svelte';
   import { TYPE_ICON } from '#lib/features/schedule/category';
   import { pendingDeletes, setCancelled } from '#lib/features/schedule/actions.svelte';
   import {
@@ -262,6 +263,8 @@
             <p class="notes">{notes}</p>
           </section>
         {/if}
+
+        {#if !e.cancelledAt && !finished}<KitEventFlag event={e} />{/if}
 
         <nav class="links card" aria-label="For this event">
           <ul class="list">
