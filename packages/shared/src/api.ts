@@ -2,7 +2,7 @@
 import type { Role } from './permissions';
 import type { Format } from './rugby';
 import type { TeamColors } from './team';
-import type { EventType, MatchSettings, RsvpStatus } from './events';
+import type { EventType, MatchSettings, RsvpStatus, RsvpVisibility } from './events';
 import type { SheetSlots } from './sheets';
 import type { Play, PlayCategory, Visibility } from './play';
 import type { ContactLevel, DrillCategory, EquipmentList } from './drills';
@@ -25,6 +25,8 @@ export type Team = {
   pendingOwnerAt: number | null;
   /** Set when the team has uploaded an emblem; changes with every upload (cache key). */
   crestVersion: number | null;
+  /** What players see of each other's replies. */
+  rsvpVisibility: RsvpVisibility;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;

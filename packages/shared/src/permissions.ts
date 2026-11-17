@@ -72,8 +72,6 @@ export const PERMISSIONS = {
   'match.record': STAFF,
   /** Read the audit log. */
   'audit.view': COACHES,
-  /** Import a TeamSnap CSV. */
-  'import.run': STAFF,
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Action = keyof typeof PERMISSIONS;
@@ -98,7 +96,6 @@ export const GRANTABLE = [
   'practice.manage',
   'practice.run',
   'match.record',
-  'import.run',
   'audit.view',
 ] as const satisfies readonly Action[];
 export type GrantableAction = (typeof GRANTABLE)[number];
@@ -151,7 +148,6 @@ export const GRANT_INFO: Record<GrantableAction, { group: string; label: string;
     label: 'Record matches',
     hint: 'Clock, scores, cards and subs.',
   },
-  'import.run': { group: 'Admin', label: 'Import from TeamSnap', hint: '' },
   'audit.view': {
     group: 'Admin',
     label: 'See the audit log',

@@ -2,6 +2,7 @@ import * as v from 'valibot';
 import { HexColor, Id, Timezone, text } from './common';
 import { FORMATS } from './rugby';
 import { GRANTABLE, ROLES } from './permissions';
+import { RSVP_VISIBILITY } from './events';
 
 export const TeamColors = v.object({ primary: HexColor, secondary: HexColor });
 export type TeamColors = v.InferOutput<typeof TeamColors>;
@@ -16,7 +17,12 @@ export const TeamCreate = v.object({
 });
 export type TeamCreate = v.InferOutput<typeof TeamCreate>;
 
-export const TeamUpdate = v.partial(v.omit(TeamCreate, ['id']));
+export const TeamUpdate = v.partial(
+  v.object({
+    ...v.omit(TeamCreate, ['id']).entries,
+    rsvpVisibility: v.picklist(RSVP_VISIBILITY),
+  }),
+);
 export type TeamUpdate = v.InferOutput<typeof TeamUpdate>;
 
 export const Positions = v.pipe(

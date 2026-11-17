@@ -9,7 +9,14 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { ROLE_LABELS, liveNominee } from '@phaseplay/shared';
+  import {
+    ROLE_LABELS,
+    RSVP_VISIBILITY,
+    RSVP_VISIBILITY_LABELS,
+    liveNominee,
+    type RsvpVisibility,
+  } from '@phaseplay/shared';
+  import Segmented from '#lib/components/Segmented.svelte';
   import { crestUrl, prepareCrest } from '#lib/crest';
   import { IconBack, IconTrash } from '#lib/icons';
 
@@ -58,6 +65,24 @@
       toasts.show('Back to the initials crest');
     } catch (err) {
       toasts.error(err instanceof ApiError ? err.message : 'Could not remove');
+    } finally {
+      busy = false;
+    }
+  }
+
+  const visOptions = RSVP_VISIBILITY.map((v) => ({
+    value: v,
+    label: RSVP_VISIBILITY_LABELS[v].label,
+  }));
+  async function setVisibility(v: RsvpVisibility) {
+    if (!team || v === (team.rsvpVisibility ?? 'counts')) return;
+    busy = true;
+    try {
+      await api(teamPath(''), { method: 'PATCH', body: { rsvpVisibility: v } });
+      await app.sync();
+      toasts.success('Saved');
+    } catch (err) {
+      toasts.error(err instanceof ApiError ? err.message : 'Could not save');
     } finally {
       busy = false;
     }
@@ -155,6 +180,22 @@
             >
           {/if}
         </div>
+      </section>
+    {/if}
+
+    {#if manage}
+      <section class="card sect" aria-labelledby="vis-h">
+        <h2 class="h" id="vis-h">What players see of replies</h2>
+        <Segmented
+          label="What players see of replies"
+          size="sm"
+          options={visOptions}
+          bind:value={() => team.rsvpVisibility ?? 'counts', (v) => setVisibility(v)}
+        />
+        <p class="muted">
+          {RSVP_VISIBILITY_LABELS[team.rsvpVisibility ?? 'counts'].hint} Staff always see everyone's replies,
+          and only staff see the reasons people add to a reply.
+        </p>
       </section>
     {/if}
 

@@ -39,19 +39,15 @@ async function setup(team: TeamFixture, kind: 'match' | 'tournament' = 'match') 
     jersey: i + 1,
     positions: [i < 15 ? i + 1 : BENCH_POS[i - 15]!],
   }));
-  await team.post(`/teams/${team.teamId}/import`, {
-    events: [
-      {
-        id: eventId,
-        type: kind,
-        title: seven ? 'Summer 7s' : 'League',
-        startsAt: Date.now() - 30 * 60e3,
-        opponent: 'Harlow',
-        format: seven ? '7s' : '15s',
-      },
-    ],
-    members,
+  await team.post(`/teams/${team.teamId}/events`, {
+    id: eventId,
+    type: kind,
+    title: seven ? 'Summer 7s' : 'League',
+    startsAt: Date.now() - 30 * 60e3,
+    opponent: 'Harlow',
+    format: seven ? '7s' : '15s',
   });
+  for (const m of members) await team.post(`/teams/${team.teamId}/members`, m);
   await team.post(
     `/teams/${team.teamId}/sheets/${uuid()}`,
     {

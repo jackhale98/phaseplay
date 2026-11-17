@@ -1,5 +1,11 @@
 import type { Hono } from 'hono';
-import { can, isStaff, type RsvpCounts, type SyncResponse } from '@phaseplay/shared';
+import {
+  can,
+  isStaff,
+  typesInCategory,
+  type RsvpCounts,
+  type SyncResponse,
+} from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { notFound } from '../lib/http';
@@ -43,6 +49,11 @@ const arr = (cols: string, from: string) =>
 
 /** Overlap window so rows committed concurrently with the previous sync are never missed. */
 const OVERLAP_MS = 10_000;
+/** Replies a player may see under the team's "who's going" setting (shared `playersSeeReplies`). */
+const GAME_TYPES = typesInCategory('games')
+  .map((t) => `'${t}'`)
+  .join(', ');
+const PLAYERS_SEE = `(SELECT rsvp_visibility FROM teams WHERE id = ?1) = 'all' OR ((SELECT rsvp_visibility FROM teams WHERE id = ?1) = 'games' AND event_id IN (SELECT id FROM events WHERE team_id = ?1 AND type IN (${GAME_TYPES})))`;
 /** First sync only fetches recent RSVP history to keep payloads small. */
 const FULL_WINDOW_MS = 120 * 86400e3;
 
@@ -51,7 +62,7 @@ const SYNC_SQL = `SELECT
   ${arr(MEMBER_COLS, `memberships WHERE team_id = ?1 AND updated_at > ?2 AND (?3 = 1 OR status != 'pending') AND (?2 > 0 OR status != 'removed')`)} AS members,
   ${arr('id, team_id, name, starts_on, ends_on, updated_at, deleted_at', `seasons WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS seasons,
   ${arr(EVENT_COLS, `events WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS events,
-  ${arr('event_id, member_id, team_id, status, note, attended, updated_at', `rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5) AND (?3 = 1 OR member_id = ?4)`)} AS rsvps,
+  ${arr('event_id, member_id, team_id, status, note, attended, updated_at', `rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5) AND (?3 = 1 OR member_id = ?4 OR ${PLAYERS_SEE})`)} AS rsvps,
   (SELECT json_group_array(json_object('event_id', event_id, 'yes', y, 'no', n, 'maybe', m)) FROM (
      SELECT event_id, sum(status = 'yes') AS y, sum(status = 'no') AS n, sum(status = 'maybe') AS m FROM rsvps
      WHERE team_id = ?1 AND event_id IN (SELECT event_id FROM rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5))

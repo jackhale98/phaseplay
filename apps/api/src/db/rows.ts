@@ -24,7 +24,7 @@ const ns = (x: unknown) => (x ?? null) as string | null;
 const nn = (x: unknown) => (x ?? null) as number | null;
 
 export const TEAM_COLS =
-  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at';
+  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility';
 export const teamFromRow = (r: Row): Team => ({
   id: s(r.id),
   name: s(r.name),
@@ -39,6 +39,7 @@ export const teamFromRow = (r: Row): Team => ({
   pendingOwnerMemberId: ns(r.pending_owner_member_id),
   crestVersion: nn(r.crest_version),
   pendingOwnerAt: nn(r.pending_owner_at),
+  rsvpVisibility: ((r.rsvp_visibility as string) ?? 'counts') as Team['rsvpVisibility'],
 });
 
 export const MEMBER_COLS =

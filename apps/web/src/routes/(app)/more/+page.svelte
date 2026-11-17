@@ -10,7 +10,6 @@
     IconClipboard,
     IconCalendar,
     IconChevronRight,
-    IconUpload,
     IconInfo,
   } from '#lib/icons';
 
@@ -19,12 +18,6 @@
   const links = $derived([
     { href: '/practice', label: 'Practice plans', icon: IconTimer, show: true },
     { href: '/settings/calendar', label: 'Calendar feed', icon: IconCalendar, show: true },
-    {
-      href: '/settings/import',
-      label: 'Import from TeamSnap',
-      icon: IconUpload,
-      show: app.can('import.run'),
-    },
     { href: '/settings/account', label: 'Account and passkeys', icon: IconKey, show: true },
     { href: '/settings/team', label: 'Team settings', icon: IconSettings, show: true },
     { href: '/settings/roles', label: 'Roles and permissions', icon: IconShield, show: true },

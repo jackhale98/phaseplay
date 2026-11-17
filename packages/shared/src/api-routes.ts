@@ -157,12 +157,6 @@ export const ROUTES = {
     auth: 'team',
     action: 'audit.view',
   },
-  'teams.import': {
-    method: 'POST',
-    path: '/api/v1/teams/:teamId/import',
-    auth: 'team',
-    action: 'import.run',
-  },
 
   // Members & invites
   'members.update': {

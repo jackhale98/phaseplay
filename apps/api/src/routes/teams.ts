@@ -1,8 +1,6 @@
 import type { Hono } from 'hono';
 import * as v from 'valibot';
 import {
-  IMPORT_CHUNK,
-  ImportInput,
   TeamCreate,
   TeamUpdate,
   TransferOwnership,
@@ -44,7 +42,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)`,
+          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts')`,
         )
         .bind(
           input.id,
@@ -93,6 +91,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
       shortName: 'short_name',
       defaultFormat: 'default_format',
       timezone: 'timezone',
+      rsvpVisibility: 'rsvp_visibility',
     };
     for (const [k, col] of Object.entries(map)) {
       const val = (input as Record<string, unknown>)[k];
@@ -106,10 +105,22 @@ export function teamRoutes(app: Hono<AppEnv>) {
       vals.push(JSON.stringify(input.colors));
     }
     if (!sets.length) return c.json({ ok: true });
-    await c.var.db
-      .prepare(`UPDATE teams SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`)
-      .bind(...vals, now(), c.var.member.teamId)
-      .run();
+    const t = now();
+    const teamId = c.var.member.teamId;
+    const stmts = [
+      c.var.db
+        .prepare(`UPDATE teams SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`)
+        .bind(...vals, t, teamId),
+    ];
+    // Who can see whose replies changed: bump memberships so every device does a full sync
+    // (newly visible replies arrive; hidden ones are dropped).
+    if (input.rsvpVisibility)
+      stmts.push(
+        c.var.db
+          .prepare(`UPDATE memberships SET updated_at = ? WHERE team_id = ? AND status = 'active'`)
+          .bind(t, teamId),
+      );
+    await c.var.db.batch(stmts);
     return c.json({ ok: true });
   });
 
@@ -400,58 +411,5 @@ export function teamRoutes(app: Hono<AppEnv>) {
       at: r.at as number,
     }));
     return c.json({ entries });
-  });
-
-  route(app, 'teams.import', async (c) => {
-    const input = await body(c, ImportInput);
-    if (input.events.length + input.members.length > IMPORT_CHUNK)
-      throw new HttpError(400, 'bad_request', `Send at most ${IMPORT_CHUNK} rows per request`);
-    const me = c.var.member;
-    const t = now();
-    const eventRows = input.events.map((e) => ({
-      id: e.id,
-      team_id: me.teamId,
-      season_id: e.seasonId ?? null,
-      type: e.type,
-      format: e.format ?? null,
-      title: e.title,
-      starts_at: e.startsAt,
-      meet_at: e.meetAt ?? null,
-      ends_at: e.endsAt ?? null,
-      location_name: e.locationName ?? null,
-      location_url: e.locationUrl ?? null,
-      opponent: e.opponent ?? null,
-      notes: e.notes ?? null,
-      rsvp_deadline: e.rsvpDeadline ?? null,
-      settings: e.settings ? JSON.stringify(e.settings) : null,
-      version: 1,
-      created_by: me.userId,
-      updated_at: t,
-    }));
-    const memberRows = input.members.map((m) => ({
-      id: m.id,
-      team_id: me.teamId,
-      user_id: null,
-      display_name: m.displayName,
-      role: 'player',
-      jersey: m.jersey ?? null,
-      positions: JSON.stringify(m.positions ?? []),
-      status: 'pending',
-      updated_at: t,
-    }));
-    const stmts = [
-      bulkInsert(c.var.db, 'events', eventRows, { ignoreConflicts: true }),
-      bulkInsert(c.var.db, 'memberships', memberRows, { ignoreConflicts: true }),
-      auditStmt(c.var.db, {
-        teamId: me.teamId,
-        actorId: me.userId,
-        action: 'team.imported',
-        targetType: 'team',
-        targetId: me.teamId,
-        meta: { events: input.events.length, members: input.members.length },
-      }),
-    ].filter((x): x is D1PreparedStatement => x !== null);
-    await c.var.db.batch(stmts);
-    return c.json({ ok: true, events: input.events.length, members: input.members.length });
   });
 }

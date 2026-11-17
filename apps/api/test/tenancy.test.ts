@@ -99,9 +99,7 @@ describe('tenancy matrix', () => {
               res.status,
             );
         } else expect(res.status, `${role} denied`).toBe(403);
-        expect(res.queries, `${role} query budget`).toBeLessThanOrEqual(
-          id === 'teams.import' ? 45 : 6,
-        );
+        expect(res.queries, `${role} query budget`).toBeLessThanOrEqual(6);
       }
     });
   }

@@ -1,8 +1,5 @@
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test, expect, openTeam, uuid, type TeamFixture } from '../fixtures';
 
-const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures');
 const DAY = 86400e3;
 
 // The shell reloads the page when a service worker first takes control (controllerchange), which
@@ -262,33 +259,6 @@ test('attendance is pre-filled from replies and saves', async ({ page, team, axe
   await expect(row('Cal Carter')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('imports a TeamSnap schedule and roster CSV', async ({ page, team }) => {
-  await openTeam(page, team.teamId, '/settings/import');
-  await page
-    .getByLabel(/Choose a CSV file/)
-    .setInputFiles(path.join(FIXTURES, 'teamsnap-schedule.csv'));
-  await expect(page.getByText('3 of 4 will be added')).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'v Old Albanians' })).toBeVisible();
-  await expect(page.getByText(/No date we can read/)).toBeVisible();
-  await page.getByRole('button', { name: 'Import 3 events' }).click();
-  await expect(page.getByText('Added 3 events to the schedule.')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Import another file' }).click();
-  await page
-    .getByLabel(/Choose a CSV file/)
-    .setInputFiles(path.join(FIXTURES, 'teamsnap-roster.csv'));
-  await expect(page.getByRole('radio', { name: 'Roster' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('cell', { name: 'Mo Newbie' })).toBeVisible();
-  await page.getByRole('button', { name: 'Import 2 names' }).click();
-  await expect(page.getByText('Added 2 names to the squad.')).toBeVisible();
-
-  await page.goto('/schedule?show=games');
-  await page.getByRole('searchbox', { name: 'Search the schedule' }).fill('albanians');
-  await expect(page.getByRole('link', { name: /Game: v Old Albanians/ })).toBeVisible();
-  await page.goto('/squad');
-  await expect(page.getByText('Jess Imported')).toBeVisible();
-});
-
 test('calendar feed: create, add links, revoke', async ({ page, team }) => {
   await openTeam(page, team.teamId, '/settings/calendar');
   await page.getByRole('button', { name: 'Create my feed' }).click();
@@ -311,4 +281,62 @@ test('calendar feed: create, add links, revoke', async ({ page, team }) => {
     .click();
   await expect(page.getByRole('button', { name: /^Turn off/ })).toHaveCount(1);
   expect((await page.request.get(url)).status()).toBe(404);
+});
+
+test("players see who's going only when the team allows it", async ({ page, team, axe }) => {
+  const pat = await team.join('player', 'Pat Prop');
+  const cara = await team.join('player', 'Cara Centre');
+  const game = uuid();
+  const practice = uuid();
+  const at = Date.now() + 3 * DAY;
+  await team.post(`/teams/${team.teamId}/events`, {
+    id: game,
+    type: 'match',
+    title: 'League',
+    opponent: 'Rivals',
+    startsAt: at,
+  });
+  await team.post(`/teams/${team.teamId}/events`, {
+    id: practice,
+    type: 'training',
+    title: 'Practice',
+    startsAt: at + DAY,
+  });
+  for (const ev of [game, practice])
+    await cara.api.put(
+      `http://localhost:${process.env.E2E_PORT ?? 8787}/api/v1/teams/${team.teamId}/events/${ev}/rsvps/${cara.memberId}`,
+      {
+        data: { status: 'yes', note: 'Lift from Sam' },
+        headers: { origin: `http://localhost:${process.env.E2E_PORT ?? 8787}` },
+      },
+    );
+
+  // Default: numbers only.
+  await openTeam(pat.page, team.teamId, `/events/${game}`);
+  await expect(pat.page.getByText(/1\s*in/)).toBeVisible();
+  await expect(pat.page.getByRole('heading', { name: "Who's going" })).toHaveCount(0);
+
+  // The owner turns on names for games.
+  await openTeam(page, team.teamId, '/settings/team');
+  await page
+    .getByRole('radiogroup', { name: 'What players see of replies' })
+    .getByRole('radio', { name: 'Names for games' })
+    .click();
+  await expect(page.getByText("Players see who's going to games")).toBeVisible();
+
+  await expect(async () => {
+    await pat.page.reload();
+    await expect(pat.page.getByRole('heading', { name: "Who's going" })).toBeVisible({
+      timeout: 5_000,
+    });
+  }).toPass({ timeout: 30_000 });
+  const who = pat.page.getByRole('region', { name: "Who's going" });
+  await expect(who).toContainText('Cara Centre');
+  await expect(pat.page.getByText('Lift from Sam')).toHaveCount(0);
+  await axe(pat.page);
+
+  // Not for practices.
+  await openTeam(pat.page, team.teamId, `/events/${practice}`);
+  await expect(pat.page.getByRole('heading', { name: 'Practice', level: 1 })).toBeVisible();
+  await expect(pat.page.getByRole('heading', { name: "Who's going" })).toHaveCount(0);
 });

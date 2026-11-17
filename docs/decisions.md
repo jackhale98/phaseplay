@@ -30,4 +30,7 @@ One line per decision: date — decision — why.
 - 2026-11-17 — Team emblems live in D1, not R2 (no new service to enable): the browser fits uploads into 256 px and encodes WebP/PNG (SVG is rasterised, never stored); the API checks magic bytes, caps 200 KB, and serves them `immutable` behind `?v=crestVersion` with `nosniff` and a sandbox CSP.
 - 2026-11-17 — RSVP notes follow the main role (staff), not team-role grants: `availability.view` from a team role shows replies only.
 - 2026-11-17 — Workers Builds deploy command is `pnpm cf:deploy`; `pnpm deploy` is a pnpm built-in and never runs the package script.
+- 2026-11-17 — Removed the TeamSnap CSV import (route, permission `import.run`, page, parsers); pending names are added by hand.
+- 2026-11-17 — US East Coast first: new teams default to America/New_York (US zones listed first); the demo team runs on New York time.
+- 2026-11-17 — "Who's going" is a team setting (`teams.rsvp_visibility`: counts | games | all). Sync filters reply rows for players by it in SQL; changing it bumps every membership so devices full-sync. Notes stay staff-only regardless.
 

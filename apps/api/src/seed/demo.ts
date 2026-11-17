@@ -37,7 +37,7 @@ export const DEMO_TABLE_ORDER = [
 export type DemoTables = Record<(typeof DEMO_TABLE_ORDER)[number], Record<string, unknown>[]>;
 
 export function buildDemo(now: number = Date.now()): DemoTables {
-  const TZ = 'Europe/London';
+  const TZ = 'America/New_York';
   let n = 0;
   const id = (prefix: string) => {
     n++;

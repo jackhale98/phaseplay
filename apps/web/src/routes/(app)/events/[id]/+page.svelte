@@ -1,11 +1,18 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { EVENT_TYPE_LABELS, RSVP_NOTE_TTL_MS, eventCategory, isGame } from '@phaseplay/shared';
+  import {
+    EVENT_TYPE_LABELS,
+    RSVP_NOTE_TTL_MS,
+    eventCategory,
+    isGame,
+    playersSeeReplies,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { rsvpOf, sheetFor, planFor } from '#lib/data/selectors';
   import { setRsvp } from '#lib/data/actions';
   import RsvpButtons from '#lib/components/RsvpButtons.svelte';
+  import WhoIsGoing from '#lib/features/schedule/WhoIsGoing.svelte';
   import Button from '#lib/components/Button.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { relDay, longDay, time, tzName, dateTime, plural } from '#lib/format';
@@ -242,6 +249,9 @@
                 <span class="c m"></span>{counts.maybe} maybe
                 <span class="c n"></span>{counts.no} out
               </p>
+            {/if}
+            {#if !seeAvail && playersSeeReplies(app.team?.rsvpVisibility, e.type)}
+              <WhoIsGoing event={e} />
             {/if}
           </section>
         {/if}

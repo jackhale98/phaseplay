@@ -153,15 +153,12 @@ describe('invites and membership', () => {
     expect(audit.body.entries.map((e: { action: string }) => e.action)).toContain('member.removed');
   });
 
-  it('imported pending names are claimed on join', async () => {
+  it('pending names added by a coach are claimed on join', async () => {
     const a = await fixtureTeam();
     const pid = uuidv7();
-    await call('POST', `/api/v1/teams/${a.teamId}/import`, {
-      cookie: a.manager.cookie,
-      body: {
-        events: [],
-        members: [{ id: pid, displayName: 'Jess Taylor', jersey: 9, positions: [9] }],
-      },
+    await call('POST', `/api/v1/teams/${a.teamId}/members`, {
+      cookie: a.coach.cookie,
+      body: { id: pid, displayName: 'Jess Taylor', jersey: 9, positions: [9] },
     });
     const inv = await call('POST', `/api/v1/teams/${a.teamId}/invites`, {
       cookie: a.owner.cookie,
@@ -858,5 +855,48 @@ describe('team emblem', () => {
 
     expect((await call('DELETE', t, { cookie: a.admin.cookie })).status).toBe(200);
     expect((await sync(a.teamId, a.player.cookie)).body.team.crestVersion).toBeNull();
+  });
+});
+
+describe("who's going setting", () => {
+  it('players see names only as the team allows, and never notes', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    const practice = uuidv7();
+    await call('POST', `${t}/events`, {
+      cookie: a.owner.cookie,
+      body: { id: practice, type: 'training', title: 'Practice', startsAt: Date.now() + 86400e3 },
+    });
+    for (const ev of [a.eventId, practice])
+      await call('PUT', `${t}/events/${ev}/rsvps/${a.coach.memberId}`, {
+        cookie: a.coach.cookie,
+        body: { status: 'yes', note: 'Secret note' },
+      });
+    const others = (s: Awaited<ReturnType<typeof sync>>) =>
+      s.body.rsvps.filter((r) => r.memberId === a.coach.memberId).map((r) => r.eventId);
+
+    const s0 = await sync(a.teamId, a.player.cookie);
+    expect(others(s0)).toEqual([]);
+    expect(s0.body.team.rsvpVisibility).toBe('counts');
+
+    // Only admins/owners change it.
+    expect(
+      (await call('PATCH', t, { cookie: a.coach.cookie, body: { rsvpVisibility: 'all' } })).status,
+    ).toBe(403);
+    await call('PATCH', t, { cookie: a.owner.cookie, body: { rsvpVisibility: 'games' } });
+    const s1 = await sync(a.teamId, a.player.cookie, s0.body.cursor);
+    expect(s1.body.full).toBe(true);
+    expect(others(s1)).toEqual([a.eventId]);
+    expect(JSON.stringify(s1.body)).not.toContain('Secret note');
+
+    await call('PATCH', t, { cookie: a.owner.cookie, body: { rsvpVisibility: 'all' } });
+    const s2 = await sync(a.teamId, a.player.cookie, s1.body.cursor);
+    expect(others(s2).sort()).toEqual([a.eventId, practice].sort());
+    expect(JSON.stringify(s2.body)).not.toContain('Secret note');
+
+    await call('PATCH', t, { cookie: a.owner.cookie, body: { rsvpVisibility: 'counts' } });
+    const s3 = await sync(a.teamId, a.player.cookie, s2.body.cursor);
+    expect(s3.body.full).toBe(true);
+    expect(others(s3)).toEqual([]);
   });
 });

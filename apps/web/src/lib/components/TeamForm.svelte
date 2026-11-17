@@ -1,5 +1,6 @@
 <!-- Create/edit team details with a live crest preview. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { initials, type Format, type TeamColors } from '@phaseplay/shared';
   import Field from './Field.svelte';
   import Segmented from './Segmented.svelte';
@@ -33,19 +34,31 @@
   ];
 
   // Initial values only: the parent re-keys this form when the team changes.
-  // svelte-ignore state_referenced_locally
-  let name = $state(value.name ?? '');
-  let short = $state(value.shortName ?? '');
-  let shortTouched = $state(!!value.shortName);
-  let colors = $state<TeamColors>(value.colors ?? PRESETS[0]!);
-  let format = $state<Format>(value.defaultFormat ?? '15s');
-  const localTz =
-    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
-  let timezone = $state(value.timezone ?? localTz);
-  const zones =
-    typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
-      ? Intl.supportedValuesOf('timeZone')
-      : [localTz];
+  // The form edits a copy of `value` taken when it opens (the parent re-keys it per team).
+  const init = untrack(() => value);
+  let name = $state(init.name ?? '');
+  let short = $state(init.shortName ?? '');
+  let shortTouched = $state(!!init.shortName);
+  let colors = $state<TeamColors>(init.colors ?? PRESETS[0]!);
+  let format = $state<Format>(init.defaultFormat ?? '15s');
+  // Phaseplay is for US (mostly East Coast) clubs: default to New York time.
+  const DEFAULT_TZ = 'America/New_York';
+  let timezone = $state(init.timezone ?? DEFAULT_TZ);
+  const US_ZONES = [
+    'America/New_York',
+    'America/Chicago',
+    'America/Denver',
+    'America/Phoenix',
+    'America/Los_Angeles',
+    'America/Anchorage',
+    'Pacific/Honolulu',
+  ];
+  const zones = [
+    ...US_ZONES,
+    ...(typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
+      ? Intl.supportedValuesOf('timeZone').filter((z) => !US_ZONES.includes(z))
+      : []),
+  ];
   let error = $state<string | null>(null);
 
   const autoShort = $derived(initials(name || 'Team', 4).slice(0, 4));

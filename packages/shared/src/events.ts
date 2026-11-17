@@ -48,6 +48,21 @@ export const typesInCategory = (c: EventCategory): EventType[] =>
 /** Games get opponents, formats, team sheets and match mode. */
 export const isGame = (type: EventType) => CATEGORY_OF[type] === 'games';
 
+/**
+ * What players see of each other's replies (a team setting). Staff and "See who's in" role holders
+ * always see everything; RSVP notes are never shown to players either way.
+ */
+export const RSVP_VISIBILITY = ['counts', 'games', 'all'] as const;
+export type RsvpVisibility = (typeof RSVP_VISIBILITY)[number];
+export const RSVP_VISIBILITY_LABELS: Record<RsvpVisibility, { label: string; hint: string }> = {
+  counts: { label: 'Just the numbers', hint: 'Players see how many are in, maybe and out.' },
+  games: { label: 'Names for games', hint: "Players see who's going to games and tournaments." },
+  all: { label: 'Names for everything', hint: "Players see who's going to every event." },
+};
+/** Can players see who replied what for this event? */
+export const playersSeeReplies = (vis: RsvpVisibility | null | undefined, type: EventType) =>
+  vis === 'all' || (vis === 'games' && isGame(type));
+
 export const MatchSettings = v.object({
   halfMinutes: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(60))),
   sinBinMinutes: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(20))),
@@ -142,23 +157,5 @@ export const AttendancePut = v.object({
     v.maxLength(200),
   ),
 });
-
-/** D1 allows 50 queries per invocation (free plan); clients send imports in chunks. */
-export const IMPORT_CHUNK = 40;
-export const ImportInput = v.object({
-  events: v.pipe(v.array(v.object({ id: Id, ...eventFields })), v.maxLength(IMPORT_CHUNK)),
-  members: v.pipe(
-    v.array(
-      v.object({
-        id: Id,
-        displayName: text(40, 1),
-        jersey: v.optional(v.nullable(v.number())),
-        positions: v.optional(v.array(v.number()), []),
-      }),
-    ),
-    v.maxLength(IMPORT_CHUNK),
-  ),
-});
-export type ImportInput = v.InferOutput<typeof ImportInput>;
 
 export const RSVP_NOTE_TTL_MS = 30 * 86400e3;

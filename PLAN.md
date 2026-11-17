@@ -31,7 +31,7 @@ The canonical matrix lives in `packages/shared/permissions.ts`. Everyone has one
 | Invite people (only to roles they could hand out) | ✓ | ✓ | ✓ | managers, players | |
 | Create and edit events, mark attendance | ✓ | ✓ | ✓ | ✓ | |
 | RSVP for themselves | ✓ | ✓ | ✓ | ✓ | ✓ |
-| See RSVP notes, availability board, non-responders | ✓ | ✓ | ✓ | ✓ | counts only |
+| See RSVP notes, availability board, non-responders | ✓ | ✓ | ✓ | ✓ | counts, or names if the team allows (never notes) |
 | Build and publish team sheets | ✓ | ✓ | ✓ | | view published |
 | Create and edit plays, see "seen by" | ✓ | ✓ | ✓ | | view shared plays |
 | Create and edit drills and practice plans | ✓ | ✓ | ✓ | | view shared |
@@ -103,7 +103,8 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
   - non-responders, with "copy a nudge" for the group chat
 - **Attendance:** a fast checklist after training, pre-filled from RSVPs.
 - **Calendar feeds:** a revocable ICS subscription feed per user, plus a team feed for coaches.
-- **CSV import** of schedule and roster names from a TeamSnap export. Imported players become pending names that are claimed when they join.
+- ~~CSV import from TeamSnap~~ Removed (product call). Coaches add names by hand ("Add name"); pending names are claimed when players join.
+- **Who's going** (team setting, owner/admin): players see just the numbers (default), names for games, or names for every event. Never RSVP notes.
 
 **Accepted when:** RSVP is ≤ 2 taps from Home and queues offline; the ICS feed subscribes cleanly in Apple and Google Calendar; the availability board loads in < 100 ms from cache.
 
@@ -307,4 +308,3 @@ See `docs/runbook.md` §First deploy for the exact steps.
 
 - The coach's team name and colours, for the seed data and the landing page.
 - Whether there's an assistant coach or manager to invite at launch.
-- Whether a TeamSnap export is available for M2 import testing.
