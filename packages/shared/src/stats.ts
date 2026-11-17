@@ -153,17 +153,19 @@ export function attendanceStats(input: {
   );
   const taken = (id: string) => turnout.get(id)?.taken ?? takenFromMarks.has(id);
   const team = { practices: blankTeam(), games: blankTeam() };
-  const sums = { practices: 0, games: 0 };
+  // Averages cover events with any replies or a register; one nobody answered tells us nothing.
+  const sums = { practices: { n: 0, events: 0 }, games: { n: 0, events: 0 } };
   for (const e of input.events) {
     const k = kindOf(e.type);
     team[k].held += 1;
     if (taken(e.id)) team[k].taken += 1;
     const t = turnout.get(e.id);
-    sums[k] += t ? (t.taken ? t.present : t.yes) : 0;
+    if (!t) continue;
+    sums[k].n += t.taken ? t.present : t.yes;
+    sums[k].events += 1;
   }
   for (const k of ['practices', 'games'] as const)
-    team[k].avgPresent =
-      input.turnout && team[k].held ? Math.round((sums[k] / team[k].held) * 10) / 10 : null;
+    team[k].avgPresent = sums[k].events ? Math.round((sums[k].n / sums[k].events) * 10) / 10 : null;
 
   const lines = input.members.map((m) => {
     const line: AttendanceLine = {
@@ -547,6 +549,26 @@ export function trainingLoad(input: {
   const keys = [...weeks.keys()].sort();
   const out: LoadWeek[] = [];
   for (let k = keys[0]!; k <= keys.at(-1)!; k = addDays(k, 7)) out.push(weeks.get(k) ?? blank(k));
+  return out;
+}
+
+/**
+ * Load per group over a run of weeks. Once any session was split, a whole-squad session counts
+ * for every group (everyone did it); with no split sessions there is one group, `all`.
+ */
+export function loadByGroup(weeks: Pick<LoadWeek, 'groups'>[]): Record<string, GroupLoad> {
+  const sum: Record<string, GroupLoad> = {};
+  for (const w of weeks)
+    for (const [lane, g] of Object.entries(w.groups))
+      add((sum[lane] ??= { totalMin: 0, contactMin: 0, highIntensityMin: 0 }), g);
+  const split = Object.keys(sum).filter((l) => l !== ALL_LANE);
+  const whole = sum[ALL_LANE];
+  if (!split.length || !whole) return sum;
+  const out: Record<string, GroupLoad> = {};
+  for (const lane of split) {
+    out[lane] = { ...sum[lane]! };
+    add(out[lane], whole);
+  }
   return out;
 }
 

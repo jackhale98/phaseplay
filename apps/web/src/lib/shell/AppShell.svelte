@@ -42,7 +42,7 @@
       !e.ctrlKey &&
       !e.altKey &&
       !immersive &&
-      /^[1-6]$/.test(e.key) &&
+      /^[1-7]$/.test(e.key) &&
       !e.shiftKey
     ) {
       const n = NAV[Number(e.key) - 1];
@@ -169,8 +169,8 @@
   <dl class="keys">
     <dt><kbd>⌘</kbd> <kbd>K</kbd></dt>
     <dd>Search and jump anywhere</dd>
-    <dt><kbd>1</kbd>–<kbd>6</kbd></dt>
-    <dd>Home, Schedule, Squad, Playbook, Practice, Kit</dd>
+    <dt><kbd>1</kbd>–<kbd>7</kbd></dt>
+    <dd>Home, Schedule, Squad, Playbook, Practice, Kit, Stats</dd>
     <dt><kbd>?</kbd></dt>
     <dd>This list</dd>
     <dt><kbd>Esc</kbd></dt>

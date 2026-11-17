@@ -73,3 +73,4 @@ export { default as IconClipboard } from '@lucide/svelte/icons/clipboard-list';
 export { default as IconZap } from '@lucide/svelte/icons/zap';
 export { default as IconLock } from '@lucide/svelte/icons/lock';
 export { default as IconArchive } from '@lucide/svelte/icons/archive';
+export { default as IconChart } from '@lucide/svelte/icons/chart-column';

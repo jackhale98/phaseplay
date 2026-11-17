@@ -7,6 +7,7 @@ import {
   pct,
   penaltyTrend,
   planLoad,
+  loadByGroup,
   seasonTallies,
   seasonWindow,
   trainingLoad,
@@ -458,5 +459,15 @@ describe('training load', () => {
       all: { totalMin: 20, contactMin: 20, highIntensityMin: 20 },
     });
     expect(trainingLoad({ events: [], plans, drills, tz: TZ })).toEqual([]);
+    // Over the window, the whole-squad session counts for forwards and backs alike.
+    expect(loadByGroup(weeks)).toEqual({
+      forwards: { totalMin: 58, contactMin: 45, highIntensityMin: 35 },
+      backs: { totalMin: 58, contactMin: 30, highIntensityMin: 32 },
+    });
+    expect(
+      loadByGroup([{ groups: { all: { totalMin: 5, contactMin: 1, highIntensityMin: 2 } } }]),
+    ).toEqual({
+      all: { totalMin: 5, contactMin: 1, highIntensityMin: 2 },
+    });
   });
 });
