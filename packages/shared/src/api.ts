@@ -19,6 +19,8 @@ export type Team = {
   defaultFormat: Format;
   timezone: string;
   ownerId: string;
+  /** Ownership handover in progress: the nominated member, until they accept or decline. */
+  pendingOwnerMemberId: string | null;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
@@ -34,8 +36,21 @@ export type Member = {
   jersey: number | null;
   positions: number[];
   status: MemberStatus;
+  /** Team roles (Captain, Treasurer…) assigned to this member. */
+  roleIds: string[];
   joinedAt: number | null;
   updatedAt: number;
+};
+
+/** A team-defined role: a named bundle of extra permissions (see permissions.ts). */
+export type TeamRole = {
+  id: string;
+  teamId: string;
+  name: string;
+  color: string;
+  permissions: string[];
+  updatedAt: number;
+  deletedAt: number | null;
 };
 
 export type MeResponse = {
@@ -172,6 +187,7 @@ export type SyncResponse = {
   team: Team;
   me: Member;
   members: Member[];
+  roles: TeamRole[];
   seasons: Season[];
   events: TeamEvent[];
   rsvps: Rsvp[];

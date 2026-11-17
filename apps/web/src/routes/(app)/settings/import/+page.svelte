@@ -1,12 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity';
-  import {
-    EVENT_TYPE_LABELS,
-    IMPORT_CHUNK,
-    isStaff,
-    positionsFor,
-    uuidv7,
-  } from '@phaseplay/shared';
+  import { EVENT_TYPE_LABELS, IMPORT_CHUNK, positionsFor, uuidv7 } from '@phaseplay/shared';
   import { api, ApiError } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
   import { teamPath } from '#lib/data/actions';
@@ -37,7 +31,7 @@
   const MAX_ROWS = 1000;
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
-  const staff = $derived(isStaff(app.role));
+  const staff = $derived(app.can('import.run'));
 
   let fileName = $state('');
   let table = $state.raw<CsvTable | null>(null);

@@ -276,7 +276,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
   route(app, 'rsvps.put', async (c) => {
     const me = c.var.member;
     const memberId = c.req.param('memberId')!;
-    if (memberId !== me.id && !can(me.role, 'events.manage'))
+    if (memberId !== me.id && !can(c.var.perms, 'events.manage'))
       throw forbidden('You can only reply for yourself');
     const input = await body(c, RsvpPut);
     const t = now();

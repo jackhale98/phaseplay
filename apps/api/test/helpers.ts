@@ -63,7 +63,7 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
   const me = await call('GET', '/api/v1/me', { cookie: owner.cookie });
   const ownerA: Actor = { ...owner, memberId: me.body.memberships[0].member.id };
 
-  async function join(role: 'coach' | 'manager' | 'player', who: string): Promise<Actor> {
+  async function join(role: 'admin' | 'coach' | 'manager' | 'player', who: string): Promise<Actor> {
     const inv = await call('POST', `/api/v1/teams/${teamId}/invites`, {
       cookie: owner.cookie,
       body: { id: uuidv7(), role, maxUses: 5 },
@@ -76,6 +76,7 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
     if (acc.status !== 200) throw new Error(`accept failed ${JSON.stringify(acc.body)}`);
     return { ...u, memberId: acc.body.memberId };
   }
+  const admin = await join('admin', 'Admin Ada');
   const coach = await join('coach', 'Coach Cara');
   const manager = await join('manager', 'Manager Mo');
   const player = await join('player', 'Player Pip');
@@ -154,9 +155,15 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
       },
     },
   });
+  const roleId = uuidv7();
+  await call('PUT', `/api/v1/teams/${teamId}/roles/${roleId}`, {
+    cookie: owner.cookie,
+    body: { name: 'Captain', color: '#f2c230', permissions: ['practice.view_private'] },
+  });
   return {
     teamId,
     owner: ownerA,
+    admin,
     coach,
     manager,
     player,
@@ -168,6 +175,7 @@ export async function fixtureTeam(name = 'Phaseplay RFC') {
     planId,
     inviteId: inv.body.id as string,
     recurrenceId,
+    roleId,
   };
 }
 

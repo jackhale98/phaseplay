@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { isStaff, type Rsvp } from '@phaseplay/shared';
+  import { type Rsvp } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { players, rsvpOf } from '#lib/data/selectors';
   import { teamPath } from '#lib/data/actions';
@@ -18,7 +18,7 @@
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
   const e = $derived(s?.rows.events[page.params.id ?? '']);
-  const staff = $derived(isStaff(app.role));
+  const staff = $derived(app.can('events.manage'));
   const list = $derived(players(s));
 
   let marks = $state<Record<string, boolean>>({});

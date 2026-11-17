@@ -37,7 +37,7 @@ export type TeamFixture = {
   owner: Actor;
   /** Create another signed-in member with a role (and optional positions). */
   join: (
-    role: 'coach' | 'manager' | 'player',
+    role: 'admin' | 'coach' | 'manager' | 'player',
     name: string,
     positions?: number[],
   ) => Promise<Actor>;

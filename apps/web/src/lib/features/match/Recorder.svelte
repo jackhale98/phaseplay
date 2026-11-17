@@ -7,7 +7,6 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import {
-    can,
     formatClock,
     isGame,
     matchConfig,
@@ -73,7 +72,7 @@
   const clock = $derived(st.clock);
   const us = $derived(snap?.team.shortName ?? 'Us');
   const opponent = $derived(event?.opponent || 'Opposition');
-  const staff = $derived(can(app.role, 'match.record'));
+  const staff = $derived(app.can('match.record'));
 
   const shown = $derived(clock.gameMs - offset);
   const periodEndAt = $derived(clock.period * cfg.halfMs);

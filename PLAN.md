@@ -20,21 +20,28 @@ Phaseplay gives a rugby coach one calm, fast place to run the team: who's availa
 
 ## 2. Roles and permissions
 
-The canonical matrix lives in `packages/shared/permissions.ts`.
+The canonical matrix lives in `packages/shared/permissions.ts`. Everyone has one **main role**, and may also hold any number of **team roles** (below).
 
-| Action | Owner | Coach | Manager | Player |
-| --- | :-: | :-: | :-: | :-: |
-| Team settings, delete or transfer team | ✓ | | | |
-| Invite, remove and change members' roles (not the owner) | ✓ | ✓ | invite only | |
-| Create and edit events, mark attendance | ✓ | ✓ | ✓ | |
-| RSVP for themselves | ✓ | ✓ | ✓ | ✓ |
-| See RSVP notes, availability board, non-responders | ✓ | ✓ | ✓ | counts only |
-| Build and publish team sheets | ✓ | ✓ | | view published |
-| Create and edit plays, see "seen by" | ✓ | ✓ | | view shared plays |
-| Create and edit drills and practice plans | ✓ | ✓ | | view shared |
-| Run a practice (live session timer) | ✓ | ✓ | ✓ | follow along |
-| Sideline match mode (record) | ✓ | ✓ | ✓ | view match log |
-| Audit log | ✓ | ✓ | | |
+| Action | Owner | Admin | Coach | Manager | Player |
+| --- | :-: | :-: | :-: | :-: | :-: |
+| Delete the team | ✓ | | | | |
+| Hand over ownership (nominate, the nominee accepts) | ✓ | | | | |
+| Team settings; create, edit and assign team roles; make or unmake admins | ✓ | ✓ | | | |
+| Remove members, edit shirts and positions, change coach/manager/player roles | ✓ | ✓ | ✓ | | |
+| Invite people (only to roles they could hand out) | ✓ | ✓ | ✓ | managers, players | |
+| Create and edit events, mark attendance | ✓ | ✓ | ✓ | ✓ | |
+| RSVP for themselves | ✓ | ✓ | ✓ | ✓ | ✓ |
+| See RSVP notes, availability board, non-responders | ✓ | ✓ | ✓ | ✓ | counts only |
+| Build and publish team sheets | ✓ | ✓ | ✓ | | view published |
+| Create and edit plays, see "seen by" | ✓ | ✓ | ✓ | | view shared plays |
+| Create and edit drills and practice plans | ✓ | ✓ | ✓ | | view shared |
+| Run a practice (live session timer) | ✓ | ✓ | ✓ | ✓ | |
+| Sideline match mode (record) | ✓ | ✓ | ✓ | ✓ | view match log |
+| Audit log | ✓ | ✓ | ✓ | | |
+
+- **Admins** are the e-board: they can do everything except delete the team. There can be several.
+- **Team roles** are named bundles of extra permissions, made by owners and admins (for example *Captain*: see coach-only practice plans, availability and draft sheets; *Social sec*: create events). They can only add permissions from the `GRANTABLE` list, which leaves out team settings, deleting, roles and member management, so a team role can never escalate itself. A player with *invite people* can only invite players.
+- **Ownership handover** for when the e-board changes: the owner nominates an active member, nothing changes until they accept, and the old owner becomes an admin. If the owner's account hasn't been used for 30 days, any admin can take over. Every step is in the audit log.
 
 ## 3. Scope
 
@@ -218,6 +225,56 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
 ### M8 — Cloudflare hardening (hosting itself moved into M0)
 - Done in M0: one Worker serves web + API on `phaseplay.app`, real security headers through `_headers`, runbook in `docs/runbook.md`.
 - Remaining: preview deploys per PR (without passkeys, which need the real origin) and a staging environment on `staging.phaseplay.app`.
+
+### M9 — Kit and inventory (planned after v1)
+
+Know what the club owns, who has it, and get a nudge before a practice when the person holding the tackle pads isn't coming.
+
+**Contracts (`packages/shared/inventory.ts`, migration `00NN_inventory.sql`, additive only)**
+- `inventory_items`: `id, team_id, kind, name, tag, quantity, condition, status, holder_member_id, home, notes, version, created_at, updated_at, deleted_at`.
+  - `kind`: balls, tackle shields, tackle bags, cones, bibs, contact suits, first-aid kit (the box, never anything medical about people), kicking tees, flags, scrum machine, other.
+  - `tag`: optional club asset id, unique per team when set (index `(team_id, tag)`); printable QR labels encode `phaseplay.app/kit/<tag>` (opens the item for members, nothing for anyone else).
+  - `quantity` > 1 makes an item a set (e.g. "Bibs, red × 15"); sets move as a whole. A set can be split into two items when only part of it goes home with someone.
+  - `condition`: good, worn, needs repair. `status`: available (in the store), with someone, lost, retired.
+  - `home`: where it lives when nobody has it (shed, coach's car, clubhouse cage).
+- `inventory_events` (append-only, the history and audit trail): `id, team_id, item_id, kind, actor_member_id, from_member_id, to_member_id, note, at`.
+  - kinds: created, assigned, handoff_requested, handoff_accepted, handoff_declined, returned, marked_lost, found, condition_changed, retired.
+  - `note` is plain text, coach-visible, max 140 chars; the UI warns not to write anything about health.
+- Pending handoffs: `inventory_handoffs (id, team_id, item_id, from_member_id, to_member_id, created_at, expires_at, resolved_at)`, one open per item; expires after 7 days.
+- New grantable permission `inventory.manage` (add, edit, assign, mark lost or retired, override a handoff). Base roles: owner, admin, coach and manager have it. A *Kit manager* team role gives it to a player. Everyone can see the kit list and what they themselves hold.
+- Route ids: `inventory.list`, `inventory.put`, `inventory.delete`, `inventory.assign`, `inventory.return`, `inventory.lost`, `inventory.found`, `inventory.handoff.create`, `inventory.handoff.accept`, `inventory.handoff.decline`. All go into the tenancy matrix.
+- Sync: items and open handoffs ride the existing delta sync (one more `json_group_array` subquery; check the ≤ 6 query budget). Events are fetched per item on demand.
+
+**Holding and handing over**
+- Staff with `inventory.manage` assign an item to a member, or take it back to the store.
+- Holders can offer an item to a teammate ("Can you take the tackle shields?"). The teammate accepts or declines from a banner and a push (M7). Until they accept, the original holder still has it.
+- Staff can complete or cancel any handoff (override) when someone has left or isn't answering. Everything is logged.
+- Holders can mark "I've returned it to the shed": the item goes back to `available` at its `home`.
+- Lost: anyone with `inventory.manage`, or the holder, marks it lost (holder cleared, last holder kept in history). Found reverses it. Retired items drop out of counts but keep history.
+
+**Flags (the point of the feature)**
+- For each upcoming event in the next 7 days, list kit held by members who replied **no** or **haven't replied**. Show it on the event page (staff), on Home for the holder ("You're not going on Tuesday: hand the tackle shields to someone?" with a one-tap handoff), and in the M7 RSVP reminder.
+- Practice plans already total equipment needs (balls, bibs, cones, shields). The plan page compares needs with kit that is available or held by people who replied yes, and shows shortfalls ("Shields: need 6, 4 coming").
+- Match day checklist on the match-day view: the kit tagged for games (flags, tees, first-aid box) and who's bringing it.
+- A weekly "kit check" view for the kit manager: everything, grouped by holder, with lost and needs-repair at the top.
+
+**Offline and UX**
+- Every action is an optimistic outbox mutation like RSVPs. Handoff accept/decline needs the server (it's two-party), so it's queued but the UI shows "waiting to send".
+- Phone: a Kit tab under More; scanning a QR label opens the item with Take, Hand over and Return buttons. Desktop: a sortable table with filters (kind, status, holder) and bulk assign.
+- Both layouts and e2e on `mobile-webkit` and `desktop-chromium`, zero axe violations.
+
+**Tests**
+- Shared: status transitions (pure reducer over events), set splitting, the "at risk for this event" selector.
+- API: tenancy matrix rows for every route; handoff race (two accepts → one wins, other 409); a player can't assign or mark someone else's item lost; tag uniqueness per team; sync tombstones.
+- E2E: assign shields to a player, player RSVPs no, the event shows the flag, player hands over to a teammate who accepts, flag clears.
+
+**Slices (≤ ~400 lines each)**
+1. Contracts + migration + permission + route table.
+2. API handlers and tests.
+3. Sync + web data layer + kit list and item page.
+4. Handoffs (banner, accept/decline, staff override).
+5. Event flags, practice-plan shortfalls, Home nudge.
+6. QR labels (print sheet) and scan-to-open.
 
 ## 5. Definition of Done (every PR)
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { PLAY_CATEGORY_LABELS, can, type PlayFull } from '@phaseplay/shared';
+  import { PLAY_CATEGORY_LABELS, type PlayFull } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { activeMembers } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
@@ -30,7 +30,7 @@
 
   const id = $derived(page.params.id ?? '');
   const s = $derived(app.snap);
-  const coach = $derived(can(app.role, 'plays.manage'));
+  const coach = $derived(app.can('plays.manage'));
   const meta = $derived(s?.rows.plays[id]);
   let full = $state.raw<PlayFull | null>(null);
   let status = $state<'loading' | 'ready' | 'missing' | 'offline'>('loading');

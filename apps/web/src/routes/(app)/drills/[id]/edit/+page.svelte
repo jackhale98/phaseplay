@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { can, type DrillFull, type Play } from '@phaseplay/shared';
+  import { type DrillFull, type Play } from '@phaseplay/shared';
   import { migratePlay } from '@phaseplay/diagram/migrate';
   import { newPlay } from '@phaseplay/diagram/presets';
   import { app } from '#lib/data/app.svelte';
@@ -73,7 +73,7 @@
   });
 
   onMount(() => {
-    if (app.role && !can(app.role, 'drills.manage')) {
+    if (app.role && !app.can('drills.manage')) {
       void goto(`/drills/${id}`, { replace: true });
       return;
     }

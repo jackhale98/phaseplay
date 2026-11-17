@@ -55,6 +55,7 @@ describe('tenancy matrix', () => {
         planId: a.planId,
         inviteId: a.inviteId,
         recurrenceId: a.recurrenceId,
+        roleId: a.roleId,
         seasonId: uuidv7(),
       };
       const path = routePath(id, params);
@@ -80,7 +81,13 @@ describe('tenancy matrix', () => {
         ).toContain(cross.status);
       }
 
-      const actors = { owner: a.owner, coach: a.coach, manager: a.manager, player: a.player };
+      const actors = {
+        owner: a.owner,
+        admin: a.admin,
+        coach: a.coach,
+        manager: a.manager,
+        player: a.player,
+      };
       for (const role of [...ROLES].reverse()) {
         const res = await call(r.method, path, { ...opts, cookie: actors[role].cookie });
         expect(res.status, `${role}: ${JSON.stringify(res.body)}`).not.toBe(500);

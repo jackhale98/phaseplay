@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { can, isGame } from '@phaseplay/shared';
+  import { isGame } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { eventFormat, sheetFor } from '#lib/data/selectors';
   import EmptyState from '#lib/components/EmptyState.svelte';
@@ -15,7 +15,7 @@
   const event = $derived(s?.rows.events[id]);
   const sheet = $derived(sheetFor(s, id));
   const format = $derived(sheet?.format ?? (event && s ? eventFormat(s, event) : '15s'));
-  const coach = $derived(can(app.role, 'sheets.manage'));
+  const coach = $derived(app.can('sheets.manage'));
 </script>
 
 <svelte:head>

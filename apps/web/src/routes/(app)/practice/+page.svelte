@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { EVENT_TYPE_LABELS, can, type PracticePlan, type TeamEvent } from '@phaseplay/shared';
+  import { EVENT_TYPE_LABELS, type PracticePlan, type TeamEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
@@ -19,8 +19,8 @@
 
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
-  const coach = $derived(can(app.role, 'practice.manage'));
-  const runner = $derived(can(app.role, 'practice.run'));
+  const coach = $derived(app.can('practice.manage'));
+  const runner = $derived(app.can('practice.run'));
   const plans = $derived(
     Object.values(s?.rows.plans ?? {}).filter(
       (p) => !p.deletedAt && !hiddenPlans.ids.includes(p.id),
@@ -96,8 +96,7 @@
       >
         {#snippet icon()}<IconCalendarPlus />{/snippet}
         {#snippet action()}
-          {#if can(app.role, 'events.manage')}<Button href="/schedule?new=1">Add a practice</Button
-            >{/if}
+          {#if app.can('events.manage')}<Button href="/schedule?new=1">Add a practice</Button>{/if}
         {/snippet}
       </EmptyState>
     {:else}
@@ -167,7 +166,7 @@
       {/if}
     {/if}
 
-    {#if recent.length && coach}
+    {#if recent.length && (coach || app.can('practice.view_private'))}
       <h2 class="section-title">Recent plans</h2>
       <ul class="list stack recent">
         {#each recent as p (p.id)}

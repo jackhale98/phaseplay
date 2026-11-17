@@ -3,7 +3,6 @@
   import { page } from '$app/state';
   import {
     ALL_LANE,
-    can,
     laneLabel,
     type DrillFull,
     type DrillMeta,
@@ -61,7 +60,7 @@
   const event = $derived(plan?.eventId ? s?.rows.events[plan.eventId] : undefined);
   const tz = $derived(s?.team.timezone ?? 'UTC');
   const drills = $derived((s?.rows.drills ?? {}) as Record<string, DrillMeta>);
-  const allowed = $derived(can(app.role, 'practice.run'));
+  const allowed = $derived(app.can('practice.run'));
 
   let events = $state.raw<RunEvent[]>([]);
   let loaded = $state(false);

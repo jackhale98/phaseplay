@@ -21,6 +21,7 @@ export const DEMO_USER_ID = 'b0000000-0000-7000-8000-000000000002';
 export const DEMO_TABLE_ORDER = [
   'users',
   'teams',
+  'team_roles',
   'memberships',
   'seasons',
   'recurrences',
@@ -62,7 +63,7 @@ export function buildDemo(now: number = Date.now()): DemoTables {
   const staff = [
     { name: 'Sam Carter', role: 'owner', positions: [] as number[] },
     { name: 'Alex Morgan', role: 'coach', positions: [] },
-    { name: 'Priya Shah', role: 'manager', positions: [] },
+    { name: 'Priya Shah', role: 'admin', positions: [] },
   ];
   const PLAYERS: [string, number[]][] = [
     ['Jess Taylor', [1, 3]],
@@ -139,7 +140,36 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     created_at: now - 90 * 86400e3,
     updated_at: now,
   });
-  for (const m of members) {
+  // Team roles: captains see the practice plans and who's available; the social sec runs the calendar.
+  const captainRole = id('d');
+  const viceRole = id('d');
+  const socialRole = id('d');
+  const roleRows: [string, string, string, string[]][] = [
+    [
+      captainRole,
+      'Captain',
+      '#f2c230',
+      ['practice.view_private', 'availability.view', 'sheets.view_draft'],
+    ],
+    [viceRole, 'Vice-captain', '#c9a227', ['practice.view_private', 'availability.view']],
+    [socialRole, 'Social sec', '#7b4fa0', ['events.manage']],
+  ];
+  for (const [rid, name, color, perms] of roleRows)
+    insert('team_roles', {
+      id: rid,
+      team_id: TEAM,
+      name,
+      color,
+      permissions: JSON.stringify(perms),
+      created_at: now - 60 * 86400e3,
+      updated_at: now,
+    });
+  const roleFor = new Map<number, string[]>([
+    [staff.length + 3, [captainRole]],
+    [staff.length + 9, [viceRole]],
+    [staff.length + 12, [socialRole]],
+  ]);
+  for (const [i, m] of members.entries()) {
     insert('users', { id: m.userId, display_name: m.name, created_at: now - 80 * 86400e3 });
     insert('memberships', {
       id: m.id,
@@ -150,6 +180,7 @@ export function buildDemo(now: number = Date.now()): DemoTables {
       jersey: m.jersey,
       positions: JSON.stringify(m.positions),
       status: 'active',
+      role_ids: JSON.stringify(roleFor.get(i) ?? []),
       joined_at: now - 80 * 86400e3,
       updated_at: now,
     });
@@ -162,6 +193,7 @@ export function buildDemo(now: number = Date.now()): DemoTables {
       display_name: name,
       role: 'player',
       positions: '[]',
+      role_ids: '[]',
       status: 'pending',
       updated_at: now,
     });

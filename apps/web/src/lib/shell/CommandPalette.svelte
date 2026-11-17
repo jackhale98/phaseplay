@@ -5,7 +5,6 @@
   import { upcoming, squad } from '#lib/data/selectors';
   import { day } from '#lib/format';
   import { NAV, DESKTOP_EXTRA } from './nav';
-  import { isStaff } from '@phaseplay/shared';
 
   let { open = $bindable() }: { open: boolean } = $props();
   let q = $state('');
@@ -22,11 +21,10 @@
       { label: 'Account & passkeys', hint: 'Settings', href: '/settings/account' },
       { label: 'Team settings', hint: 'Settings', href: '/settings/team' },
     ];
-    if (isStaff(app.role))
-      list.push(
-        { label: 'New event', hint: 'Action', href: '/schedule?new=1' },
-        { label: 'Invite players', hint: 'Action', href: '/squad?invite=1' },
-      );
+    if (app.can('events.manage'))
+      list.push({ label: 'New event', hint: 'Action', href: '/schedule?new=1' });
+    if (app.can('invites.create'))
+      list.push({ label: 'Invite players', hint: 'Action', href: '/squad?invite=1' });
     for (const e of upcoming(s).slice(0, 30))
       list.push({
         label: e.opponent ? `${e.title} v ${e.opponent}` : e.title,

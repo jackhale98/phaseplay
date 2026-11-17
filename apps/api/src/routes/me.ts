@@ -134,7 +134,10 @@ export function meRoutes(app: Hono<AppEnv>) {
 
   route(app, 'me.signout_all', async (c) => {
     const u = requireUser(c);
-    await c.var.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(u.id).run();
+    await c.var.db.batch([
+      c.var.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(u.id),
+      c.var.db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(Date.now(), u.id),
+    ]);
     clearSessionCookie(c);
     return c.json({ ok: true });
   });

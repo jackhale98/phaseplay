@@ -1,4 +1,4 @@
-import type { Member } from '@phaseplay/shared';
+import type { Member, Perms } from '@phaseplay/shared';
 
 export type Env = {
   DB: D1Database;
@@ -22,6 +22,10 @@ export type Vars = {
   queries: { n: number };
   user: SessionUser | null;
   member: Member;
+  /** The member's base role plus permissions from their team roles (set by requireMember). */
+  perms: Perms;
+  /** Latest change to any of the member's team roles (a change can widen what they may see). */
+  rolesUpdatedAt: number;
   requestId: string;
 };
 

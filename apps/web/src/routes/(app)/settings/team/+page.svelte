@@ -9,10 +9,37 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
+  import { ROLE_LABELS } from '@phaseplay/shared';
   import { IconBack, IconTrash } from '#lib/icons';
 
   const team = $derived(app.team);
   const owner = $derived(app.role === 'owner');
+  const manage = $derived(app.can('team.manage'));
+  const members = $derived(Object.values(app.snap?.rows.members ?? {}));
+  const currentOwner = $derived(members.find((m) => m.role === 'owner'));
+  const nominee = $derived(members.find((m) => m.id === team?.pendingOwnerMemberId));
+  const eligible = $derived(
+    members
+      .filter((m) => m.status === 'active' && m.userId && m.role !== 'owner')
+      .sort((a, b) => (a.role === 'admin' ? -1 : 0) - (b.role === 'admin' ? -1 : 0)),
+  );
+  let handOver = $state(false);
+  let claim = $state(false);
+  let pick = $state('');
+
+  async function post(path: string, body: unknown, done: string) {
+    busy = true;
+    try {
+      await api(teamPath(path), { method: 'POST', body });
+      await app.sync();
+      toasts.success(done);
+      handOver = claim = false;
+    } catch (e) {
+      toasts.error(e instanceof ApiError ? e.message : 'Something went wrong');
+    } finally {
+      busy = false;
+    }
+  }
   let busy = $state(false);
   let confirmDelete = $state(false);
   let confirmName = $state('');
@@ -48,10 +75,51 @@
   <a class="back" href="/more"><IconBack /> More</a>
   <h1>Team settings</h1>
   {#if team}
-    {#if owner}
+    {#if manage}
       {#key team.id}
         <TeamForm value={team} submitLabel="Save changes" {busy} onsubmit={save} />
       {/key}
+    {:else}
+      <div class="card ro">
+        <Crest colors={team.colors} text={team.shortName} size={56} />
+        <div>
+          <strong>{team.name}</strong>
+          <p class="muted">{team.defaultFormat} · {team.timezone}</p>
+          <p class="subtle">Only the owner and admins can change these.</p>
+        </div>
+      </div>
+    {/if}
+
+    <section class="card sect" aria-labelledby="own-h">
+      <h2 class="h" id="own-h">Ownership</h2>
+      <p>
+        <strong>{currentOwner?.displayName ?? 'Nobody'}</strong> owns the team.
+        <span class="muted"
+          >Admins can do everything else, so when the e-board changes, hand over to the new chair.</span
+        >
+      </p>
+      {#if nominee}
+        <p class="pending" role="status">
+          Waiting for <strong>{nominee.displayName}</strong> to accept.
+        </p>
+      {/if}
+      <div class="row wrap">
+        {#if owner && nominee}
+          <Button disabled={busy} onclick={() => post('/transfer/cancel', {}, 'Handover cancelled')}
+            >Cancel handover</Button
+          >
+        {:else if owner}
+          <Button onclick={() => ((pick = eligible[0]?.id ?? ''), (handOver = true))}
+            >Hand over ownership</Button
+          >
+        {:else if app.role === 'admin'}
+          <Button variant="ghost" onclick={() => (claim = true)}>Take over ownership</Button>
+        {/if}
+        <Button variant="ghost" href="/settings/roles">Roles and permissions</Button>
+      </div>
+    </section>
+
+    {#if owner}
       <section class="danger card">
         <h2 class="h">Delete team</h2>
         <p class="muted">Removes the team for everyone. Members keep their accounts.</p>
@@ -61,15 +129,6 @@
           >
         </div>
       </section>
-    {:else}
-      <div class="card ro">
-        <Crest colors={team.colors} text={team.shortName} size={56} />
-        <div>
-          <strong>{team.name}</strong>
-          <p class="muted">{team.defaultFormat} · {team.timezone}</p>
-          <p class="subtle">Only the team owner can change these.</p>
-        </div>
-      </div>
     {/if}
   {/if}
 </div>
@@ -97,7 +156,70 @@
   {/snippet}
 </Sheet>
 
+<Sheet
+  bind:open={handOver}
+  title="Hand over ownership"
+  description="They'll be asked to accept. Until then nothing changes."
+  size="sm"
+>
+  {#if eligible.length}
+    <Field label="New owner">
+      {#snippet children({ id })}<select {id} bind:value={pick}>
+          {#each eligible as m (m.id)}<option value={m.id}
+              >{m.displayName} · {ROLE_LABELS[m.role]}</option
+            >{/each}
+        </select>{/snippet}
+    </Field>
+    <p class="muted">When they accept you become an admin, so you can still help out.</p>
+  {:else}
+    <p class="muted">Only members who have joined with their own account can own the team.</p>
+  {/if}
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (handOver = false)}>Cancel</Button>
+    <Button
+      variant="primary"
+      disabled={!pick || busy}
+      onclick={() => post('/transfer', { memberId: pick }, 'Asked them to take over')}
+      >Ask them</Button
+    >
+  {/snippet}
+</Sheet>
+
+<Sheet
+  bind:open={claim}
+  title="Take over ownership?"
+  description="For when the owner has left and can't hand over."
+  size="sm"
+>
+  <p class="muted">
+    This only works if {currentOwner?.displayName ?? 'the owner'} hasn't used Phaseplay for 30 days. They'll
+    stay on as an admin, and it's recorded in the audit log.
+  </p>
+  {#snippet footer()}
+    <Button variant="ghost" onclick={() => (claim = false)}>Cancel</Button>
+    <Button
+      variant="primary"
+      disabled={busy}
+      onclick={() => post('/claim-ownership', {}, `You now own ${team?.name}`)}>Take over</Button
+    >
+  {/snippet}
+</Sheet>
+
 <style>
+  .sect {
+    margin-top: var(--s-6);
+    padding: var(--s-5);
+    display: grid;
+    gap: var(--s-3);
+  }
+  .sect p {
+    margin: 0;
+  }
+  .pending {
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-md);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  }
   .narrow {
     max-width: 680px;
   }

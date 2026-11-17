@@ -6,12 +6,21 @@ import {
   TeamCreate,
   TeamUpdate,
   TransferOwnership,
+  TeamRoleInput,
+  OWNER_CLAIM_AFTER_MS,
   type AuditEntry,
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
-import { HttpError, body, notFound, now, parseJson } from '../lib/http';
-import { TEAM_COLS, teamFromRow, memberFromRow, MEMBER_COLS } from '../db/rows';
+import { HttpError, body, forbidden, notFound, now, parseJson } from '../lib/http';
+import {
+  TEAM_COLS,
+  teamFromRow,
+  memberFromRow,
+  MEMBER_COLS,
+  ROLE_COLS,
+  roleFromRow,
+} from '../db/rows';
 import { requireUser } from '../auth/session';
 import { auditStmt } from '../lib/audit';
 import { starterDrillRows } from '../seed/starter-drills';
@@ -33,7 +42,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     const memberId = crypto.randomUUID();
     await c.var.db.batch([
       c.var.db
-        .prepare(`INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`)
+        .prepare(`INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`)
         .bind(
           input.id,
           input.name,
@@ -121,10 +130,10 @@ export function teamRoutes(app: Hono<AppEnv>) {
     return c.json({ ok: true });
   });
 
+  /** The owner nominates a successor; nothing changes until they accept. */
   route(app, 'teams.transfer', async (c) => {
     const { memberId } = await body(c, TransferOwnership);
     const me = c.var.member;
-    const t = now();
     const target = await c.var.db
       .prepare(
         `SELECT ${MEMBER_COLS} FROM memberships WHERE id = ? AND team_id = ? AND status = 'active' AND user_id IS NOT NULL`,
@@ -133,25 +142,173 @@ export function teamRoutes(app: Hono<AppEnv>) {
       .first();
     if (!target || memberId === me.id) throw notFound('Member not found');
     const tm = memberFromRow(target);
+    const t = now();
     await c.var.db.batch([
       c.var.db
-        .prepare(`UPDATE memberships SET role = 'owner', updated_at = ? WHERE id = ?`)
-        .bind(t, memberId),
-      c.var.db
-        .prepare(`UPDATE memberships SET role = 'coach', updated_at = ? WHERE id = ?`)
-        .bind(t, me.id),
-      c.var.db
-        .prepare('UPDATE teams SET owner_id = ?, updated_at = ? WHERE id = ?')
-        .bind(tm.userId, t, me.teamId),
+        .prepare(
+          'UPDATE teams SET pending_owner_member_id = ?, pending_owner_at = ?, updated_at = ? WHERE id = ?',
+        )
+        .bind(memberId, t, t, me.teamId),
       auditStmt(c.var.db, {
         teamId: me.teamId,
         actorId: me.userId,
-        action: 'team.transferred',
+        action: 'team.ownership_nominated',
         targetType: 'member',
         targetId: memberId,
         meta: { to: tm.displayName },
       }),
     ]);
+    return c.json({ ok: true });
+  });
+
+  /** Swap ownership: `to` becomes owner, the previous owner becomes an admin. */
+  const makeOwner = (
+    db: D1Database,
+    teamId: string,
+    to: { id: string; userId: string },
+    t: number,
+  ) => [
+    db
+      .prepare(
+        `UPDATE memberships SET role = 'admin', updated_at = ? WHERE team_id = ? AND role = 'owner'`,
+      )
+      .bind(t, teamId),
+    db
+      .prepare(`UPDATE memberships SET role = 'owner', updated_at = ? WHERE id = ? AND team_id = ?`)
+      .bind(t, to.id, teamId),
+    db
+      .prepare(
+        'UPDATE teams SET owner_id = ?, pending_owner_member_id = NULL, pending_owner_at = NULL, updated_at = ? WHERE id = ?',
+      )
+      .bind(to.userId, t, teamId),
+  ];
+
+  route(app, 'teams.transfer.accept', async (c) => {
+    const me = c.var.member;
+    const team = await c.var.db
+      .prepare('SELECT pending_owner_member_id FROM teams WHERE id = ?')
+      .bind(me.teamId)
+      .first<{ pending_owner_member_id: string | null }>();
+    if (team?.pending_owner_member_id !== me.id)
+      throw new HttpError(409, 'conflict', "There's no ownership handover waiting for you");
+    const t = now();
+    await c.var.db.batch([
+      ...makeOwner(c.var.db, me.teamId, { id: me.id, userId: me.userId! }, t),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'team.transferred',
+        targetType: 'member',
+        targetId: me.id,
+        meta: { to: me.displayName },
+      }),
+    ]);
+    return c.json({ ok: true });
+  });
+
+  route(app, 'teams.transfer.cancel', async (c) => {
+    const me = c.var.member;
+    // The owner cancels, or the nominee declines; nobody else.
+    const r = await c.var.db
+      .prepare(
+        `UPDATE teams SET pending_owner_member_id = NULL, pending_owner_at = NULL, updated_at = ?
+         WHERE id = ? AND pending_owner_member_id IS NOT NULL AND (owner_id = ? OR pending_owner_member_id = ?)
+         RETURNING pending_owner_member_id`,
+      )
+      .bind(now(), me.teamId, me.userId, me.id)
+      .first();
+    if (!r) throw new HttpError(409, 'conflict', 'No handover to cancel');
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: me.role === 'owner' ? 'team.ownership_cancelled' : 'team.ownership_declined',
+      targetType: 'team',
+      targetId: me.teamId,
+    }).run();
+    return c.json({ ok: true });
+  });
+
+  /** An admin takes over when the owner hasn't signed in for 30 days (e-board changed hands). */
+  route(app, 'teams.claim', async (c) => {
+    const me = c.var.member;
+    if (me.role === 'owner') throw new HttpError(409, 'conflict', 'You already own the team');
+    if (me.role !== 'admin') throw forbidden('Only admins can take over ownership');
+    const owner = await c.var.db
+      .prepare(
+        `SELECT u.deleted_at, max(coalesce(u.last_seen_at, 0),
+           coalesce((SELECT max(max(s.last_seen_at, s.created_at)) FROM sessions s WHERE s.user_id = u.id), 0)) AS seen
+         FROM teams t LEFT JOIN users u ON u.id = t.owner_id WHERE t.id = ?`,
+      )
+      .bind(me.teamId)
+      .first<{ deleted_at: number | null; seen: number | null }>();
+    const t = now();
+    const away =
+      !owner || owner.deleted_at !== null || t - Number(owner.seen ?? 0) >= OWNER_CLAIM_AFTER_MS;
+    if (!away)
+      throw new HttpError(
+        409,
+        'conflict',
+        'The owner has been active in the last 30 days. Ask them to hand over ownership.',
+      );
+    await c.var.db.batch([
+      ...makeOwner(c.var.db, me.teamId, { id: me.id, userId: me.userId! }, t),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'team.ownership_claimed',
+        targetType: 'member',
+        targetId: me.id,
+        meta: { to: me.displayName },
+      }),
+    ]);
+    return c.json({ ok: true });
+  });
+
+  route(app, 'roles.put', async (c) => {
+    const me = c.var.member;
+    const id = c.req.param('roleId')!;
+    const input = await body(c, TeamRoleInput);
+    const t = now();
+    const row = await c.var.db
+      .prepare(
+        `INSERT INTO team_roles (id, team_id, name, color, permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color, permissions = excluded.permissions,
+           updated_at = excluded.updated_at, deleted_at = NULL
+         WHERE team_roles.team_id = excluded.team_id
+         RETURNING ${ROLE_COLS}`,
+      )
+      .bind(id, me.teamId, input.name, input.color, JSON.stringify(input.permissions), t, t)
+      .first();
+    if (!row) throw notFound('Role not found');
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: 'role.saved',
+      targetType: 'role',
+      targetId: id,
+      meta: { name: input.name, permissions: input.permissions },
+    }).run();
+    return c.json({ role: roleFromRow(row) });
+  });
+
+  route(app, 'roles.delete', async (c) => {
+    const me = c.var.member;
+    const t = now();
+    const row = await c.var.db
+      .prepare(
+        'UPDATE team_roles SET deleted_at = ?, updated_at = ? WHERE id = ? AND team_id = ? AND deleted_at IS NULL RETURNING name',
+      )
+      .bind(t, t, c.req.param('roleId'), me.teamId)
+      .first<{ name: string }>();
+    if (!row) throw notFound('Role not found');
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: 'role.deleted',
+      targetType: 'role',
+      targetId: c.req.param('roleId')!,
+      meta: { name: row.name },
+    }).run();
     return c.json({ ok: true });
   });
 

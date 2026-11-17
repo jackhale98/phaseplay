@@ -26,6 +26,7 @@ const m = (id: string, positions: number[], name = id): Member => ({
   role: 'player',
   jersey: null,
   positions,
+  roleIds: [],
   status: 'active',
   joinedAt: null,
   updatedAt: 0,

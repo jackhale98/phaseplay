@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { PlayCreate, PlayUpdate, dateInTz, isCoach, type SeenBy } from '@phaseplay/shared';
+import { PlayCreate, PlayUpdate, can, dateInTz, type Perms, type SeenBy } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
@@ -7,14 +7,15 @@ import { PLAY_META_COLS, playFullFromRow } from '../db/rows';
 import { auditStmt } from '../lib/audit';
 import { setsFrom, versionedUpdate } from '../lib/versioned';
 
-const visibleTo = (role: string) => (isCoach(role as never) ? '' : `AND visibility = 'team'`);
+const visibleTo = (perms: Perms) =>
+  can(perms, 'plays.view_private') ? '' : `AND visibility = 'team'`;
 
 export function playRoutes(app: Hono<AppEnv>) {
   route(app, 'plays.get', async (c) => {
     const me = c.var.member;
     const row = await c.var.db
       .prepare(
-        `SELECT ${PLAY_META_COLS}, data FROM plays WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${visibleTo(me.role)}`,
+        `SELECT ${PLAY_META_COLS}, data FROM plays WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${visibleTo(c.var.perms)}`,
       )
       .bind(c.req.param('playId'), me.teamId)
       .first();
@@ -120,7 +121,7 @@ export function playRoutes(app: Hono<AppEnv>) {
     const r = await c.var.db
       .prepare(
         `INSERT INTO play_views (play_id, member_id, team_id, day, first_viewed_at)
-         SELECT p.id, ?, p.team_id, ?, ? FROM plays p WHERE p.id = ? AND p.team_id = ? AND p.deleted_at IS NULL ${visibleTo(me.role).replace('visibility', 'p.visibility')}
+         SELECT p.id, ?, p.team_id, ?, ? FROM plays p WHERE p.id = ? AND p.team_id = ? AND p.deleted_at IS NULL ${visibleTo(c.var.perms).replace('visibility', 'p.visibility')}
          ON CONFLICT DO NOTHING`,
       )
       .bind(me.id, dateInTz(t, team?.timezone ?? 'UTC'), t, c.req.param('playId'), me.teamId)
@@ -128,7 +129,7 @@ export function playRoutes(app: Hono<AppEnv>) {
     if (!r.meta.changes) {
       const exists = await c.var.db
         .prepare(
-          `SELECT 1 FROM plays WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${visibleTo(me.role)}`,
+          `SELECT 1 FROM plays WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${visibleTo(c.var.perms)}`,
         )
         .bind(c.req.param('playId'), me.teamId)
         .first();

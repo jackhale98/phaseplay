@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { can, type PlanData } from '@phaseplay/shared';
+  import { type PlanData } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
@@ -23,7 +23,7 @@
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
   const q = $derived(page.url.searchParams);
-  const coach = $derived(can(app.role, 'practice.manage'));
+  const coach = $derived(app.can('practice.manage'));
   const plans = $derived(Object.values(s?.rows.plans ?? {}).filter((p) => !p.deletedAt));
   const byEvent = $derived(plansByEvent(s?.rows.plans));
   const sessions = $derived(

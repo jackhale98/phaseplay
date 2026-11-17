@@ -12,6 +12,7 @@ import type {
   TeamEvent,
   TeamSheet,
   Invite,
+  TeamRole,
 } from '@phaseplay/shared';
 import { bool, nullableBool } from '../lib/db';
 import { parseJson } from '../lib/http';
@@ -23,7 +24,7 @@ const ns = (x: unknown) => (x ?? null) as string | null;
 const nn = (x: unknown) => (x ?? null) as number | null;
 
 export const TEAM_COLS =
-  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at';
+  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id';
 export const teamFromRow = (r: Row): Team => ({
   id: s(r.id),
   name: s(r.name),
@@ -35,10 +36,11 @@ export const teamFromRow = (r: Row): Team => ({
   createdAt: n(r.created_at),
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
+  pendingOwnerMemberId: ns(r.pending_owner_member_id),
 });
 
 export const MEMBER_COLS =
-  'id, team_id, user_id, display_name, role, jersey, positions, status, joined_at, updated_at';
+  'id, team_id, user_id, display_name, role, jersey, positions, status, joined_at, updated_at, role_ids';
 export const memberFromRow = (r: Row): Member => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -48,6 +50,7 @@ export const memberFromRow = (r: Row): Member => ({
   jersey: nn(r.jersey),
   positions: parseJson(s(r.positions), [] as number[]),
   status: s(r.status) as Member['status'],
+  roleIds: parseJson(s(r.role_ids ?? '[]'), [] as string[]),
   joinedAt: nn(r.joined_at),
   updatedAt: n(r.updated_at),
 });
@@ -206,4 +209,15 @@ export const inviteFromRow = (r: Row): Invite => ({
   maxUses: n(r.max_uses),
   uses: n(r.uses),
   revokedAt: nn(r.revoked_at),
+});
+
+export const ROLE_COLS = 'id, team_id, name, color, permissions, updated_at, deleted_at';
+export const roleFromRow = (r: Row): TeamRole => ({
+  id: s(r.id),
+  teamId: s(r.team_id),
+  name: s(r.name),
+  color: s(r.color),
+  permissions: parseJson(s(r.permissions), [] as string[]),
+  updatedAt: n(r.updated_at),
+  deletedAt: nn(r.deleted_at),
 });

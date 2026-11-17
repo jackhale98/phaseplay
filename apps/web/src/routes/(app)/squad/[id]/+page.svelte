@@ -1,7 +1,19 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { canChangeRole, canRemove, isCoach, uuidv7, type Role } from '@phaseplay/shared';
+  import {
+    GRANT_INFO,
+    ROLE_DESCRIPTIONS,
+    ROLE_LABELS,
+    ROLES,
+    can,
+    canChangeRole,
+    canRelink,
+    canRemove,
+    uuidv7,
+    type GrantableAction,
+    type Role,
+  } from '@phaseplay/shared';
   import { api, ApiError } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
   import { teamPath } from '#lib/data/actions';
@@ -11,6 +23,7 @@
   import Chip from '#lib/components/Chip.svelte';
   import QrCode from '#lib/components/QrCode.svelte';
   import PositionPicker from '#lib/features/squad/PositionPicker.svelte';
+  import RoleTag from '#lib/features/roles/RoleTag.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { copyText } from '#lib/share';
   import { IconBack, IconKey, IconTrash, IconCopy, IconLogOut } from '#lib/icons';
@@ -20,8 +33,20 @@
   const me = $derived(s?.me);
   const self = $derived(m?.id === me?.id);
   const canEdit = $derived(
-    !!m && !!me && (self || isCoach(me.role) || (m.status === 'pending' && me.role === 'manager')),
+    !!m &&
+      !!me &&
+      (self || app.can('members.manage') || (m.status === 'pending' && app.can('events.manage'))),
   );
+  const manageRoles = $derived(app.can('roles.manage'));
+  const teamRoles = $derived(app.teamRoles);
+  const mine = $derived(teamRoles.filter((r) => m?.roleIds?.includes(r.id)));
+  /** What team roles add on top of the base role, in plain words. */
+  const extras = $derived.by(() => {
+    if (!m) return [];
+    const grants = [...new Set(mine.flatMap((r) => r.permissions))] as GrantableAction[];
+    return grants.filter((g) => GRANT_INFO[g] && !can(m.role, g)).map((g) => GRANT_INFO[g].label);
+  });
+  const pendingOwner = $derived(s?.team.pendingOwnerMemberId === m?.id);
   let positions = $state<number[]>([]);
   let jersey = $state<number | null>(null);
   let dirty = $state(false);
@@ -47,6 +72,18 @@
     });
     dirty = false;
     toasts.success('Saved');
+  }
+  async function toggleTeamRole(id: string) {
+    if (!m) return;
+    const cur = m.roleIds ?? [];
+    const roleIds = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    await app.mutate({
+      method: 'PATCH',
+      path: teamPath(`/members/${m.id}`),
+      body: { roleIds },
+      label: 'Team roles',
+      optimistic: [{ op: 'patch', entity: 'members', key: m.id, value: { roleIds } }],
+    });
   }
   async function setRole(role: Role) {
     if (!m) return;
@@ -87,7 +124,7 @@
     try {
       await api(teamPath('/transfer'), { method: 'POST', body: { memberId: m.id } });
       confirmTransfer = false;
-      toasts.success(`${m.displayName} now owns the team`);
+      toasts.success(`Asked ${m.displayName} to take over. Nothing changes until they accept.`);
       await app.sync();
     } catch (e) {
       toasts.error(e instanceof ApiError ? e.message : 'Could not transfer');
@@ -103,7 +140,9 @@
       toasts.error(e instanceof ApiError ? e.message : 'Could not leave');
     }
   }
-  const roles: Role[] = ['coach', 'manager', 'player'];
+  const roleChoices = $derived(
+    me && m ? ROLES.filter((r) => r === m.role || canChangeRole(me.role, m.role, r)) : [],
+  );
 </script>
 
 <svelte:head><title>{m?.displayName ?? 'Member'} · Squad</title></svelte:head>
@@ -118,7 +157,9 @@
       <div>
         <h1>{m.displayName}</h1>
         <div class="row wrap">
-          <Chip tone="accent">{m.role}</Chip>
+          <Chip tone="accent">{ROLE_LABELS[m.role]}</Chip>
+          {#each mine as r (r.id)}<RoleTag name={r.name} color={r.color} />{/each}
+          {#if pendingOwner}<Chip tone="info">Asked to take over</Chip>{/if}
           {#if m.status === 'pending'}<Chip tone="warn">Not joined yet</Chip>{/if}
         </div>
       </div>
@@ -151,23 +192,57 @@
       {/if}
     </section>
 
-    {#if me && !self && m.status === 'active' && canChangeRole(me.role, m.role, m.role === 'player' ? 'coach' : 'player')}
+    {#if me && !self && m.status === 'active' && roleChoices.length > 1}
       <section class="card pad">
-        <h2 class="h">Role</h2>
-        <div class="row wrap">
-          {#each roles as r (r)}
-            <Chip
-              selected={m.role === r}
-              onclick={() => canChangeRole(me.role, m.role, r) && setRole(r)}>{r}</Chip
+        <h2 class="h" id="base-role">Role</h2>
+        <div class="row wrap" role="group" aria-labelledby="base-role">
+          {#each roleChoices as r (r)}
+            <Chip selected={m.role === r} onclick={() => m.role !== r && setRole(r)}
+              >{ROLE_LABELS[r]}</Chip
             >
           {/each}
         </div>
+        <p class="subtle hint">{ROLE_DESCRIPTIONS[m.role]}</p>
       </section>
     {/if}
 
-    {#if me && !self && isCoach(me.role) && m.status === 'active' && m.userId}
+    {#if m.status !== 'removed' && (manageRoles || mine.length > 0) && (teamRoles.length > 0 || manageRoles)}
       <section class="card pad">
-        <h2 class="h">Lost her phone?</h2>
+        <h2 class="h" id="team-roles">Team roles</h2>
+        {#if manageRoles && teamRoles.length}
+          <div class="row wrap" role="group" aria-labelledby="team-roles">
+            {#each teamRoles as r (r.id)}
+              <RoleTag
+                name={r.name}
+                color={r.color}
+                selected={m.roleIds?.includes(r.id)}
+                onclick={() => toggleTeamRole(r.id)}
+              />
+            {/each}
+          </div>
+        {:else if mine.length}
+          <div class="row wrap">
+            {#each mine as r (r.id)}<RoleTag name={r.name} color={r.color} />{/each}
+          </div>
+        {/if}
+        {#if extras.length}
+          <p class="subtle hint">
+            On top of being {ROLE_LABELS[m.role].toLowerCase()}, they can: {extras
+              .join(', ')
+              .toLowerCase()}.
+          </p>
+        {:else if manageRoles && !teamRoles.length}
+          <p class="subtle hint">
+            Give people extra permissions, like captains seeing practice plans.
+            <a href="/settings/roles">Set up team roles</a>
+          </p>
+        {/if}
+      </section>
+    {/if}
+
+    {#if me && !self && canRelink(me.role, m.role) && m.status === 'active' && m.userId}
+      <section class="card pad">
+        <h2 class="h">Lost their phone?</h2>
         <p class="muted">
           Make a one-time link (valid 24 hours) that lets {m.displayName.split(' ')[0]} add a passkey
           on a new device.
@@ -193,8 +268,9 @@
           >{#snippet icon()}<IconTrash />{/snippet}Remove from team</Button
         >
       {/if}
-      {#if me?.role === 'owner' && !self && m.status === 'active' && m.userId}
-        <Button variant="ghost" onclick={() => (confirmTransfer = true)}>Make owner</Button>
+      {#if me?.role === 'owner' && !self && m.status === 'active' && m.userId && !pendingOwner}
+        <Button variant="ghost" onclick={() => (confirmTransfer = true)}>Hand over ownership</Button
+        >
       {/if}
       {#if self && m.role !== 'owner'}
         <Button variant="ghost" onclick={leave}
@@ -219,14 +295,17 @@
 </Sheet>
 <Sheet
   bind:open={confirmTransfer}
-  title="Transfer ownership?"
-  description="{m?.displayName} becomes the owner and you become a coach. Only the owner can delete the team."
+  title="Hand over ownership?"
+  description="We'll ask {m?.displayName} to take over. Nothing changes until they accept."
   size="sm"
 >
-  <span></span>
+  <p class="muted">
+    When they accept they become the owner and you become an admin, so you can still help run the
+    team. Only the owner can delete the team.
+  </p>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (confirmTransfer = false)}>Cancel</Button>
-    <Button variant="primary" onclick={transfer}>Transfer</Button>
+    <Button variant="primary" onclick={transfer}>Ask them</Button>
   {/snippet}
 </Sheet>
 
@@ -298,5 +377,8 @@
   }
   .danger :global(.ghost) {
     color: var(--danger);
+  }
+  .hint {
+    margin: var(--s-3) 0 0;
   }
 </style>

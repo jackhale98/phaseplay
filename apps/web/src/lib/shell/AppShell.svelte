@@ -8,6 +8,7 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import CommandPalette from './CommandPalette.svelte';
   import DemoBanner from './DemoBanner.svelte';
+  import OwnershipBanner from './OwnershipBanner.svelte';
   import { NAV, DESKTOP_EXTRA } from './nav';
   import { IconChevronDown, IconPlus, IconCheck, IconSearch, IconMore } from '#lib/icons';
 
@@ -104,6 +105,8 @@
 
   <main id="main" tabindex="-1">
     {#if app.demo && !immersive}<DemoBanner />{/if}
+    {#if !immersive && app.team?.pendingOwnerMemberId && app.team.pendingOwnerMemberId === app.member?.id}<OwnershipBanner
+      />{/if}
     {@render children()}
   </main>
 

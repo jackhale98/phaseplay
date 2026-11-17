@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { can, uuidv7, type Play, type PlayFull } from '@phaseplay/shared';
+  import { uuidv7, type Play, type PlayFull } from '@phaseplay/shared';
   import { migratePlay } from '@phaseplay/diagram/migrate';
   import { app } from '#lib/data/app.svelte';
   import { activeMembers } from '#lib/data/selectors';
@@ -61,7 +61,7 @@
   });
 
   onMount(() => {
-    if (app.role && !can(app.role, 'plays.manage')) {
+    if (app.role && !app.can('plays.manage')) {
       void goto(`/plays/${id}`, { replace: true });
       return;
     }

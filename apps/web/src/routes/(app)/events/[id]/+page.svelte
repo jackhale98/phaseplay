@@ -1,13 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import {
-    EVENT_TYPE_LABELS,
-    RSVP_NOTE_TTL_MS,
-    eventCategory,
-    isGame,
-    isStaff,
-  } from '@phaseplay/shared';
+  import { EVENT_TYPE_LABELS, RSVP_NOTE_TTL_MS, eventCategory, isGame } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { rsvpOf, sheetFor, planFor } from '#lib/data/selectors';
   import { setRsvp } from '#lib/data/actions';
@@ -50,7 +44,8 @@
   const id = $derived(page.params.id ?? '');
   const e = $derived(pendingDeletes.hidden(id) ? undefined : s?.rows.events[id]);
   const me = $derived(s?.me);
-  const staff = $derived(isStaff(app.role));
+  const manage = $derived(app.can('events.manage'));
+  const seeAvail = $derived(app.can('availability.view'));
   const mine = $derived(e && me ? rsvpOf(s, e.id, me.id) : undefined);
   const counts = $derived(e ? (s?.rows.counts[e.id] ?? { yes: 0, no: 0, maybe: 0 }) : null);
   const finished = $derived(!!e && (e.endsAt ?? e.startsAt + 3 * 3600e3) <= Date.now());
@@ -110,7 +105,7 @@
           <strong>Cancelled</strong>
           <p>This {EVENT_TYPE_LABELS[e.type].toLowerCase()} is off. No need to reply.</p>
         </div>
-        {#if staff}
+        {#if manage}
           <Button size="sm" onclick={() => setCancelled(e!, false)}
             >{#snippet icon()}<IconUndo />{/snippet}Restore</Button
           >
@@ -241,7 +236,7 @@
                 {/if}
               {/if}
             {/if}
-            {#if counts && !staff}
+            {#if counts && !seeAvail}
               <p class="counts tnum">
                 <span class="c y"></span><strong>{counts.yes}</strong> in
                 <span class="c m"></span>{counts.maybe} maybe
@@ -260,7 +255,7 @@
 
         <nav class="links card" aria-label="For this event">
           <ul class="list">
-            {#if isGame(e.type) && (staff || sheet?.publishedAt)}
+            {#if isGame(e.type) && (app.can('sheets.view_draft') || sheet?.publishedAt)}
               <li>
                 <a href="/events/{e.id}/sheet">
                   <span class="li-ic"><IconShirt /></span>
@@ -277,7 +272,7 @@
                 </a>
               </li>
             {/if}
-            {#if isGame(e.type) && staff}
+            {#if isGame(e.type) && app.can('match.record')}
               <li>
                 <a href="/events/{e.id}/match">
                   <span class="li-ic"><IconMatch /></span>
@@ -290,7 +285,7 @@
                 </a>
               </li>
             {/if}
-            {#if e.type === 'training' && (staff || plan)}
+            {#if e.type === 'training' && (app.can('practice.view_private') || plan)}
               <li>
                 <a href="/practice?event={e.id}">
                   <span class="li-ic"><IconTimer /></span>
@@ -305,7 +300,7 @@
                 </a>
               </li>
             {/if}
-            {#if staff && attendanceOpen(e, tz)}
+            {#if manage && attendanceOpen(e, tz)}
               <li>
                 <a href="/events/{e.id}/attendance">
                   <span class="li-ic"><IconChecklist /></span>
@@ -319,7 +314,7 @@
           </ul>
         </nav>
 
-        {#if staff}
+        {#if manage}
           <div class="row wrap actions">
             <Button onclick={() => (editOpen = true)}
               >{#snippet icon()}<IconEdit />{/snippet}Edit</Button
@@ -340,7 +335,7 @@
         {/if}
       </div>
 
-      {#if staff}
+      {#if seeAvail}
         <aside class="side">
           <AvailabilityBoard event={e} />
         </aside>
@@ -349,7 +344,7 @@
   {/if}
 </div>
 
-{#if staff && e}
+{#if manage && e}
   <EventForm bind:open={editOpen} event={e} />
 {/if}
 

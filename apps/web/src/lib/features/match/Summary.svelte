@@ -2,7 +2,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import {
-    can,
     formatClock,
     isGame,
     OFFENCE_LABELS,
@@ -42,7 +41,7 @@
   const offset = $derived(g.offset);
   const snap = $derived(v.snap);
   const event = $derived(v.event);
-  const staff = $derived(can(app.role, 'match.record'));
+  const staff = $derived(app.can('match.record'));
   const name = (id: string | null | undefined) => (id ? memberName(snap, id) : 'Unnamed');
 
   const result = $derived(

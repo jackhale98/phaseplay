@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { CONTACT_LABELS, DRILL_CATEGORY_LABELS, can, type DrillFull } from '@phaseplay/shared';
+  import { CONTACT_LABELS, DRILL_CATEGORY_LABELS, type DrillFull } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import Button from '#lib/components/Button.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
@@ -33,7 +33,7 @@
 
   const id = $derived(page.params.id ?? '');
   const s = $derived(app.snap);
-  const coach = $derived(can(app.role, 'drills.manage'));
+  const coach = $derived(app.can('drills.manage'));
   const meta = $derived(s?.rows.drills[id]);
   let full = $state.raw<DrillFull | null>(null);
   let status = $state<'loading' | 'ready' | 'missing' | 'offline'>('loading');

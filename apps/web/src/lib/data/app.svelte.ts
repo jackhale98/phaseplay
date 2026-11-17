@@ -3,7 +3,16 @@
  * snapshot immediately, then delta-sync on load, focus, reconnect and every 60 s while visible.
  * Writes are optimistic: applied to the snapshot, queued in the outbox, and retried with backoff.
  */
-import type { MeResponse, SyncResponse, Team, Member } from '@phaseplay/shared';
+import {
+  can as canDo,
+  type Action,
+  type MeResponse,
+  type Perms,
+  type SyncResponse,
+  type Team,
+  type TeamRole,
+  type Member,
+} from '@phaseplay/shared';
 import { api, ApiError, v1 } from '#lib/api';
 import {
   db,
@@ -45,6 +54,7 @@ function emptyRows(): TeamSnapshot['rows'] {
     plays: {},
     drills: {},
     plans: {},
+    roles: {},
   };
 }
 
@@ -105,6 +115,8 @@ function mergeSync(prev: TeamSnapshot | null, res: SyncResponse): TeamSnapshot {
   upsert('plays', res.plays, byId, deleted);
   upsert('drills', res.drills, byId, deleted);
   upsert('plans', res.plans, byId, deleted);
+  if (!rows.roles) rows.roles = {};
+  upsert('roles', res.roles ?? [], byId, deleted);
   rows.counts = res.full ? { ...res.rsvpCounts } : { ...rows.counts, ...res.rsvpCounts };
   return {
     ...base,
@@ -153,6 +165,23 @@ class AppState {
   }
   get role() {
     return this.snap?.me.role ?? null;
+  }
+  /** Team roles, sorted by name. */
+  get teamRoles(): TeamRole[] {
+    return Object.values(this.snap?.rows.roles ?? {}).sort((a, b) => a.name.localeCompare(b.name));
+  }
+  /** Base role plus the grants from my team roles; the API checks the same thing. */
+  get perms(): Perms | null {
+    const s = this.snap;
+    if (!s) return null;
+    const roles = s.rows.roles ?? {};
+    return {
+      role: s.me.role,
+      grants: (s.me.roleIds ?? []).flatMap((id) => roles[id]?.permissions ?? []),
+    };
+  }
+  can(action: Action): boolean {
+    return canDo(this.perms, action);
   }
 
   /** Boot: render from cache, then refresh in the background. Returns false when signed out. */

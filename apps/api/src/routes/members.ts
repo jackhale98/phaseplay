@@ -10,8 +10,8 @@ import {
   canChangeRole,
   canRemove,
   invitableRoles,
-  isCoach,
-  isStaff,
+  can,
+  canRelink,
   randomToken,
   sha256Base64Url,
   type InvitePreview,
@@ -43,9 +43,30 @@ export function memberRoutes(app: Hono<AppEnv>) {
     const input = await body(c, MemberUpdate);
     const target = await loadMember(c.var.db, me.teamId, c.req.param('memberId')!);
     const self = target.id === me.id;
-    // Players may edit their own jersey and positions; staff manage everyone else.
-    if (!self && !isCoach(me.role)) {
-      if (!(isStaff(me.role) && target.status === 'pending')) throw forbidden();
+    const perms = c.var.perms;
+    // Members edit their own shirt and positions; coaches manage everyone; anyone who manages the
+    // schedule may tidy up imported (pending) names.
+    if (
+      !self &&
+      !can(perms, 'members.manage') &&
+      !can(perms, 'roles.manage') &&
+      !(can(perms, 'events.manage') && target.status === 'pending')
+    )
+      throw forbidden();
+    if (input.roleIds !== undefined) {
+      if (!can(perms, 'roles.manage')) throw forbidden('Only admins can assign team roles');
+      const ids = [...new Set(input.roleIds)];
+      if (ids.length) {
+        const { results } = await c.var.db
+          .prepare(
+            `SELECT id FROM team_roles WHERE team_id = ? AND deleted_at IS NULL AND id IN (SELECT value FROM json_each(?))`,
+          )
+          .bind(me.teamId, JSON.stringify(ids))
+          .all<{ id: string }>();
+        if (results.length !== ids.length)
+          throw new HttpError(400, 'bad_request', 'Unknown team role');
+      }
+      input.roleIds = ids;
     }
     if (input.role !== undefined && input.role !== target.role) {
       if (!canChangeRole(me.role, target.role, input.role as Role))
@@ -71,6 +92,10 @@ export function memberRoutes(app: Hono<AppEnv>) {
       sets.push('display_name = ?');
       vals.push(input.displayName);
     }
+    if (input.roleIds !== undefined) {
+      sets.push('role_ids = ?');
+      vals.push(JSON.stringify(input.roleIds));
+    }
     if (!sets.length) return c.json({ ok: true });
     const stmts = [
       c.var.db
@@ -88,6 +113,20 @@ export function memberRoutes(app: Hono<AppEnv>) {
           targetType: 'member',
           targetId: target.id,
           meta: { name: target.displayName, from: target.role, to: input.role },
+        }),
+      );
+    if (
+      input.roleIds !== undefined &&
+      JSON.stringify(input.roleIds) !== JSON.stringify(target.roleIds)
+    )
+      stmts.push(
+        auditStmt(c.var.db, {
+          teamId: me.teamId,
+          actorId: me.userId,
+          action: 'member.team_roles_changed',
+          targetType: 'member',
+          targetId: target.id,
+          meta: { name: target.displayName, roleIds: input.roleIds },
         }),
       );
     await c.var.db.batch(stmts);
@@ -150,20 +189,15 @@ export function memberRoutes(app: Hono<AppEnv>) {
     if (target.status !== 'active' || !target.userId)
       throw new HttpError(400, 'bad_request', 'Only joined members can re-link a device');
     if (input.memberId !== target.id) throw new HttpError(400, 'bad_request', 'Mismatched member');
-    // A device link adds a passkey to the target's whole account. Owners may re-link coaches,
-    // managers and players; coaches only managers and players. Nobody can re-link an owner, or
-    // anyone who is a coach or owner of another team (they must use their recovery codes).
-    const allowed =
-      me.role === 'owner'
-        ? target.role !== 'owner'
-        : target.role === 'manager' || target.role === 'player';
-    if (!allowed)
+    // A device link adds a passkey to the target's whole account (see canRelink). Nobody can
+    // re-link an owner, or anyone who runs another team (they must use their recovery codes).
+    if (!canRelink(me.role, target.role))
       throw forbidden(
         "You can't make a device link for that member. They can use a recovery code.",
       );
     const elsewhere = await c.var.db
       .prepare(
-        `SELECT 1 FROM memberships WHERE user_id = ? AND team_id != ? AND status = 'active' AND role IN ('owner', 'coach') LIMIT 1`,
+        `SELECT 1 FROM memberships WHERE user_id = ? AND team_id != ? AND status = 'active' AND role IN ('owner', 'admin', 'coach') LIMIT 1`,
       )
       .bind(target.userId, me.teamId)
       .first();

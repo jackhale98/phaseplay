@@ -13,6 +13,8 @@ import {
   fillAccent,
   accessibleAccent,
   ROUTES,
+  canRelink,
+  effective,
   EVENT_TYPES,
   EVENT_CATEGORIES,
   eventCategory,
@@ -27,10 +29,44 @@ describe('permissions', () => {
     expect(can('manager', 'sheets.manage')).toBe(false);
     expect(can('coach', 'team.manage')).toBe(false);
     expect(invitableRoles('manager')).toEqual(['manager', 'player']);
+    expect(invitableRoles('admin')).toContain('admin');
+    expect(invitableRoles('coach')).not.toContain('admin');
     expect(canChangeRole('coach', 'player', 'coach')).toBe(true);
     expect(canChangeRole('coach', 'owner', 'player')).toBe(false);
     expect(canRemove('coach', 'owner')).toBe(false);
     expect(canRemove('manager', 'player')).toBe(false);
+    expect(canRemove('coach', 'admin')).toBe(false);
+    expect(canRemove('admin', 'coach')).toBe(true);
+  });
+
+  it('admins run the e-board; only the owner can delete the team', () => {
+    expect(can('admin', 'team.manage')).toBe(true);
+    expect(can('admin', 'roles.manage')).toBe(true);
+    expect(can('admin', 'team.delete')).toBe(false);
+    expect(canChangeRole('coach', 'player', 'admin')).toBe(false);
+    expect(canChangeRole('admin', 'player', 'admin')).toBe(true);
+    expect(canChangeRole('admin', 'owner', 'coach')).toBe(false);
+    expect(canRelink('coach', 'coach')).toBe(false);
+    expect(canRelink('admin', 'coach')).toBe(true);
+    expect(canRelink('admin', 'owner')).toBe(false);
+  });
+
+  it('team roles add only grantable permissions', () => {
+    const captain = {
+      role: 'player' as const,
+      grants: ['practice.view_private', 'availability.view'],
+    };
+    expect(can(captain, 'practice.view_private')).toBe(true);
+    expect(can(captain, 'availability.view')).toBe(true);
+    expect(can(captain, 'practice.manage')).toBe(false);
+    // Non-grantable permissions can never come from a team role.
+    expect(
+      can(
+        { role: 'player', grants: ['team.manage', 'roles.manage', 'team.delete'] },
+        'roles.manage',
+      ),
+    ).toBe(false);
+    expect(effective(captain)).toContain('rsvp.self');
   });
 
   it('every team route names an action', () => {

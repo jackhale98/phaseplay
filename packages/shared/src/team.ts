@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 import { HexColor, Id, Timezone, text } from './common';
 import { FORMATS } from './rugby';
-import { ROLES } from './permissions';
+import { GRANTABLE, ROLES } from './permissions';
 
 export const TeamColors = v.object({ primary: HexColor, secondary: HexColor });
 export type TeamColors = v.InferOutput<typeof TeamColors>;
@@ -28,6 +28,8 @@ export const Positions = v.pipe(
 export const MemberUpdate = v.partial(
   v.object({
     role: v.picklist(ROLES),
+    /** Team roles (Captain, Treasurer…) assigned to this member. */
+    roleIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.maxLength(12)),
     jersey: v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(99))),
     positions: Positions,
     displayName: text(40, 1),
@@ -51,7 +53,7 @@ export const INVITE_EXPIRIES = {
 };
 export const InviteCreate = v.object({
   id: Id,
-  role: v.picklist(['coach', 'manager', 'player']),
+  role: v.picklist(['admin', 'coach', 'manager', 'player']),
   expiresIn: v.optional(v.picklist(['1h', '1d', '7d', '30d']), '7d'),
   maxUses: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100)), 40),
 });
@@ -75,3 +77,14 @@ export const SeasonInput = v.object({
   startsOn: v.pipe(v.string(), v.isoDate()),
   endsOn: v.pipe(v.string(), v.isoDate()),
 });
+
+export const TeamRoleInput = v.object({
+  name: text(30, 1),
+  color: HexColor,
+  permissions: v.pipe(
+    v.array(v.picklist(GRANTABLE)),
+    v.maxLength(GRANTABLE.length),
+    v.check((a) => new Set(a).size === a.length, 'Permissions must be unique'),
+  ),
+});
+export type TeamRoleInput = v.InferOutput<typeof TeamRoleInput>;

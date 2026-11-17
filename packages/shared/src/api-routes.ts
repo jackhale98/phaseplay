@@ -79,13 +79,47 @@ export const ROUTES = {
     method: 'DELETE',
     path: '/api/v1/teams/:teamId',
     auth: 'team',
-    action: 'team.manage',
+    action: 'team.delete',
   },
+  /** Owner nominates a successor (owner-only; the nominee must accept). */
   'teams.transfer': {
     method: 'POST',
     path: '/api/v1/teams/:teamId/transfer',
     auth: 'team',
-    action: 'team.manage',
+    action: 'team.delete',
+  },
+  /** The nominee accepts ownership; the old owner becomes an admin. */
+  'teams.transfer.accept': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/transfer/accept',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** The owner cancels, or the nominee declines. */
+  'teams.transfer.cancel': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/transfer/cancel',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** An admin takes over when the owner hasn't been seen for 30 days. */
+  'teams.claim': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/claim-ownership',
+    auth: 'team',
+    action: 'roles.manage',
+  },
+  'roles.put': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/roles/:roleId',
+    auth: 'team',
+    action: 'roles.manage',
+  },
+  'roles.delete': {
+    method: 'DELETE',
+    path: '/api/v1/teams/:teamId/roles/:roleId',
+    auth: 'team',
+    action: 'roles.manage',
   },
   'teams.leave': {
     method: 'POST',

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
-  import { EVENT_CATEGORY_LABELS, isStaff, dateInTz, type EventCategory } from '@phaseplay/shared';
+  import { EVENT_CATEGORY_LABELS, dateInTz, type EventCategory } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { events, myRsvp, past, upcoming } from '#lib/data/selectors';
   import EventCard from '#lib/components/EventCard.svelte';
@@ -26,7 +26,7 @@
 
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
-  const staff = $derived(isStaff(app.role));
+  const staff = $derived(app.can('events.manage'));
   const params = page.url.searchParams;
 
   let show = $state<Show>(parseShow(params.get('show')));

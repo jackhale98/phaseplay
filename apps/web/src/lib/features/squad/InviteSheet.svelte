@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { invitableRoles, uuidv7, type Invite, type Role } from '@phaseplay/shared';
+  import { invitableRoles, uuidv7, type Invite, type Role, ROLE_LABELS } from '@phaseplay/shared';
   import { api, ApiError } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
   import { teamPath } from '#lib/data/actions';
@@ -60,7 +60,7 @@
   const active = $derived(
     invites.filter((i) => !i.revokedAt && i.expiresAt > Date.now() && i.uses < i.maxUses),
   );
-  const canRevoke = $derived(app.role === 'owner' || app.role === 'coach');
+  const canRevoke = $derived(app.can('members.manage'));
 </script>
 
 <Sheet
@@ -100,7 +100,7 @@
         <Segmented
           label="Role"
           bind:value={role}
-          options={roles.map((r) => ({ value: r, label: r[0]!.toUpperCase() + r.slice(1) }))}
+          options={roles.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
         />
       </div>
       <div class="opt">
@@ -135,7 +135,7 @@
       {#each active as i (i.id)}
         <li>
           <span class="grow"
-            ><strong class="cap">{i.role}</strong> · {plural(i.uses, 'use')} of {i.maxUses}<small
+            ><strong>{ROLE_LABELS[i.role]}</strong> · {plural(i.uses, 'use')} of {i.maxUses}<small
               class="muted"
             >
               · made {ago(i.createdAt)}</small
@@ -189,8 +189,5 @@
     padding: var(--s-2) 0;
     border-bottom: 1px solid var(--border);
     font-size: var(--t-14);
-  }
-  .cap {
-    text-transform: capitalize;
   }
 </style>

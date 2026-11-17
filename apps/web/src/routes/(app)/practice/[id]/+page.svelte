@@ -6,7 +6,6 @@
     ALL_LANE,
     CONTACT_LABELS,
     blockMinutes,
-    can,
     laneLabel,
     timeline,
     type Block,
@@ -82,8 +81,8 @@
   const plan = $derived(hiddenPlans.ids.includes(id) ? undefined : s?.rows.plans[id]);
   const event = $derived(plan?.eventId ? s?.rows.events[plan.eventId] : undefined);
   const tz = $derived(s?.team.timezone ?? 'UTC');
-  const canEdit = $derived(can(app.role, 'practice.manage'));
-  const canRun = $derived(can(app.role, 'practice.run'));
+  const canEdit = $derived(app.can('practice.manage'));
+  const canRun = $derived(app.can('practice.run'));
   const drills = $derived((s?.rows.drills ?? {}) as Record<string, DrillMeta>);
   const drillList = $derived(Object.values(drills).filter((d) => !d.deletedAt));
   const staff = $derived(

@@ -172,7 +172,10 @@ export function authRoutes(app: Hono<AppEnv>) {
 
   route(app, 'auth.logout', async (c) => {
     const u = requireUser(c);
-    await c.var.db.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(u.sessionHash).run();
+    await c.var.db.batch([
+      c.var.db.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(u.sessionHash),
+      c.var.db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(Date.now(), u.id),
+    ]);
     clearSessionCookie(c);
     return c.json({ ok: true });
   });

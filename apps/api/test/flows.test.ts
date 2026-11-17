@@ -529,3 +529,206 @@ describe('review fixes', () => {
     expect(r.queries).toBeLessThanOrEqual(6);
   });
 });
+
+describe('team roles and ownership', () => {
+  const plan = (id: string) => ({
+    id,
+    title: 'Captains only',
+    visibility: 'coaches',
+    data: { lanes: ['all'], slots: [] },
+  });
+
+  it('a Captain role lets a player see coach-only practice plans, and only that', async () => {
+    const a = await fixtureTeam();
+    const planId = uuidv7();
+    await call('POST', `/api/v1/teams/${a.teamId}/plans`, {
+      cookie: a.owner.cookie,
+      body: plan(planId),
+    });
+    const hidden = await sync(a.teamId, a.player.cookie);
+    expect(hidden.body.plans.map((p) => p.id)).not.toContain(planId);
+    expect(hidden.body.roles.map((r) => r.id)).toContain(a.roleId);
+
+    // Coaches can't hand out team roles; admins can.
+    const assign = { body: { roleIds: [a.roleId] } };
+    const path = `/api/v1/teams/${a.teamId}/members/${a.player.memberId}`;
+    expect((await call('PATCH', path, { cookie: a.coach.cookie, ...assign })).status).toBe(403);
+    expect((await call('PATCH', path, { cookie: a.admin.cookie, ...assign })).status).toBe(200);
+
+    const s1 = await sync(a.teamId, a.player.cookie, hidden.body.cursor);
+    expect(s1.body.full).toBe(true);
+    expect(s1.body.plans.map((p) => p.id)).toContain(planId);
+    expect(s1.body.me.roleIds).toEqual([a.roleId]);
+    // Still a player for everything else.
+    expect(
+      (
+        await call('POST', `/api/v1/teams/${a.teamId}/plans`, {
+          cookie: a.player.cookie,
+          body: plan(uuidv7()),
+        })
+      ).status,
+    ).toBe(403);
+
+    // Deleting the role takes it away again.
+    await call('DELETE', `/api/v1/teams/${a.teamId}/roles/${a.roleId}`, { cookie: a.admin.cookie });
+    const s2 = await sync(a.teamId, a.player.cookie, s1.body.cursor);
+    expect(s2.body.full).toBe(true);
+    expect(s2.body.plans.map((p) => p.id)).not.toContain(planId);
+  });
+
+  it('roles can only carry grantable permissions and unknown roles are refused', async () => {
+    const a = await fixtureTeam();
+    const put = (permissions: string[]) =>
+      call('PUT', `/api/v1/teams/${a.teamId}/roles/${uuidv7()}`, {
+        cookie: a.owner.cookie,
+        body: { name: 'Sneaky', color: '#123456', permissions },
+      });
+    expect((await put(['team.delete'])).status).toBe(400);
+    expect((await put(['roles.manage'])).status).toBe(400);
+    expect((await put(['events.manage'])).status).toBe(200);
+    const res = await call('PATCH', `/api/v1/teams/${a.teamId}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { roleIds: [uuidv7()] },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('an events role lets a manager-less player add to the schedule', async () => {
+    const a = await fixtureTeam();
+    const roleId = uuidv7();
+    await call('PUT', `/api/v1/teams/${a.teamId}/roles/${roleId}`, {
+      cookie: a.owner.cookie,
+      body: { name: 'Social sec', color: '#aa3366', permissions: ['events.manage'] },
+    });
+    const ev = {
+      id: uuidv7(),
+      type: 'social',
+      title: 'Quiz night',
+      startsAt: Date.now() + 86400e3,
+    };
+    const make = () =>
+      call('POST', `/api/v1/teams/${a.teamId}/events`, {
+        cookie: a.player.cookie,
+        body: { ...ev, id: uuidv7() },
+      });
+    expect((await make()).status).toBe(403);
+    await call('PATCH', `/api/v1/teams/${a.teamId}/members/${a.player.memberId}`, {
+      cookie: a.owner.cookie,
+      body: { roleIds: [roleId] },
+    });
+    expect((await make()).status).toBe(201);
+  });
+
+  it('ownership hands over only when the nominee accepts', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    expect(
+      (
+        await call('POST', `${t}/transfer`, {
+          cookie: a.admin.cookie,
+          body: { memberId: a.coach.memberId },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await call('POST', `${t}/transfer`, {
+          cookie: a.owner.cookie,
+          body: { memberId: a.admin.memberId },
+        })
+      ).status,
+    ).toBe(200);
+    // Someone else can't accept or cancel it.
+    expect(
+      (await call('POST', `${t}/transfer/accept`, { cookie: a.coach.cookie, body: {} })).status,
+    ).toBe(409);
+    expect(
+      (await call('POST', `${t}/transfer/cancel`, { cookie: a.coach.cookie, body: {} })).status,
+    ).toBe(409);
+    const before = await sync(a.teamId, a.admin.cookie);
+    expect(before.body.team.pendingOwnerMemberId).toBe(a.admin.memberId);
+
+    expect(
+      (await call('POST', `${t}/transfer/accept`, { cookie: a.admin.cookie, body: {} })).status,
+    ).toBe(200);
+    const after = await sync(a.teamId, a.admin.cookie);
+    expect(after.body.me.role).toBe('owner');
+    expect(after.body.team.pendingOwnerMemberId).toBeNull();
+    expect(after.body.members.find((m) => m.id === a.owner.memberId)!.role).toBe('admin');
+    // The old owner is now an admin: can't delete the team.
+    expect(
+      (await call('DELETE', t, { cookie: a.owner.cookie, body: { confirmName: 'Test RFC' } }))
+        .status,
+    ).toBe(403);
+  });
+
+  it('the nominee can decline', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    await call('POST', `${t}/transfer`, {
+      cookie: a.owner.cookie,
+      body: { memberId: a.coach.memberId },
+    });
+    expect(
+      (await call('POST', `${t}/transfer/cancel`, { cookie: a.coach.cookie, body: {} })).status,
+    ).toBe(200);
+    expect(
+      (await call('POST', `${t}/transfer/accept`, { cookie: a.coach.cookie, body: {} })).status,
+    ).toBe(409);
+  });
+
+  it('an admin can take over only after the owner has been away for 30 days', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    expect(
+      (await call('POST', `${t}/claim-ownership`, { cookie: a.admin.cookie, body: {} })).status,
+    ).toBe(409);
+    expect(
+      (await call('POST', `${t}/claim-ownership`, { cookie: a.coach.cookie, body: {} })).status,
+    ).toBe(403);
+
+    const old = Date.now() - 31 * 86400e3;
+    const owner = await env.DB.prepare('SELECT owner_id FROM teams WHERE id = ?')
+      .bind(a.teamId)
+      .first<{ owner_id: string }>();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE sessions SET created_at = ?, last_seen_at = ? WHERE user_id = ?').bind(
+        old,
+        old,
+        owner!.owner_id,
+      ),
+      env.DB.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(old, owner!.owner_id),
+    ]);
+    expect(
+      (await call('POST', `${t}/claim-ownership`, { cookie: a.admin.cookie, body: {} })).status,
+    ).toBe(200);
+    const s = await sync(a.teamId, a.admin.cookie);
+    expect(s.body.me.role).toBe('owner');
+    expect(s.body.members.filter((m) => m.role === 'owner')).toHaveLength(1);
+  });
+
+  it('admins manage roles and members but cannot delete the team', async () => {
+    const a = await fixtureTeam();
+    const t = `/api/v1/teams/${a.teamId}`;
+    expect(
+      (
+        await call('PATCH', `${t}/members/${a.coach.memberId}`, {
+          cookie: a.admin.cookie,
+          body: { role: 'admin' },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call('PATCH', `${t}/members/${a.admin.memberId}`, {
+          cookie: a.manager.cookie,
+          body: { role: 'player' },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (await call('DELETE', t, { cookie: a.admin.cookie, body: { confirmName: 'Test RFC' } }))
+        .status,
+    ).toBe(403);
+  });
+});

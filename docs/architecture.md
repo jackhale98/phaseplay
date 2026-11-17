@@ -62,6 +62,8 @@ docs/                specs, decisions.md, runbooks
 - `requireMember(c, teamId, action)` loads the caller's active membership with one indexed query, checks `permissions.ts`, and puts the membership on the context. Handlers never accept a `teamId` without it.
 - Every resource query is scoped: `WHERE id = ? AND team_id = ?`, with `team_id` taken from the membership. Another team's resource returns **404**.
 - Membership is checked on every request and never cached in the session, so removing someone takes effect immediately.
+- **Roles.** Each membership has a main `role` (owner, admin, coach, manager, player) and `role_ids`, a JSON list of team roles (`team_roles`: name, colour, `permissions` JSON). The same `requireMember` query folds the granted permissions in with `json_each`, so a role check costs no extra query. `can({ role, grants }, action)` in `permissions.ts` is the one check used by the API and the web app; grants outside `GRANTABLE` are ignored. Changing a member's roles, or editing a role they hold, forces their next sync to be a full one so newly hidden rows disappear.
+- **Ownership.** `teams.owner_id` plus `pending_owner_member_id`/`pending_owner_at` for a nominate-then-accept handover. An admin may claim ownership when the owner's last activity (`users.last_seen_at`, or their newest session) is over 30 days old (`OWNER_CLAIM_AFTER_MS`).
 - `packages/shared/api-routes.ts` exports the route table. The tenancy test generates cases from it: anonymous, other team's member, removed member, and each role. See `docs/testing-ci.md`.
 
 ## Data model (D1 / SQLite)
@@ -77,8 +79,9 @@ docs/                specs, decisions.md, runbooks
 | `sessions` | id_hash PK, user_id, created_at, expires_at, last_seen_at | user_id, expires_at |
 | `auth_challenges` | id, challenge, kind, user_id?, expires_at | expires_at |
 | `recovery_codes` | user_id, code_hash, used_at | user_id |
-| `teams` | id, name, short_name, colors JSON, default_format, timezone, owner_id, created_at, updated_at, deleted_at | |
-| `memberships` | id (member id), team_id, user_id?, display_name, role, jersey, positions JSON, status (`active`/`removed`/`pending`), joined_at, removed_at, updated_at | UNIQUE(team_id,user_id), (user_id,status), (team_id,status), (team_id,updated_at) |
+| `teams` | id, name, short_name, colors JSON, default_format, timezone, owner_id, pending_owner_member_id?, pending_owner_at?, created_at, updated_at, deleted_at | |
+| `memberships` | id (member id), team_id, user_id?, display_name, role, role_ids JSON, jersey, positions JSON, status (`active`/`removed`/`pending`), joined_at, removed_at, updated_at | UNIQUE(team_id,user_id), (user_id,status), (team_id,status), (team_id,updated_at) |
+| `team_roles` | id, team_id, name, color, permissions JSON (grantable actions only), created_at, updated_at, deleted_at | (team_id,updated_at) |
 | `invites` | id, team_id, token_hash UNIQUE, kind (`join`/`relink`), role, target_user_id?, created_by, expires_at, max_uses, uses, revoked_at | team_id |
 | `seasons` | id, team_id, name, starts_on, ends_on | team_id |
 | `events` | id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id?, cancelled_at, version, updated_at, deleted_at | (team_id,starts_at), (team_id,updated_at) |

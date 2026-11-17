@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { isCoach, isStaff, type RsvpCounts, type SyncResponse } from '@phaseplay/shared';
+import { can, type RsvpCounts, type SyncResponse } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { notFound } from '../lib/http';
@@ -7,6 +7,8 @@ import {
   DRILL_META_COLS,
   EVENT_COLS,
   MEMBER_COLS,
+  ROLE_COLS,
+  roleFromRow,
   PLAN_COLS,
   PLAY_META_COLS,
   SHEET_COLS,
@@ -55,9 +57,10 @@ const SYNC_SQL = `SELECT
      WHERE team_id = ?1 AND event_id IN (SELECT event_id FROM rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5))
      GROUP BY event_id)) AS counts,
   ${arr(SHEET_COLS, `team_sheets WHERE team_id = ?1 AND updated_at > ?2 AND (?6 = 1 OR published IS NOT NULL)`)} AS sheets,
-  ${arr(PLAY_META_COLS, `plays WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plays,
-  ${arr(DRILL_META_COLS, `drills WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS drills,
-  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?6 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plans`;
+  ${arr(ROLE_COLS, `team_roles WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS roles,
+  ${arr(PLAY_META_COLS, `plays WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?7 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plays,
+  ${arr(DRILL_META_COLS, `drills WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?8 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS drills,
+  ${arr(PLAN_COLS, `practice_plans WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL) AND (?9 = 1 OR visibility = 'team' OR deleted_at IS NOT NULL OR ?2 > 0)`)} AS plans`;
 
 /**
  * A row a player can no longer see (made coach-only since their last sync) is sent as a bare
@@ -84,13 +87,27 @@ export function syncRoutes(app: Hono<AppEnv>) {
     const t = Date.now();
     const sinceRaw = Number(c.req.query('since') ?? 0);
     let since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.max(1, sinceRaw - OVERLAP_MS) : 0;
-    // A role change (e.g. coach → player) changes what you may see: start from a full sync.
-    if (since && me.updatedAt > sinceRaw) since = 0;
-    const staff = isStaff(me.role);
-    const coach = isCoach(me.role);
+    // A change to your base role or team roles changes what you may see: start from a full sync.
+    if (since && Math.max(me.updatedAt, c.var.rolesUpdatedAt) > sinceRaw) since = 0;
+    const p = c.var.perms;
+    const staff = can(p, 'availability.view');
+    const drafts = can(p, 'sheets.view_draft');
+    const plays = can(p, 'plays.view_private');
+    const drills = can(p, 'drills.view_private');
+    const plans = can(p, 'practice.view_private');
     const row = await c.var.db
       .prepare(SYNC_SQL)
-      .bind(me.teamId, since, staff ? 1 : 0, me.id, since ? 0 : t - FULL_WINDOW_MS, coach ? 1 : 0)
+      .bind(
+        me.teamId,
+        since,
+        staff ? 1 : 0,
+        me.id,
+        since ? 0 : t - FULL_WINDOW_MS,
+        drafts ? 1 : 0,
+        plays ? 1 : 0,
+        drills ? 1 : 0,
+        plans ? 1 : 0,
+      )
       .first<Record<string, string>>();
     if (!row?.team) throw notFound();
     const list = (k: string) => JSON.parse(row[k] ?? '[]') as Record<string, unknown>[];
@@ -108,16 +125,17 @@ export function syncRoutes(app: Hono<AppEnv>) {
       team: teamFromRow(JSON.parse(row.team)),
       me,
       members: list('members').map(memberFromRow),
+      roles: list('roles').map(roleFromRow),
       seasons: list('seasons').map(seasonFromRow),
       events: list('events').map(eventFromRow),
       rsvps: list('rsvps').map((r) => rsvpFromRow(r, staff || r.member_id === me.id)),
       rsvpCounts,
       sheets: list('sheets')
-        .map((r) => sheetFromRow(r, !coach))
+        .map((r) => sheetFromRow(r, !drafts))
         .filter((s) => s !== null),
-      plays: list('plays').map(playMetaFromRow).map(hidden(coach)),
-      drills: list('drills').map(drillMetaFromRow).map(hidden(coach)),
-      plans: list('plans').map(planFromRow).map(hidden(coach)),
+      plays: list('plays').map(playMetaFromRow).map(hidden(plays)),
+      drills: list('drills').map(drillMetaFromRow).map(hidden(drills)),
+      plans: list('plans').map(planFromRow).map(hidden(plans)),
     };
     return c.json(res);
   });

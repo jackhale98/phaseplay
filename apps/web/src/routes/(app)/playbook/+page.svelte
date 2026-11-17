@@ -8,7 +8,6 @@
     DRILL_CATEGORY_LABELS,
     PLAY_CATEGORIES,
     PLAY_CATEGORY_LABELS,
-    can,
     type ContactLevel,
     type DrillCategory,
     type PlayCategory,
@@ -34,8 +33,8 @@
 
   type Tab = 'plays' | 'drills';
   const s = $derived(app.snap);
-  const coach = $derived(can(app.role, 'plays.manage'));
-  const drillCoach = $derived(can(app.role, 'drills.manage'));
+  const coach = $derived(app.can('plays.manage'));
+  const drillCoach = $derived(app.can('drills.manage'));
   let tab = $state<Tab>(page.url.searchParams.get('tab') === 'drills' ? 'drills' : 'plays');
   let q = $state('');
   let playCat = $state<PlayCategory | 'all'>('all');

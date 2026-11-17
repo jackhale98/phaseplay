@@ -4,11 +4,11 @@
     GROUP_LABELS,
     RULES,
     groupOf,
-    isStaff,
     positionsFor,
     uuidv7,
     type Member,
     type PositionGroup,
+    ROLE_LABELS,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { squad } from '#lib/data/selectors';
@@ -23,7 +23,9 @@
   import { IconUserPlus, IconPlus, IconChevronRight } from '#lib/icons';
 
   const s = $derived(app.snap);
-  const staff = $derived(isStaff(app.role));
+  const inviter = $derived(app.can('invites.create'));
+  const addNames = $derived(app.can('members.manage'));
+  const staff = $derived(inviter || addNames);
   const fmt = $derived(s?.team.defaultFormat ?? '15s');
   let view = $state<'position' | 'name'>('position');
   let invite = $state(page.url.searchParams.get('invite') === '1');
@@ -82,6 +84,7 @@
             role: 'player',
             jersey: null,
             positions: [],
+            roleIds: [],
             status: 'pending',
             joinedAt: null,
             updatedAt: Date.now(),
@@ -104,7 +107,7 @@
         <small class="muted">{short(m) || (m.role === 'player' ? 'No positions yet' : '')}</small>
       </span>
       {#if m.status === 'pending'}<Chip tone="warn">Not joined</Chip
-        >{:else if m.role !== 'player'}<Chip tone="accent">{m.role}</Chip>{/if}
+        >{:else if m.role !== 'player'}<Chip tone="accent">{ROLE_LABELS[m.role]}</Chip>{/if}
       <IconChevronRight />
     </a>
   </li>
@@ -120,12 +123,12 @@
     </div>
     {#if staff}
       <div class="row">
-        <Button onclick={() => (addName = true)}
-          >{#snippet icon()}<IconPlus />{/snippet}Add name</Button
-        >
-        <Button variant="primary" onclick={() => (invite = true)}
-          >{#snippet icon()}<IconUserPlus />{/snippet}Invite</Button
-        >
+        {#if addNames}<Button onclick={() => (addName = true)}
+            >{#snippet icon()}<IconPlus />{/snippet}Add name</Button
+          >{/if}
+        {#if inviter}<Button variant="primary" onclick={() => (invite = true)}
+            >{#snippet icon()}<IconUserPlus />{/snippet}Invite</Button
+          >{/if}
       </div>
     {/if}
   </header>

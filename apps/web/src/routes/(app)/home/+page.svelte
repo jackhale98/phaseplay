@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { isStaff, GROUP_LABELS } from '@phaseplay/shared';
+  import { GROUP_LABELS } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming, myRsvp, availability, sheetFor, memberName } from '#lib/data/selectors';
   import EventCard from '#lib/components/EventCard.svelte';
@@ -21,7 +21,7 @@
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
   const me = $derived(s?.me);
-  const staff = $derived(isStaff(me?.role));
+  const staff = $derived(app.can('events.manage'));
   const next = $derived(upcoming(s).filter((e) => !e.cancelledAt));
   const hero = $derived(next[0]);
   const awaiting = $derived(
@@ -38,14 +38,14 @@
   );
   const nextMatch = $derived(next.find((e) => e.type === 'match' || e.type === 'tournament'));
   const sheet = $derived(nextMatch ? sheetFor(s, nextMatch.id) : undefined);
-  const showSheet = $derived(sheet && (sheet.publishedAt || staff));
+  const showSheet = $derived(sheet && (sheet.publishedAt || app.can('sheets.view_draft')));
   const newPlays = $derived(
     Object.values(s?.rows.plays ?? {})
       .filter((p) => p.updatedAt > Date.now() - 14 * 86400e3)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3),
   );
-  const avail = $derived(staff && hero ? availability(s, hero) : null);
+  const avail = $derived(app.can('availability.view') && hero ? availability(s, hero) : null);
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
   const firstName = $derived((app.me?.user.displayName ?? '').split(' ')[0]);
@@ -198,7 +198,7 @@
       </div>
     {/if}
 
-    {#if staff && Object.keys(s.rows.members).length < 3}
+    {#if app.can('invites.create') && Object.keys(s.rows.members).length < 3}
       <a class="card link invite" href="/squad?invite=1">
         <span class="ic"><IconUserPlus /></span>
         <span class="grow"

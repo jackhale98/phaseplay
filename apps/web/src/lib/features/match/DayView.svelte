@@ -1,7 +1,7 @@
 <!-- 7s tournament day: each game's score and every player's minutes across the day (see day.ts). -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { can, formatClock } from '@phaseplay/shared';
+  import { formatClock } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { memberName } from '#lib/data/selectors';
   import { day as fmtDay } from '#lib/format';
@@ -17,7 +17,7 @@
   onMount(() => v.mount());
 
   const event = $derived(v.event);
-  const staff = $derived(can(app.role, 'match.record'));
+  const staff = $derived(app.can('match.record'));
   const started = $derived(v.day.filter((g) => g.state.clock.period > 0));
   const mins = $derived(dayMinutes(started));
   const rows = $derived(

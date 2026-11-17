@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { isCoach, isStaff } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { theme, type ThemePref } from '#lib/stores/theme.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
@@ -15,7 +14,6 @@
     IconInfo,
   } from '#lib/icons';
 
-  const role = $derived(app.role);
   let pref = $state<ThemePref>(theme.pref);
   $effect(() => theme.set(pref));
   const links = $derived([
@@ -25,11 +23,17 @@
       href: '/settings/import',
       label: 'Import from TeamSnap',
       icon: IconUpload,
-      show: isStaff(role),
+      show: app.can('import.run'),
     },
     { href: '/settings/account', label: 'Account and passkeys', icon: IconKey, show: true },
     { href: '/settings/team', label: 'Team settings', icon: IconSettings, show: true },
-    { href: '/settings/audit', label: 'Audit log', icon: IconClipboard, show: isCoach(role) },
+    { href: '/settings/roles', label: 'Roles and permissions', icon: IconShield, show: true },
+    {
+      href: '/settings/audit',
+      label: 'Audit log',
+      icon: IconClipboard,
+      show: app.can('audit.view'),
+    },
     { href: '/privacy', label: 'Privacy', icon: IconShield, show: true },
   ]);
 </script>

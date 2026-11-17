@@ -9,6 +9,7 @@ import type {
   Team,
   TeamEvent,
   TeamSheet,
+  TeamRole,
 } from '@phaseplay/shared';
 
 /** Everything cached for one team. Rows are keyed by id (rsvps by `${eventId}:${memberId}`). */
@@ -28,6 +29,8 @@ export type TeamSnapshot = {
     plays: Record<string, PlayMeta>;
     drills: Record<string, DrillMeta>;
     plans: Record<string, PracticePlan>;
+    /** Missing from snapshots cached before team roles existed. */
+    roles?: Record<string, TeamRole>;
   };
 };
 

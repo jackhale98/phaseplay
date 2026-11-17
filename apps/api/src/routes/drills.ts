@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { DrillCreate, DrillUpdate, isCoach } from '@phaseplay/shared';
+import { DrillCreate, DrillUpdate, can } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
@@ -31,7 +31,7 @@ export function drillRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const row = await c.var.db
       .prepare(
-        `SELECT ${DRILL_META_COLS}, diagram FROM drills WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${isCoach(me.role) ? '' : `AND visibility = 'team'`}`,
+        `SELECT ${DRILL_META_COLS}, diagram FROM drills WHERE id = ? AND team_id = ? AND deleted_at IS NULL ${can(c.var.perms, 'drills.view_private') ? '' : `AND visibility = 'team'`}`,
       )
       .bind(c.req.param('drillId'), me.teamId)
       .first();

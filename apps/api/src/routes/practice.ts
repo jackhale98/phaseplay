@@ -1,5 +1,5 @@
 import type { Hono } from 'hono';
-import { PlanCreate, PlanUpdate, RunAppend, isCoach, timeline } from '@phaseplay/shared';
+import { PlanCreate, PlanUpdate, RunAppend, can, timeline } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now, parseJson } from '../lib/http';
@@ -86,7 +86,7 @@ export function practiceRoutes(app: Hono<AppEnv>) {
 
   route(app, 'runs.list', async (c) => {
     const me = c.var.member;
-    const vis = isCoach(me.role) ? '' : `AND visibility = 'team'`;
+    const vis = can(c.var.perms, 'practice.view_private') ? '' : `AND visibility = 'team'`;
     const [plan, rows] = await c.var.db.batch([
       c.var.db
         .prepare(
