@@ -19,7 +19,20 @@
       type="font/woff2"
       crossorigin
     />
-    <script src="/theme.js"></script>
+    <!-- Before first paint: sends signed-in visitors from the landing page to Home, and applies a saved theme/team accent. Its CSP hash is computed in vite.config.ts. -->
+    <script id="pp-theme">
+      try {
+        if (location.pathname === '/' && localStorage.getItem('pp:session') === '1')
+          location.replace('/home');
+        var t = localStorage.getItem('pp:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+        var a = localStorage.getItem('pp:accent');
+        if (a) {
+          var s = JSON.parse(a);
+          for (var k in s) document.documentElement.style.setProperty(k, s[k]);
+        }
+      } catch (e) {}
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

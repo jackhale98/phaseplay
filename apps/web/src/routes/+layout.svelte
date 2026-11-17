@@ -5,7 +5,6 @@
   import { browser } from '$app/env';
   import Toasts from '#lib/components/Toasts.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { app } from '#lib/data/app.svelte';
 
   let { children } = $props();
 
@@ -24,6 +23,10 @@
 
   onMount(() => {
     if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
+    // The data layer is only needed to know whether a live session is running; load it lazily so
+    // the prerendered landing page doesn't download it.
+    let app: { busy: boolean } = { busy: false };
+    void import('#lib/data/app.svelte').then((m) => (app = m.app));
     let refreshing = false;
     // The first install also fires controllerchange (clients.claim); only reload for real updates.
     const hadController = !!navigator.serviceWorker.controller;

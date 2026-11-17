@@ -132,7 +132,7 @@ class AppState {
   private syncing: Promise<void> | null = null;
   private flushing = false;
   /** entity:id → (version we sent → version the server returned) for our own writes. */
-  private ownVersions = new Map<string, Map<number, number>>();
+  private ownVersions: Record<string, Record<number, number>> = {};
   /** Id of the outbox entry currently being sent; it can no longer be cancelled. */
   private sending: string | null = null;
   private conflictListeners = new Set<ConflictListener>();
@@ -403,9 +403,9 @@ class AppState {
     let ifMatch: number | null = null;
     if (e.versionOf && e.baseVersion !== undefined) {
       // Follow our own earlier successful writes to this row (chained edits), nothing else.
-      const chain = this.ownVersions.get(`${e.versionOf.entity}:${e.versionOf.id}`);
+      const chain = this.ownVersions[`${e.versionOf.entity}:${e.versionOf.id}`];
       let v = e.baseVersion ?? 0;
-      for (let i = 0; chain?.has(v) && i < 1000; i++) v = chain.get(v)!;
+      for (let i = 0; chain?.[v] !== undefined && i < 1000; i++) v = chain[v]!;
       ifMatch = v || null;
     } else if (e.versionOf) {
       // Entries queued by an older app version: resolve from the cache as before.
@@ -430,9 +430,7 @@ class AppState {
         const row = k ? (res?.[k] as { version?: number } | undefined) : undefined;
         if (row?.version) {
           const key = `${e.versionOf.entity}:${e.versionOf.id}`;
-          const chain = this.ownVersions.get(key) ?? new Map<number, number>();
-          chain.set(ifMatch ?? 0, row.version);
-          this.ownVersions.set(key, chain);
+          (this.ownVersions[key] ??= {})[ifMatch ?? 0] = row.version;
         }
       }
       await drop();

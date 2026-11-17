@@ -23,3 +23,5 @@ One line per decision: date — decision — why.
 - 2026-11-17 — No live player view during practice (product call: phones stay off the pitch); players see the shared plan beforehand.
 - 2026-11-17 — Outbox pins each versioned edit's base version at edit time instead of resolving it at send time, so a background sync between edit and send can't turn a conflict into a silent overwrite.
 - 2026-11-17 — Live practice sessions are shared by all staff (assistant coaches coordinate forwards/backs splits). Advance/skip/end events get ids derived from the run's start event and step index, so several phones auto-advancing or tapping Next together merge into one event; players still have no live view.
+- 2026-11-17 — Landing and privacy pages ship no JavaScript (`csr = false`); the signed-in redirect and saved theme run in one inline script allowed by its CSP hash (computed in vite.config.ts), and page CSS is inlined. Lighthouse mobile: LCP 1.2 s, perf 99–100, a11y 100, best practices 100.
+- 2026-11-17 — Debounced autosaves (sheets, plans, plays, drills) pin the base version when a burst of edits begins, not when the save fires.

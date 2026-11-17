@@ -1,16 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import Logo from '#lib/marketing/Logo.svelte';
   import HeroPitch from '#lib/marketing/HeroPitch.svelte';
   import Crest from '#lib/components/Crest.svelte';
-
-  // Signed-in visitors (hint only; the session cookie is HttpOnly) go straight to the app.
-  onMount(() => {
-    try {
-      if (localStorage.getItem('pp:session') === '1') void goto('/home', { replaceState: true });
-    } catch {}
-  });
 
   const features = [
     {

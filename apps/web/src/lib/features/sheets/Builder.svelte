@@ -145,9 +145,13 @@
 
   // ---- Editing and autosave ----
   let timer: ReturnType<typeof setTimeout> | null = null;
+  /** The sheet version the on-screen edits started from (pinned when editing begins, not when the
+   * debounced save fires, so a sync landing in between can't turn a conflict into an overwrite). */
+  let editBase: number | null = null;
 
   function edit(next: Draft, undo?: string) {
     const before = draft;
+    if (local === null) editBase = sheet?.version ?? 0;
     local = next;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => void save(), 800);
@@ -195,8 +199,12 @@
       label: 'Team sheet',
       optimistic,
       versionOf: { entity: 'sheets', id },
+      baseVersion: editBase ?? sheet?.version ?? 0,
     });
-    if (local === d) local = null;
+    if (local === d) {
+      local = null;
+      editBase = null;
+    }
   }
 
   onMount(() =>
@@ -205,6 +213,7 @@
       if (timer) clearTimeout(timer);
       timer = null;
       local = null;
+      editBase = null;
     }),
   );
   onDestroy(() => {

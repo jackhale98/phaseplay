@@ -103,6 +103,8 @@
   let dirty = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let lastSent = '';
+  /** Plan version the current burst of edits started from (pinned before the debounce). */
+  let base: number | undefined;
 
   $effect(() => {
     const p = plan;
@@ -128,6 +130,7 @@
     schedule();
   }
   function schedule() {
+    if (!dirty) base = plan?.version;
     dirty = true;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => void flush(), 800);
@@ -146,6 +149,7 @@
       body: { data, title: t },
       label: 'Practice plan',
       versionOf: { entity: 'plans', id },
+      ...(base !== undefined ? { baseVersion: base } : {}),
       optimistic: [
         {
           op: 'patch',

@@ -175,13 +175,11 @@
   @keyframes up {
     from {
       transform: translateY(24px);
-      opacity: 0.6;
     }
   }
   @keyframes pop {
     from {
       transform: scale(0.97);
-      opacity: 0;
     }
   }
   @keyframes fade {

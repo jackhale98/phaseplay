@@ -50,10 +50,11 @@
   const autosave = new Autosave({
     key: playDraftKey(id),
     snapshot: () => ({ data: current }),
-    send: async () => {
+    version: () => app.snap?.rows.plays[id]?.version,
+    send: async (baseVersion) => {
       const data = current;
       if (!data) return;
-      await patchPlay(id, { data, title: data.title }, 'Play');
+      await patchPlay(id, { data, title: data.title }, 'Play', baseVersion);
       const base = server ?? (row as PlayFull | undefined);
       if (base) rememberPlay({ ...base, ...(row ?? {}), data, frameCount: data.frames.length });
     },

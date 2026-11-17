@@ -118,7 +118,12 @@ export async function duplicatePlay(src: PlayFull): Promise<string> {
 }
 
 /** PATCH a play's fields with If-Match. */
-export async function patchPlay(id: string, body: PlayUpdate, label = 'Play') {
+export async function patchPlay(
+  id: string,
+  body: PlayUpdate,
+  label = 'Play',
+  baseVersion?: number,
+) {
   const optimistic: Record<string, unknown> = { updatedAt: Date.now() };
   for (const k of ['title', 'category', 'tags', 'format', 'visibility', 'description'] as const)
     if (body[k] !== undefined) optimistic[k] = body[k];
@@ -129,6 +134,7 @@ export async function patchPlay(id: string, body: PlayUpdate, label = 'Play') {
     body,
     label,
     versionOf: { entity: 'plays', id },
+    ...(baseVersion !== undefined ? { baseVersion } : {}),
     optimistic: [{ op: 'patch', entity: 'plays', key: id, value: optimistic }],
   });
 }
@@ -240,7 +246,12 @@ export async function duplicateDrill(src: DrillFull): Promise<string> {
   });
 }
 
-export async function patchDrill(id: string, body: DrillUpdate, label = 'Drill') {
+export async function patchDrill(
+  id: string,
+  body: DrillUpdate,
+  label = 'Drill',
+  baseVersion?: number,
+) {
   const optimistic: Record<string, unknown> = { ...body, updatedAt: Date.now() };
   delete optimistic.diagram;
   if (body.diagram !== undefined) optimistic.hasDiagram = !!body.diagram;
@@ -250,6 +261,7 @@ export async function patchDrill(id: string, body: DrillUpdate, label = 'Drill')
     body,
     label,
     versionOf: { entity: 'drills', id },
+    ...(baseVersion !== undefined ? { baseVersion } : {}),
     optimistic: [{ op: 'patch', entity: 'drills', key: id, value: optimistic }],
   });
 }

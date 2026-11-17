@@ -61,10 +61,11 @@
   const autosave = new Autosave({
     key: drillDraftKey(id),
     snapshot: () => ({ diagram: current }),
-    send: async () => {
+    version: () => app.snap?.rows.drills[id]?.version,
+    send: async (baseVersion) => {
       const diagram = current;
       if (!diagram) return;
-      await patchDrill(id, { diagram }, 'Drill');
+      await patchDrill(id, { diagram }, 'Drill', baseVersion);
       const base = server;
       if (base)
         rememberDrill({ ...base, ...(s?.rows.drills[id] ?? {}), diagram, hasDiagram: true });

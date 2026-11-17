@@ -38,7 +38,10 @@ test('RSVP from Home is one tap and survives a reload', async ({ page, team }) =
   ).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('Home opens offline from the on-device cache', async ({ page, context, team }) => {
+test('Home opens offline from the on-device cache', async ({ page, context, team }, info) => {
+  // Playwright's WebKit can't reload a page while offline ("WebKit encountered an internal error"),
+  // even with a service worker in control; Chromium covers the offline cold start.
+  test.skip(info.project.name.includes('webkit'), 'WebKit cannot reload offline under Playwright');
   const id = crypto.randomUUID();
   await team.post(`/teams/${team.teamId}/events`, {
     id,

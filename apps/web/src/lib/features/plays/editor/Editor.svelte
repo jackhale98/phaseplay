@@ -1298,23 +1298,26 @@
   </div>
 
   <section class="frames" aria-label="Frames">
-    <div class="strip" role="group" aria-label="Frames">
-      {#each play.frames as f, i (f.id)}
-        <button
-          aria-pressed={i === fi && scrubT === null}
-          class="frame"
-          onclick={() => {
-            if (i === fi && !desktop) frameSheet = true;
-            else selectFrame(i);
-          }}
-          aria-label="Frame {i + 1}{f.caption ? `: ${f.caption}` : ''}{i > 0
-            ? `, ${(f.durationMs / 1000).toFixed(1)} seconds`
-            : ', start'}"
-        >
-          <strong>{i + 1}</strong>
-          <small>{i === 0 ? 'Start' : `${(f.durationMs / 1000).toFixed(1)}s`}</small>
-        </button>
-      {/each}
+    <div class="strip-row">
+      <div class="strip" role="group" aria-label="Frames">
+        {#each play.frames as f, i (f.id)}
+          <button
+            aria-pressed={i === fi && scrubT === null}
+            class="frame"
+            onclick={() => {
+              if (i === fi && !desktop) frameSheet = true;
+              else selectFrame(i);
+            }}
+            aria-label="Frame {i + 1}{f.caption ? `: ${f.caption}` : ''}{i > 0
+              ? `, ${(f.durationMs / 1000).toFixed(1)} seconds`
+              : ', start'}"
+          >
+            <strong>{i + 1}</strong>
+            <small>{i === 0 ? 'Start' : `${(f.durationMs / 1000).toFixed(1)}s`}</small>
+          </button>
+        {/each}
+      </div>
+      <!-- Outside the scrolling strip so it's always fully visible and never clipped. -->
       <button class="frame add" onclick={newFrame} aria-label="Add frame"
         ><IconPlus /><small>Frame</small></button
       >
@@ -1693,6 +1696,14 @@
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
+  .strip-row {
+    display: flex;
+    align-items: center;
+  }
+  .strip-row .strip {
+    flex: 1;
+    min-width: 0;
+  }
   .strip {
     display: flex;
     gap: var(--s-2);
@@ -1730,6 +1741,7 @@
     color: var(--accent-text);
     font-weight: 650;
     padding: 0 var(--s-2);
+    margin: var(--s-2) var(--s-3) var(--s-2) 0;
   }
   .frame.add :global(svg) {
     width: 16px;

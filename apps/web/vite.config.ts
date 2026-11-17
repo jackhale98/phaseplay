@@ -1,6 +1,14 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import adapter from '@sveltejs/adapter-static';
 import { defineConfig } from 'vite';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+// The inline theme script in app.html runs before first paint (no extra request); allow exactly it.
+const themeScript =
+  /<script id="pp-theme">([\s\S]*?)<\/script>/.exec(readFileSync('src/app.html', 'utf8'))?.[1] ??
+  '';
+const themeHash = `sha256-${createHash('sha256').update(themeScript).digest('base64')}` as const;
 
 const api = process.env.API_ORIGIN ?? 'http://localhost:8787';
 
@@ -14,7 +22,7 @@ export default defineConfig({
         mode: 'hash',
         directives: {
           'default-src': ['self'],
-          'script-src': ['self'],
+          'script-src': ['self', themeHash],
           'style-src': ['self', 'unsafe-inline'],
           'img-src': ['self', 'data:', 'blob:'],
           'font-src': ['self'],
@@ -28,6 +36,8 @@ export default defineConfig({
         },
       },
       serviceWorker: { register: false },
+      // Inline the (small) CSS so it doesn't block first paint with extra requests.
+      inlineStyleThreshold: 24 * 1024,
       version: { name: process.env.PUBLIC_VERSION ?? String(Date.now()), pollInterval: 0 },
     }),
   ],

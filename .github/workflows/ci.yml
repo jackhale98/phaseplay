@@ -32,6 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm i --frozen-lockfile
+      - run: pnpm --filter @phaseplay/web exec svelte-kit sync
       - run: pnpm test --project shared --project diagram --project web
 
   api:
