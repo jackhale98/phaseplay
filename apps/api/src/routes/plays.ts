@@ -78,6 +78,10 @@ export function playRoutes(app: Hono<AppEnv>) {
       sets.push('frame_count = ?');
       vals.push(input.data.frames.length);
     }
+    if (input.archived !== undefined) {
+      sets.push('archived_at = ?');
+      vals.push(input.archived ? now() : null);
+    }
     const play = await versionedUpdate(c, {
       table: 'plays',
       cols: `${PLAY_META_COLS}, data`,

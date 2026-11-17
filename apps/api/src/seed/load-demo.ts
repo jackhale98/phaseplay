@@ -1,5 +1,6 @@
 import { bulkInsert } from '../lib/bulk';
 import { buildDemo, DEMO_TABLE_ORDER, DEMO_TEAM_ID } from './demo';
+import { DEMO_CONTENT_VERSION } from './demo-version';
 
 /** Refresh the demo at most this often so its dates always look current. */
 const MAX_AGE_MS = 20 * 3600e3;
@@ -15,12 +16,17 @@ export async function ensureDemo(
   now = Date.now(),
   force = false,
 ): Promise<boolean> {
+  const version = DEMO_CONTENT_VERSION;
   if (!force) {
     const row = await db
-      .prepare('SELECT updated_at FROM teams WHERE id = ? AND deleted_at IS NULL')
+      .prepare(
+        `SELECT (SELECT updated_at FROM teams WHERE id = ? AND deleted_at IS NULL) AS updated_at,
+                (SELECT value FROM app_meta WHERE key = 'demo_version') AS version`,
+      )
       .bind(DEMO_TEAM_ID)
-      .first<{ updated_at: number }>();
-    if (row && now - row.updated_at < MAX_AGE_MS) return false;
+      .first<{ updated_at: number | null; version: string | null }>();
+    if (row?.updated_at && now - row.updated_at < MAX_AGE_MS && row.version === version)
+      return false;
   }
   const tables = buildDemo(now);
   const stmts = [
@@ -31,6 +37,14 @@ export async function ensureDemo(
     const st = bulkInsert(db, t, tables[t], { ignoreConflicts: t === 'users' });
     if (st) stmts.push(st);
   }
+  stmts.push(
+    db
+      .prepare(
+        `INSERT INTO app_meta (key, value, updated_at) VALUES ('demo_version', ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      )
+      .bind(version, now),
+  );
   await db.batch(stmts);
   return true;
 }

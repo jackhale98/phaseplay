@@ -32,9 +32,9 @@
         href: `/events/${e.id}`,
       });
     for (const p of Object.values(s?.rows.plays ?? {}))
-      list.push({ label: p.title, hint: 'Play', href: `/plays/${p.id}` });
+      if (!p.archivedAt) list.push({ label: p.title, hint: 'Play', href: `/plays/${p.id}` });
     for (const d of Object.values(s?.rows.drills ?? {}))
-      list.push({ label: d.title, hint: 'Drill', href: `/drills/${d.id}` });
+      if (!d.archivedAt) list.push({ label: d.title, hint: 'Drill', href: `/drills/${d.id}` });
     for (const m of squad(s))
       list.push({ label: m.displayName, hint: 'Squad', href: `/squad/${m.id}` });
     return list;

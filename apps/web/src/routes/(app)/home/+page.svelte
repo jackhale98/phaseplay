@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { GROUP_LABELS } from '@phaseplay/shared';
+  import { untrack } from 'svelte';
+  import { cubicInOut, cubicOut } from 'svelte/easing';
+  import { fade, fly, slide } from 'svelte/transition';
+  import { GROUP_LABELS, type RsvpStatus } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { upcoming, myRsvp, availability, sheetFor, memberName } from '#lib/data/selectors';
   import EventCard from '#lib/components/EventCard.svelte';
@@ -17,6 +20,7 @@
     IconWarn,
     IconUserPlus,
     IconChevronRight,
+    IconCheck,
   } from '#lib/icons';
 
   const s = $derived(app.snap);
@@ -31,6 +35,51 @@
       .filter((e) => e.startsAt < Date.now() + 21 * 86400e3 && !myRsvp(s, e.id))
       .slice(0, 4),
   );
+  /**
+   * A reply takes the card out of "Waiting for your reply". Hold it for a moment with a clear
+   * confirmation, then let it slide away so the next event visibly moves up (people tapping quickly
+   * shouldn't answer for the wrong event without noticing).
+   */
+  const HOLD_MS = 1400;
+  let held = $state<Record<string, RsvpStatus>>({});
+  let caughtUp = $state(false);
+  let said = $state('');
+  let prevIds: string[] = [];
+  const reduce =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const d = reduce ? 0 : 280;
+  const REPLY_TEXT: Record<RsvpStatus, string> = {
+    yes: "You're in",
+    maybe: 'Marked maybe',
+    no: "You're out",
+  };
+  $effect(() => {
+    const ids = awaiting.map((e) => e.id);
+    const snap = s;
+    untrack(() => {
+      for (const id of prevIds) {
+        const status = myRsvp(snap, id);
+        if (ids.includes(id) || !status || held[id]) continue;
+        held = { ...held, [id]: status };
+        const ev = snap?.rows.events[id];
+        const nextEv = awaiting.find((e) => e.id !== id);
+        said = `Saved: ${REPLY_TEXT[status]} for ${ev?.title ?? 'that event'}.${nextEv ? ` Next: ${nextEv.title}, ${relDay(nextEv.startsAt, tz)}.` : ''}`;
+        if (!ids.length) caughtUp = true;
+        setTimeout(() => {
+          const { [id]: _, ...rest } = held;
+          held = rest;
+        }, HOLD_MS);
+      }
+      prevIds = ids;
+    });
+  });
+  const waiting = $derived(
+    next
+      .slice(1)
+      .filter((e) => awaiting.includes(e) || held[e.id])
+      .sort((a, b) => a.startsAt - b.startsAt),
+  );
+
   const later = $derived(
     next
       .slice(1)
@@ -42,7 +91,7 @@
   const showSheet = $derived(sheet && (sheet.publishedAt || app.can('sheets.view_draft')));
   const newPlays = $derived(
     Object.values(s?.rows.plays ?? {})
-      .filter((p) => p.updatedAt > Date.now() - 14 * 86400e3)
+      .filter((p) => !p.archivedAt && p.updatedAt > Date.now() - 14 * 86400e3)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3),
   );
@@ -132,20 +181,37 @@
       </section>
     {/if}
 
-    {#if awaiting.length}
+    <p class="sr-only" role="status" aria-live="polite">{said}</p>
+    {#if waiting.length}
       <h2 class="section-title">Waiting for your reply</h2>
-      <div class="stack">
-        {#each awaiting as e (e.id)}
-          <EventCard
-            event={e}
-            {tz}
-            counts={s.rows.counts[e.id]}
-            myStatus={myRsvp(s, e.id)}
-            memberId={me?.id}
-            teamShort={s.team.shortName}
-          />
+      <div class="waits">
+        {#each waiting as e (e.id)}
+          <div
+            class="wait"
+            class:done={!!held[e.id]}
+            in:fade={{ duration: d, delay: d / 2, easing: cubicOut }}
+            out:slide={{ duration: d * 1.4, easing: cubicInOut }}
+          >
+            {#if held[e.id]}
+              <p class="saved" aria-hidden="true">
+                <IconCheck />{REPLY_TEXT[held[e.id]!]} · {e.title}
+              </p>
+            {/if}
+            <EventCard
+              event={e}
+              {tz}
+              counts={s.rows.counts[e.id]}
+              myStatus={myRsvp(s, e.id)}
+              memberId={me?.id}
+              teamShort={s.team.shortName}
+            />
+          </div>
         {/each}
       </div>
+    {:else if caughtUp}
+      <p class="caught" in:fly={{ y: 12, duration: d }}>
+        <IconCheck /> You're all caught up. Thanks!
+      </p>
     {/if}
 
     {#if showSheet && sheet && nextMatch}
@@ -309,5 +375,74 @@
   }
   .invite {
     margin-top: var(--s-6);
+  }
+  .wait {
+    position: relative;
+    border-radius: var(--r-lg);
+    transition:
+      box-shadow var(--m-fast) var(--ease),
+      transform 280ms var(--ease);
+    /* Composite the card on its own layer so the collapse animates without repainting it. */
+    will-change: transform;
+  }
+  .wait {
+    /* Each card owns the space below it, so a leaving card's collapse animates that space too. */
+    margin-bottom: var(--s-3);
+  }
+  .wait.done {
+    transform: scale(0.985);
+    box-shadow: 0 0 0 2px var(--ok);
+  }
+  .wait.done :global(.card),
+  .wait.done :global(article) {
+    opacity: 0.75;
+  }
+  .saved {
+    position: absolute;
+    z-index: 1;
+    top: -12px;
+    left: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--ok);
+    color: #fff;
+    font-size: var(--t-14);
+    font-weight: 700;
+    box-shadow: var(--e-2);
+    animation: pop 320ms var(--ease) both;
+  }
+  .saved :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+  .caught {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    margin: var(--s-4) 0 0;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-lg);
+    background: var(--ok-soft);
+    color: var(--ok);
+    font-weight: 700;
+  }
+  .caught :global(svg) {
+    width: 18px;
+    height: 18px;
+  }
+  @keyframes pop {
+    from {
+      transform: scale(0.8);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .saved {
+      animation: none;
+    }
   }
 </style>

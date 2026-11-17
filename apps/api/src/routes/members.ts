@@ -236,11 +236,18 @@ export function memberRoutes(app: Hono<AppEnv>) {
   route(app, 'invites.list', async (c) => {
     const { results } = await c.var.db
       .prepare(
-        `SELECT ${INVITE_COLS} FROM invites WHERE team_id = ? AND kind = 'join' ORDER BY created_at DESC LIMIT 50`,
+        `SELECT ${INVITE_COLS}, token FROM invites WHERE team_id = ? AND kind = 'join' ORDER BY created_at DESC LIMIT 50`,
       )
       .bind(c.var.member.teamId)
       .all();
-    return c.json({ invites: results.map(inviteFromRow) });
+    // Only live invites expose their link; spent, expired or revoked ones never do.
+    const t = now();
+    const invites = results.map((r) => {
+      const inv = inviteFromRow(r);
+      const live = !inv.revokedAt && inv.expiresAt > t && inv.uses < inv.maxUses;
+      return { ...inv, path: live && r.token ? `/join#t=${r.token as string}` : null };
+    });
+    return c.json({ invites });
   });
 
   route(app, 'invites.create', async (c) => {
@@ -254,13 +261,14 @@ export function memberRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO invites (id, team_id, token_hash, kind, role, created_by, created_at, expires_at, max_uses)
-           VALUES (?, ?, ?, 'join', ?, ?, ?, ?, ?)`,
+          `INSERT INTO invites (id, team_id, token_hash, token, kind, role, created_by, created_at, expires_at, max_uses)
+           VALUES (?, ?, ?, ?, 'join', ?, ?, ?, ?, ?)`,
         )
         .bind(
           input.id,
           me.teamId,
           await sha256Base64Url(token),
+          token,
           input.role,
           me.userId,
           t,

@@ -5,6 +5,8 @@ import {
   TeamUpdate,
   TransferOwnership,
   TeamRoleInput,
+  HiddenTemplates,
+  can,
   OWNER_CLAIM_AFTER_MS,
   MAX_TEAM_ROLES,
   type AuditEntry,
@@ -42,7 +44,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts')`,
+          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]')`,
         )
         .bind(
           input.id,
@@ -80,6 +82,30 @@ export function teamRoutes(app: Hono<AppEnv>) {
       .first();
     if (!row) throw notFound();
     return c.json({ team: teamFromRow(row) });
+  });
+
+  route(app, 'teams.templates', async (c) => {
+    const me = c.var.member;
+    const { hidden } = await body(c, HiddenTemplates);
+    const row = await c.var.db
+      .prepare('SELECT hidden_templates FROM teams WHERE id = ?')
+      .bind(me.teamId)
+      .first<{ hidden_templates: string }>();
+    const before = new Set(parseJson(row?.hidden_templates ?? '[]', [] as string[]));
+    const after = new Set(hidden);
+    // Each key that changes needs the matching permission: drill templates need drills.manage,
+    // play presets need plays.manage.
+    for (const k of new Set([...before, ...after])) {
+      if (before.has(k) === after.has(k)) continue;
+      const action = k.startsWith('drill:') ? 'drills.manage' : 'plays.manage';
+      if (!can(c.var.perms, action)) throw forbidden("You can't change those templates");
+    }
+    const t = now();
+    await c.var.db
+      .prepare('UPDATE teams SET hidden_templates = ?, updated_at = ? WHERE id = ?')
+      .bind(JSON.stringify([...after].sort()), t, me.teamId)
+      .run();
+    return c.json({ hidden: [...after].sort() });
   });
 
   route(app, 'teams.update', async (c) => {

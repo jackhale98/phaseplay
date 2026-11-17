@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
@@ -106,7 +107,7 @@
   </header>
 
   {#if !s}
-    <div class="sk" aria-busy="true"></div>
+    <Loader label="Loading the schedule" />
   {:else if !all.length}
     <EmptyState
       title={staff ? 'Add your first training' : 'Nothing scheduled yet'}
@@ -232,11 +233,6 @@
 {/if}
 
 <style>
-  .sk {
-    height: 320px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
-  }
   .page-head p {
     margin-top: var(--s-1);
     font-size: var(--t-14);

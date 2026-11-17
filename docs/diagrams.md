@@ -94,11 +94,11 @@ type Frame = {
   - with Pass or Kick, tap the receiver or the landing point
   - pinch to zoom, two-finger pan; snapping to pitch lines can be toggled
   - long-press a token to open a sheet: number, link a squad member, duplicate, delete
-- **Presets:**
-  - lineouts (4-, 5-, 6- and 7-player, with jumpers and lifters)
-  - 15s and 7s scrums, kick-off receive and restart receive (7s)
-  - backline flat or deep, pods (1-3-3-1, 2-4-2)
-  - defensive line
+- **Presets** (law-checked in `packages/diagram/test/model.test.ts`):
+  - lineouts (4-, 5-, 6- and 7-player, with jumpers and lifters); players not in the line and the backs stand 10 m+ back (Law 18)
+  - 15s and 7s scrums (backs 5 m+ behind the hindmost feet, Law 19), kick-off receive (15s) and restart receive (7s) with the kicking team behind the ball (Law 12)
+  - backline flat or deep (11 on the blindside), pods (1-3-3-1, 2-4-2), each with a "Ruck" marker
+  - defensive line (15s and 7s), with two guards tight on the ruck
 - New frames copy the previous end positions, so you only move what changes.
 
 ## Editor — desktop
@@ -157,10 +157,14 @@ Drills use the same model, renderer, editor and exports, with these additions. T
   - a **rotation** marker (curved arrow, "rotate to next line") and a **rep flow** (where players go after their rep) show the drill's cycle
   - captions per frame become the step-by-step instructions
 - **Drill templates:**
-  - square grid with 4 corners, channels, triangle passing
-  - gates, tackle box, 2v1 and 3v2 overload, ruck-clearing lanes
-  - conditioning shuttle, and touch/tag game area
-  - templates are editable starting points
+  - handling: square grid with 4 corners, channels, triangle passing, gates
+  - warm-up: dynamic warm-up (RAMP, World Rugby Activate)
+  - contact and breakdown: tackle box, tackle tubes, ruck-clearing lanes, jackal vs clear-out
+  - attack and defense: 2v1 and 3v2 overload, defensive line speed
+  - set piece and kicking: lineout pod (throw, lift, catch, maul), lineout throwing targets, box kick and chase
+  - conditioning shuttle, and touch / flag game area
+  - the "New drill" picker offers `DRILL_TEMPLATES`; warm-up, tackle tubes, jackal, line speed, lineout pod and throwing, and box kick are `EXTRA_DRILL_TEMPLATES`, used for the starter-pack diagrams
+  - templates are editable starting points; every pass goes sideways or back, and tackle captions cue contact below the sternum
 - **Details panel** (stored on the drill row, not in the diagram): category, contact level, intensity, player range, default duration, description, coaching points, setup, and progressions or variations. Each variation can have its own diagram, made by duplicating the parent and linking back to it.
 - **Practice integration:**
   - the practice runner shows the drill diagram looping full-screen with the coaching points beside it

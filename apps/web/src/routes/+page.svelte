@@ -1,5 +1,6 @@
 <script lang="ts">
   import Logo from '#lib/marketing/Logo.svelte';
+  import Wordmark from '#lib/marketing/Wordmark.svelte';
   import Crest from '#lib/components/Crest.svelte';
 
   /** Real screenshots of the demo team (scripts/landing-shots.mjs), light and dark. */
@@ -180,7 +181,7 @@
 <div class="landing">
   <header class="top">
     <a class="brand" href="/" aria-label="Phaseplay home"
-      ><Logo size={30} /><span>Phaseplay</span></a
+      ><Logo size={36} /><Wordmark size="1.0625rem" /></a
     >
     <nav aria-label="Account">
       <a class="link" href="/signin">Sign in</a>
@@ -283,11 +284,19 @@
     </section>
 
     <section class="promise">
+      <img
+        class="crest"
+        src="/brand/phaseplay-logo-mono-chalk.svg"
+        alt=""
+        width="108"
+        height="120"
+        loading="lazy"
+      />
       <div>
         <h2>Made for the touchline</h2>
         <p>
-          No ads, no trackers, no feeds. It opens instantly from your home screen, keeps working
-          with no signal at the ground, and never asks for anyone's medical details.
+          No ads, no trackers, no feeds. It opens instantly from your home screen and keeps working
+          with no signal at the ground.
         </p>
       </div>
       <ul class="ticks">
@@ -326,17 +335,17 @@
 <style>
   .landing {
     --maxw: 1160px;
-    --green: #1f6f43;
+    --green: var(--brand-pitch);
     min-height: 100dvh;
     background:
       radial-gradient(
         1200px 600px at 80% -10%,
-        color-mix(in srgb, #1f6f43 14%, transparent),
+        color-mix(in srgb, var(--brand-pitch) 14%, transparent),
         transparent 60%
       ),
       radial-gradient(
         700px 500px at -10% 20%,
-        color-mix(in srgb, #f2c230 10%, transparent),
+        color-mix(in srgb, var(--brand-amber) 10%, transparent),
         transparent 60%
       ),
       var(--bg);
@@ -364,6 +373,31 @@
     gap: var(--s-2);
     align-items: center;
   }
+  .brand :global(svg) {
+    flex: none;
+  }
+  nav a {
+    white-space: nowrap;
+  }
+  .top {
+    gap: var(--s-3);
+  }
+  .brand {
+    min-width: 0;
+  }
+  @media (max-width: 560px) {
+    .brand :global(.wordmark) {
+      font-size: 0.8125rem !important;
+    }
+    .link {
+      padding: 10px 6px;
+    }
+  }
+  @media (max-width: 400px) {
+    .brand :global(.wordmark) {
+      display: none;
+    }
+  }
   .link {
     color: var(--text);
     font-weight: 600;
@@ -385,7 +419,7 @@
   .cta {
     background: var(--green);
     color: #fff;
-    box-shadow: 0 6px 20px rgb(31 111 67 / 0.3);
+    box-shadow: 0 6px 20px rgb(30 122 85 / 0.3);
   }
   .cta.sm {
     min-height: 40px;
@@ -696,11 +730,15 @@
     gap: var(--s-6);
     padding: var(--s-10);
     border-radius: 24px;
-    background: #13261a;
-    color: #e9f3ec;
+    background: var(--brand-ink);
+    color: var(--brand-chalk);
   }
   .promise h2 {
     margin-top: 0;
+  }
+  .promise .crest {
+    width: 72px;
+    height: auto;
   }
   .promise p {
     color: #b9d2c1;
@@ -718,7 +756,7 @@
     border: 1px solid var(--border-strong);
     background: linear-gradient(
       135deg,
-      color-mix(in srgb, #1f6f43 8%, var(--surface)),
+      color-mix(in srgb, var(--brand-pitch) 8%, var(--surface)),
       var(--surface)
     );
   }
@@ -774,7 +812,8 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .promise {
-      grid-template-columns: 1.2fr minmax(0, 1fr);
+      grid-template-columns: auto 1.2fr minmax(0, 1fr);
+      align-items: center;
       padding: var(--s-12);
     }
   }

@@ -17,6 +17,8 @@
   import { shareOrDownload, copyImage } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
   import Button from '#lib/components/Button.svelte';
+  import Sheet from '#lib/components/Sheet.svelte';
+  import { loadCrest } from '#lib/crest';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
   import { IconBack, IconShare, IconCopy, IconMatch, IconPlay } from '#lib/icons';
@@ -157,7 +159,10 @@
   async function report(template: 'square' | 'story') {
     const team = v.snap?.team;
     if (!team || !event) return;
-    const { renderMatchReport } = await import('@phaseplay/diagram/export/match-report');
+    const [{ renderMatchReport }, crest] = await Promise.all([
+      import('@phaseplay/diagram/export/match-report'),
+      loadCrest(team),
+    ]);
     return renderMatchReport({
       template,
       team: {
@@ -165,6 +170,7 @@
         shortName: team.shortName,
         primary: team.colors.primary,
         secondary: team.colors.secondary,
+        crest,
       },
       opponent: v.opponent,
       score: s.score,
@@ -197,16 +203,38 @@
       date: fmtDay(event.startsAt, team.timezone),
     });
   }
+  /**
+   * Images are rendered ahead of time: phones only allow the share sheet straight after a tap, and
+   * rendering (especially the tall story size) can take longer than that.
+   */
+  const ready: Partial<Record<'square' | 'story', Promise<Blob | undefined>>> = {};
+  let readyKey = '';
+  const reportKey = $derived(`${s.score.us}-${s.score.them}-${scoring.length}-${cards.length}`);
+  $effect(() => {
+    const key = reportKey;
+    if (!event || !v.snap?.team) return;
+    const t = setTimeout(() => {
+      if (readyKey === key) return;
+      readyKey = key;
+      ready.square = report('square').catch(() => undefined);
+      ready.story = ready.square.then(() => report('story')).catch(() => undefined);
+    }, 600);
+    return () => clearTimeout(t);
+  });
+  let preview = $state<{ url: string; blob: Blob; name: string } | null>(null);
+
   async function share(template: 'square' | 'story') {
     busy = template;
     try {
-      const blob = await report(template);
+      const blob = (readyKey === reportKey && (await ready[template])) || (await report(template));
       if (!blob) return;
-      const r = await shareOrDownload(
-        blob,
-        `${v.us}-v-${v.opponent}-${template}.png`.replace(/\s+/g, '-'),
-        `${v.us} v ${v.opponent}`,
-      );
+      const name = `${v.us}-v-${v.opponent}-${template}.png`.replace(/\s+/g, '-');
+      const r = await shareOrDownload(blob, name, `${v.us} v ${v.opponent}`);
+      if (r === 'blocked') {
+        // The tap "expired" while rendering: show the image with its own Share button.
+        preview = { url: URL.createObjectURL(blob), blob, name };
+        return;
+      }
       if (r === 'downloaded') toasts.success('Match report saved');
     } catch {
       toasts.error("Couldn't make the report image");
@@ -488,6 +516,33 @@
   {/if}
 </div>
 
+<Sheet
+  open={!!preview}
+  onclose={() => {
+    if (preview) URL.revokeObjectURL(preview.url);
+    preview = null;
+  }}
+  title="Match report"
+  description="Share it, or press and hold the image to save it."
+  size="sm"
+>
+  {#if preview}<img
+      class="rep-prev"
+      src={preview.url}
+      alt="Match report: {v.us} {s.score.us}, {v.opponent} {s.score.them}"
+    />{/if}
+  {#snippet footer()}
+    <Button
+      variant="primary"
+      onclick={async () => {
+        if (!preview) return;
+        const r = await shareOrDownload(preview.blob, preview.name, `${v.us} v ${v.opponent}`);
+        if (r === 'downloaded') toasts.success('Match report saved');
+      }}>Share</Button
+    >
+  {/snippet}
+</Sheet>
+
 <style>
   .sum {
     --viz-us: #2a78d6;
@@ -746,5 +801,12 @@
     color: var(--text-3);
     font-size: var(--t-12);
     font-weight: 700;
+  }
+  .rep-prev {
+    display: block;
+    max-width: 100%;
+    max-height: 60dvh;
+    margin: 0 auto;
+    border-radius: var(--r-md);
   }
 </style>

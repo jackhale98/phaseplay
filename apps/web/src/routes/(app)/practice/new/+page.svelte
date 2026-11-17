@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { type PlanData } from '@phaseplay/shared';
@@ -95,7 +96,7 @@
   <header class="page-head"><h1>New practice plan</h1></header>
 
   {#if !s}
-    <div class="sk" aria-busy="true"></div>
+    <Loader />
   {:else if !coach}
     <EmptyState
       title="Coaches plan sessions"
@@ -207,11 +208,6 @@
   .back :global(svg) {
     width: 18px;
     height: 18px;
-  }
-  .sk {
-    height: 320px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
   }
   .form {
     display: flex;

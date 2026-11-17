@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
@@ -32,12 +33,14 @@
 {#if app.ready && app.me}
   <AppShell>{@render children()}</AppShell>
 {:else}
-  <div class="boot" aria-busy="true" aria-label="Loading Phaseplay"></div>
+  <div class="boot"><Loader label="Loading Phaseplay" /></div>
 {/if}
 
 <style>
   .boot {
     min-height: 100dvh;
+    display: grid;
+    place-items: center;
     background: var(--bg);
   }
 </style>

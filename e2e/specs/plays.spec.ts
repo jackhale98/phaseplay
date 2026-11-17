@@ -177,6 +177,9 @@ async function waitForSaved(team: TeamFixture, id: string, check: (p: any) => bo
 }
 
 test.describe('play designer', () => {
+  // The service worker's "Update available" toast can sit over the frame strip on phones.
+  test.use({ serviceWorkers: 'block' });
+
   test('builds a 4-frame lineout move with touch on a phone', async ({ page, team, axe }, info) => {
     test.skip(info.project.name !== 'mobile-chromium', 'touch via CDP (Chromium phone)');
     test.setTimeout(90_000);
@@ -373,18 +376,27 @@ test.describe('play designer', () => {
     team,
   }, info) => {
     test.skip(info.project.name !== 'desktop-chromium', 'downloads on desktop');
-    test.setTimeout(60_000);
+    test.setTimeout(150_000);
     const id = await makePlay(team, 'team');
     await openTeam(page, team.teamId, `/plays/${id}`);
     await page.getByRole('button', { name: 'Export' }).click();
     const dialog = page.getByRole('dialog', { name: 'Export' });
     await dialog.getByRole('radio', { name: 'Video' }).click();
-    const [dl] = await Promise.all([
-      page.waitForEvent('download', { timeout: 45_000 }),
-      dialog.getByRole('button', { name: /Download video/ }).click(),
-    ]);
-    expect(dl.suggestedFilename()).toMatch(/^zeus\.(mp4|webm|gif)$/);
-    expect(readFileSync((await dl.path())!).length).toBeGreaterThan(1000);
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+    // Every style, including Print (white), must encode.
+    for (const style of ['grass', 'chalkboard', 'print']) {
+      await dialog.getByLabel('Style').selectOption(style);
+      const [dl] = await Promise.all([
+        page.waitForEvent('download', { timeout: 45_000 }),
+        dialog.getByRole('button', { name: /Download video/ }).click(),
+      ]);
+      expect(dl.suggestedFilename(), style).toMatch(/^zeus\.(mp4|webm|gif)$/);
+      expect(readFileSync((await dl.path())!).length, style).toBeGreaterThan(1000);
+      await expect(dialog.getByRole('button', { name: /Download video/ })).toBeEnabled();
+    }
+    expect(errors).toEqual([]);
   });
 
   test('view tracking shows the player in Seen by, and highlights her token', async ({

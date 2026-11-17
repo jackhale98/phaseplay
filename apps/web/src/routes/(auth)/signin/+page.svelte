@@ -81,6 +81,22 @@
     {#snippet icon()}<IconKey />{/snippet}Sign in with a passkey
   </Button>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
+  <details class="cross">
+    <summary>Your passkey is on your phone?</summary>
+    <ol>
+      <li>Tap <strong>Sign in with a passkey</strong> here on your computer.</li>
+      <li>
+        Choose <strong>Use a phone or tablet</strong> (on Windows: “iPhone, iPad or Android device”).
+        A QR code appears.
+      </li>
+      <li>Scan it with your phone's camera and confirm with Face ID or your fingerprint.</li>
+      <li>
+        Then add a passkey for this computer in <strong>More → Account and passkeys</strong>, so
+        next time you won't need your phone.
+      </li>
+    </ol>
+    <p class="subtle">Bluetooth needs to be on for both devices.</p>
+  </details>
 </div>
 {#if devEnv}
   <div class="dev">
@@ -126,5 +142,26 @@
     color: var(--danger);
     font-weight: 600;
     font-size: var(--t-14);
+  }
+  .cross {
+    margin-top: var(--s-4);
+    font-size: var(--t-14);
+  }
+  .cross summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--accent-text);
+  }
+  .cross ol {
+    margin: var(--s-2) 0;
+    padding-left: var(--s-5);
+    display: grid;
+    gap: var(--s-2);
+  }
+  .cross .subtle {
+    margin: 0;
   }
 </style>

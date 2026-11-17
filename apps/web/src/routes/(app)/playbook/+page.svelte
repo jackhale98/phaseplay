@@ -44,6 +44,12 @@
   let duration = $state<DurationBand>('all');
   let newPlay = $state(false);
   let newDrill = $state(false);
+  /** Show the archive instead of the active list. */
+  let archived = $state(false);
+  function showArchive(on: boolean) {
+    archived = on;
+    window.scrollTo({ top: 0 });
+  }
 
   $effect(() => {
     const want = tab === 'drills' ? 'drills' : null;
@@ -59,7 +65,7 @@
   const playerCount = $derived(activeMembers(s).filter((m) => m.role === 'player').length);
   const allPlays = $derived(
     Object.values(s?.rows.plays ?? {})
-      .filter((p) => !p.deletedAt && !hidden.has(p.id))
+      .filter((p) => !p.deletedAt && !hidden.has(p.id) && !!p.archivedAt === archived)
       .sort((a, b) => b.updatedAt - a.updatedAt),
   );
   const plays = $derived(
@@ -72,7 +78,7 @@
   const playCats = $derived(PLAY_CATEGORIES.filter((c) => allPlays.some((p) => p.category === c)));
   const allDrills = $derived(
     Object.values(s?.rows.drills ?? {})
-      .filter((d) => !d.deletedAt && !hidden.has(d.id))
+      .filter((d) => !d.deletedAt && !hidden.has(d.id) && !!d.archivedAt === archived)
       .sort((a, b) =>
         a.source === b.source ? a.title.localeCompare(b.title) : a.source === 'team' ? -1 : 1,
       ),
@@ -82,6 +88,11 @@
   );
   const drillCats = $derived(
     DRILL_CATEGORIES.filter((c) => allDrills.some((d) => d.category === c)),
+  );
+  const archivedCount = $derived(
+    Object.values((tab === 'plays' ? s?.rows.plays : s?.rows.drills) ?? {}).filter(
+      (x) => !x.deletedAt && !!x.archivedAt,
+    ).length,
   );
   const filtered = $derived(
     tab === 'plays'
@@ -142,6 +153,15 @@
     </label>
   </div>
 
+  {#if archived}
+    <div class="arch-bar" role="status">
+      <span
+        >Showing archived {tab}. They stay out of lists and pickers but still work where used.</span
+      >
+      <Button size="sm" onclick={() => showArchive(false)}>Back to {tab}</Button>
+    </div>
+  {/if}
+
   {#if tab === 'plays'}
     {#if playCats.length > 1}
       <div class="chips" role="group" aria-label="Category">
@@ -157,6 +177,8 @@
       <ul class="grid list" aria-label="Plays">
         {#each plays as p (p.id)}<li><PlayCard meta={p} {coach} players={playerCount} /></li>{/each}
       </ul>
+    {:else if archived}
+      <p class="subtle empty-arch">Nothing archived yet.</p>
     {:else if filtered}
       <EmptyState title="No plays match" body="Try a different search or category.">
         {#snippet action()}<Button onclick={clear}>Clear filters</Button>{/snippet}
@@ -219,6 +241,8 @@
       <ul class="grid list" aria-label="Drills">
         {#each drills as d (d.id)}<li><DrillCard drill={d} coach={drillCoach} /></li>{/each}
       </ul>
+    {:else if archived}
+      <p class="subtle empty-arch">Nothing archived yet.</p>
     {:else if filtered}
       <EmptyState title="No drills match" body="Loosen a filter or try another search.">
         {#snippet action()}<Button onclick={clear}>Clear filters</Button>{/snippet}
@@ -238,6 +262,16 @@
       </EmptyState>
     {/if}
   {/if}
+  <footer class="pb-foot">
+    {#if !archived && archivedCount}
+      <Button size="sm" variant="ghost" onclick={() => showArchive(true)}
+        >Archived {tab} ({archivedCount})</Button
+      >
+    {/if}
+    {#if coach || drillCoach}
+      <Button size="sm" variant="ghost" href="/playbook/templates">Templates and presets</Button>
+    {/if}
+  </footer>
 </div>
 
 {#if coach}<NewPlaySheet bind:open={newPlay} />{/if}
@@ -334,5 +368,26 @@
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: var(--s-3);
     }
+  }
+  .arch-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    margin: var(--s-4) 0;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-lg);
+    background: var(--surface-2);
+    font-size: var(--t-14);
+  }
+  .empty-arch {
+    padding: var(--s-6) 0;
+  }
+  .pb-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    margin-top: var(--s-6);
   }
 </style>

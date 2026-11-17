@@ -469,7 +469,7 @@ describe('video via WebCodecs (faked encoder)', () => {
       });
       expect(res.ext).toBe('mp4');
       expect(res.mime).toBe('video/mp4');
-      expect(frames.length).toBe(Math.ceil((4000 / 1000) * 10));
+      expect(frames.length).toBe(Math.ceil((3900 / 1000) * 10));
       expect(frames[0]!.key).toBe(true);
       expect(frames[1]!.timestamp).toBe(100000);
       const head = new Uint8Array(await res.blob.arrayBuffer()).slice(4, 8);

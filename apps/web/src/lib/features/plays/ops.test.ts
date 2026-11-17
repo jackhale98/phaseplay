@@ -213,7 +213,7 @@ describe('descriptions', () => {
 
   it('describes the formation, runs and passes', () => {
     let p = addFrame(lineout(), 0);
-    p = setRun(p, 1, 'a10', { x: 20, y: 44 }, []);
+    p = setRun(p, 1, 'a10', { x: 18.5, y: 46.5 }, []);
     p = passTo(p, 1, 'a9');
     p = setCaption(p, 1, 'Throw to the front');
     expect(describeFrame(p, 0)).toMatch(

@@ -159,5 +159,9 @@ export const PlayInput = v.object({
 });
 export const PlayCreate = v.object({ id: Id, ...PlayInput.entries });
 export type PlayCreate = v.InferOutput<typeof PlayCreate>;
-export const PlayUpdate = v.partial(PlayInput);
+export const PlayUpdate = v.object({
+  ...v.partial(PlayInput).entries,
+  /** Archive (true) or restore (false): hidden from lists, still works where it's used. */
+  archived: v.optional(v.boolean()),
+});
 export type PlayUpdate = v.InferOutput<typeof PlayUpdate>;

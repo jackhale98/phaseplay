@@ -129,7 +129,7 @@ test.describe('drill library', () => {
 
     await page.getByRole('button', { name: 'Done editing' }).click();
     await expect(page.getByRole('heading', { name: 'Box tackle reps' })).toBeVisible();
-    await expect(page.getByText('Ring of steel')).toBeVisible();
+    await expect(page.getByText('Ring of steel', { exact: true })).toBeVisible();
     await expect(page.getByText('12 min')).toBeVisible();
 
     await page.getByRole('button', { name: 'Duplicate as variation' }).click();
@@ -166,5 +166,38 @@ test.describe('drill library', () => {
     ]);
     const buf = readFileSync((await dl.path())!);
     expect([buf.readUInt32BE(16), buf.readUInt32BE(20)]).toEqual([2480, 3508]);
+  });
+
+  test('archive a drill and hide a template from the New drill picker', async ({
+    page,
+    team,
+    axe,
+  }) => {
+    await openTeam(page, team.teamId, '/playbook?tab=drills');
+    await page.getByRole('link', { name: /Triangle passing/ }).click();
+    await page.getByRole('button', { name: 'Archive' }).click();
+    await expect(page.getByRole('button', { name: 'Restore' })).toBeVisible();
+
+    await openTeam(page, team.teamId, '/playbook?tab=drills');
+    await expect(page.getByRole('link', { name: /Triangle passing/ })).toHaveCount(0);
+    await page.getByRole('button', { name: /Archived drills \(1\)/ }).click();
+    await expect(page.getByRole('link', { name: /Triangle passing/ })).toBeVisible();
+    await axe(page);
+    await page.getByRole('link', { name: /Triangle passing/ }).click();
+    await page.getByRole('button', { name: 'Restore' }).click();
+    await openTeam(page, team.teamId, '/playbook?tab=drills');
+    await expect(page.getByRole('link', { name: /Triangle passing/ })).toBeVisible();
+
+    // Hide the tackle box template.
+    await page.getByRole('link', { name: 'Templates and presets' }).click();
+    await expect(page.getByRole('heading', { name: 'Templates and presets' })).toBeVisible();
+    await axe(page);
+    await page.getByRole('switch', { name: 'Show Tackle box' }).uncheck();
+    await expect(page.getByRole('switch', { name: 'Show Tackle box' })).not.toBeChecked();
+    await openTeam(page, team.teamId, '/playbook?tab=drills');
+    await page.getByRole('button', { name: 'New drill' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'New drill' });
+    await expect(dialog.getByLabel('Triangle passing')).toBeVisible();
+    await expect(dialog.getByLabel('Tackle box')).toHaveCount(0);
   });
 });

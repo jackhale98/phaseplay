@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shownTemplate } from '#lib/features/plays/templates';
   import { goto } from '$app/navigation';
   import {
     DRILL_CATEGORIES,
@@ -31,6 +32,13 @@
     ruckLanes: { category: 'breakdown', contact: 'shields', players: [6, 18] },
     conditioningShuttle: { category: 'conditioning', contact: 'none', players: [4, 30] },
     touchGame: { category: 'game', contact: 'touch', players: [8, 20] },
+    dynamicWarmup: { category: 'warmup', contact: 'none', players: [6, 40] },
+    tackleTubes: { category: 'contact', contact: 'shields', players: [4, 16] },
+    jackalClearOut: { category: 'breakdown', contact: 'shields', players: [6, 18] },
+    lineSpeed: { category: 'defence', contact: 'touch', players: [8, 20] },
+    lineoutPod: { category: 'set_piece', contact: 'shields', players: [4, 9] },
+    lineoutThrowing: { category: 'set_piece', contact: 'none', players: [2, 6] },
+    boxKickChase: { category: 'kicking', contact: 'none', players: [4, 12] },
   };
 
   let title = $state('');
@@ -114,7 +122,7 @@
           />
           <span>Blank 20×20 m</span>
         </label>
-        {#each Object.entries(DRILL_TEMPLATES) as [id, t] (id)}
+        {#each Object.entries(DRILL_TEMPLATES).filter( ([k]) => shownTemplate(`drill:${k}`) ) as [id, t] (id)}
           <label class="opt" class:sel={start === id}>
             <input
               type="radio"
