@@ -118,3 +118,24 @@ test('an active invite link can be copied again later', async ({ page, team, axe
   await expect(sheet.getByRole('img', { name: 'QR code for the invite link' })).toBeVisible();
   await expect(sheet.locator('.url')).toHaveText(url!);
 });
+
+test("Home's who's-in summary is for coaches and captains, not every player", async ({
+  page,
+  team,
+}) => {
+  await team.post(`/teams/${team.teamId}/events`, {
+    id: crypto.randomUUID(),
+    type: 'training',
+    title: 'Tuesday training',
+    startsAt: Date.now() + 2 * 86400e3,
+  });
+  const glance = (p: typeof page) => p.getByRole('heading', { name: /^Who's in ·/ });
+  // The coach sees it.
+  await openTeam(page, team.teamId, '/home');
+  await expect(glance(page)).toBeVisible();
+  // A player doesn't.
+  const pip = await team.join('player', 'Pip Player');
+  await openTeam(pip.page, team.teamId, '/home');
+  await expect(pip.page.getByRole('heading', { name: /Tuesday training/ }).first()).toBeVisible();
+  await expect(glance(pip.page)).toHaveCount(0);
+});

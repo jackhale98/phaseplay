@@ -38,7 +38,7 @@
       title: "Know who's in before you pick the team",
       body: 'Games, practices, socials and fundraisers in one schedule. Players reply in one tap; you see the squad by position, with front-row cover warnings.',
       points: [
-        'Weekly practices with an end date, editable as a whole series',
+        'Automatic reminders the day before for anyone who hasn’t replied',
         'Nudge the players who haven’t replied, straight from the board',
         'A team calendar everyone can add to their phone',
       ],
