@@ -56,6 +56,8 @@ describe('tenancy matrix', () => {
         inviteId: a.inviteId,
         recurrenceId: a.recurrenceId,
         roleId: a.roleId,
+        itemId: uuidv7(),
+        handoffId: uuidv7(),
         seasonId: uuidv7(),
       };
       const path = routePath(id, params);

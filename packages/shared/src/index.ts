@@ -9,6 +9,8 @@ export * from './play';
 export * from './drills';
 export * from './practice';
 export * from './match';
+export * from './inventory';
+export * from './notify';
 export * from './api-routes';
 export * from './api';
 export * from './time';

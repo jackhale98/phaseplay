@@ -148,6 +148,9 @@ export function syncRoutes(app: Hono<AppEnv>) {
       plays: list('plays').map(playMetaFromRow).map(hidden(plays)),
       drills: list('drills').map(drillMetaFromRow).map(hidden(drills)),
       plans: list('plans').map(planFromRow).map(hidden(plans)),
+      // Kit and inventory (M9) join the sync query when the handlers land.
+      items: [],
+      handoffs: [],
     };
     return c.json(res);
   });

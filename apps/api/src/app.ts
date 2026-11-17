@@ -7,6 +7,8 @@ import { authRoutes } from './routes/auth';
 import { meRoutes } from './routes/me';
 import { teamRoutes } from './routes/teams';
 import { crestRoutes } from './routes/crest';
+import { inventoryRoutes } from './routes/inventory';
+import { pushRoutes } from './routes/push';
 import { memberRoutes } from './routes/members';
 import { eventRoutes } from './routes/events';
 import { sheetRoutes } from './routes/sheets';
@@ -76,6 +78,8 @@ export function createApp() {
   meRoutes(app);
   teamRoutes(app);
   crestRoutes(app);
+  inventoryRoutes(app);
+  pushRoutes(app);
   memberRoutes(app);
   eventRoutes(app);
   sheetRoutes(app);

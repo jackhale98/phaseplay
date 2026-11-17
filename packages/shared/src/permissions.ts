@@ -72,6 +72,8 @@ export const PERMISSIONS = {
   'match.record': STAFF,
   /** Read the audit log. */
   'audit.view': COACHES,
+  /** Add, edit, assign, mark lost or retired, and override handovers of club kit. */
+  'inventory.manage': STAFF,
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Action = keyof typeof PERMISSIONS;
@@ -97,6 +99,7 @@ export const GRANTABLE = [
   'practice.run',
   'match.record',
   'audit.view',
+  'inventory.manage',
 ] as const satisfies readonly Action[];
 export type GrantableAction = (typeof GRANTABLE)[number];
 
@@ -152,6 +155,11 @@ export const GRANT_INFO: Record<GrantableAction, { group: string; label: string;
     group: 'Admin',
     label: 'See the audit log',
     hint: 'Joins, removals, role changes and deletions.',
+  },
+  'inventory.manage': {
+    group: 'Admin',
+    label: 'Manage club kit',
+    hint: 'Add kit, assign it, mark it lost and sort out handovers. For a kit manager.',
   },
 };
 

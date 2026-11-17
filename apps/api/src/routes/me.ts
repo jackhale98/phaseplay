@@ -1,6 +1,7 @@
 import type { Hono } from 'hono';
 import * as v from 'valibot';
 import {
+  NotifyPrefs,
   Id,
   randomToken,
   sha256Base64Url,
@@ -54,6 +55,8 @@ export function meRoutes(app: Hono<AppEnv>) {
       })),
       env: c.env.ENV,
       demo: u.id === DEMO_USER_ID,
+      // Filled from users.notify_prefs once push notifications land (M7).
+      notify: v.parse(NotifyPrefs, {}),
     };
     return c.json(res);
   });

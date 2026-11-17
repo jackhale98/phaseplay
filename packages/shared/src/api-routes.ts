@@ -394,6 +394,102 @@ export const ROUTES = {
     action: 'match.record',
   },
 
+  // Kit and inventory (items and open handoffs ride the team sync)
+  /** Append-only history of one item. */
+  'inventory.history': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/history',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** Create or edit details (InventoryItemInput); If-Match on edit. */
+  'inventory.put': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/inventory/:itemId',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Remove a mistaken entry (soft delete). Real kit is retired instead. */
+  'inventory.delete': {
+    method: 'DELETE',
+    path: '/api/v1/teams/:teamId/inventory/:itemId',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Give to a member, or null to take it back to the store. */
+  'inventory.assign': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/assign',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Holder (or inventory.manage): back in the store at its home. */
+  'inventory.return': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/return',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** Holder (or inventory.manage): mark lost; the holder is cleared. */
+  'inventory.lost': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/lost',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** Lost item is back in the store. */
+  'inventory.found': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/found',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Out of service; keeps its history. */
+  'inventory.retire': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/retire',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Split part of a set into a new item. */
+  'inventory.split': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/split',
+    auth: 'team',
+    action: 'inventory.manage',
+  },
+  /** Holder (or inventory.manage) offers it to a teammate. */
+  'inventory.handoff.create': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/inventory/:itemId/handoffs',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** Recipient (or inventory.manage, as an override) accepts. */
+  'inventory.handoff.accept': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/handoffs/:handoffId/accept',
+    auth: 'team',
+    action: 'team.view',
+  },
+  /** Recipient declines, sender cancels, or inventory.manage cancels. */
+  'inventory.handoff.decline': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/handoffs/:handoffId/decline',
+    auth: 'team',
+    action: 'team.view',
+  },
+
+  // Web Push (per user and device)
+  /** VAPID public key for PushManager.subscribe. */
+  'push.key': { method: 'GET', path: '/api/v1/push/key', auth: 'user' },
+  'push.subscribe': { method: 'POST', path: '/api/v1/push/subscriptions', auth: 'user' },
+  'push.unsubscribe': { method: 'POST', path: '/api/v1/push/subscriptions/remove', auth: 'user' },
+  /** Send a test notification to this user's devices. */
+  'push.test': { method: 'POST', path: '/api/v1/push/test', auth: 'user' },
+  /** Replace the user's notification preferences (NotifyPrefs). */
+  'me.notify': { method: 'PUT', path: '/api/v1/me/notifications', auth: 'user' },
+
   // Calendar feed (secret token in the path)
   'cal.feed': { method: 'GET', path: '/cal/:token', auth: 'public' },
 } as const satisfies Record<string, RouteDef>;

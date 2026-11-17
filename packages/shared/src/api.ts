@@ -8,6 +8,8 @@ import type { Play, PlayCategory, Visibility } from './play';
 import type { ContactLevel, DrillCategory, EquipmentList } from './drills';
 import type { PlanData, RunEvent } from './practice';
 import type { MatchEvent } from './match';
+import type { InventoryEventKind, ItemCondition, ItemKind, ItemStatus } from './inventory';
+import type { NotifyPrefs } from './notify';
 
 export type User = { id: string; displayName: string; createdAt: number };
 
@@ -65,6 +67,8 @@ export type MeResponse = {
   env: 'production' | 'development' | 'test';
   /** Signed in to the public demo: the server refuses writes; the app keeps changes on-device. */
   demo: boolean;
+  /** What this user wants push notifications about. */
+  notify: NotifyPrefs;
 };
 
 export type Season = {
@@ -203,6 +207,54 @@ export type SyncResponse = {
   plays: PlayMeta[];
   drills: DrillMeta[];
   plans: PracticePlan[];
+  /** Club kit (deleted items arrive as tombstones in delta syncs). */
+  items: InventoryItem[];
+  /** Open handovers, plus ones resolved since the cursor (so devices can clear them). */
+  handoffs: InventoryHandoff[];
+};
+
+export type InventoryItem = {
+  id: string;
+  teamId: string;
+  kind: ItemKind;
+  name: string;
+  tag: string | null;
+  quantity: number;
+  condition: ItemCondition;
+  status: ItemStatus;
+  holderMemberId: string | null;
+  home: string | null;
+  notes: string | null;
+  matchDay: boolean;
+  version: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+};
+
+export type InventoryHandoff = {
+  id: string;
+  teamId: string;
+  itemId: string;
+  fromMemberId: string | null;
+  toMemberId: string;
+  note: string | null;
+  createdAt: number;
+  expiresAt: number;
+  resolvedAt: number | null;
+  /** How it ended, once resolved. */
+  outcome: 'accepted' | 'declined' | 'cancelled' | 'expired' | null;
+};
+
+export type InventoryEvent = {
+  id: string;
+  itemId: string;
+  kind: InventoryEventKind;
+  actorMemberId: string | null;
+  fromMemberId: string | null;
+  toMemberId: string | null;
+  note: string | null;
+  at: number;
 };
 
 export type Invite = {
