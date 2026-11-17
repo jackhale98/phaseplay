@@ -209,7 +209,8 @@ async function loadHandoff(c: C, handoffId: string) {
  */
 const HANDOFF_OPEN = `status IN ('available', 'with_someone') AND EXISTS (SELECT 1 FROM inventory_handoffs h
   WHERE h.id = ? AND h.team_id = ? AND h.resolved_at IS NULL AND h.expires_at > ?
-    AND h.from_member_id IS holder_member_id)`;
+    AND h.from_member_id IS holder_member_id
+    AND EXISTS (SELECT 1 FROM memberships rm WHERE rm.id = h.to_member_id AND rm.status = 'active'))`;
 
 export function inventoryRoutes(app: Hono<AppEnv>) {
   route(app, 'inventory.history', async (c) => {
@@ -280,6 +281,10 @@ export function inventoryRoutes(app: Hono<AppEnv>) {
       return c.json({ item: itemFromRow(row) }, 201);
     }
 
+    // A create whose response was lost and is sent again (no If-Match, same details): not an edit.
+    const cols = ['kind', 'name', 'tag', 'quantity', 'condition', 'home', 'notes', 'match_day'];
+    if (ifMatch(c) === null && cols.every((k, i) => (existing[k] ?? null) === vals[i]))
+      return c.json({ item: itemFromRow(existing, manages(c)) });
     const version = ifMatch(c) ?? (existing.version as number);
     if (version !== existing.version)
       throw conflict('Someone else changed this item', { latest: itemFromRow(existing) });

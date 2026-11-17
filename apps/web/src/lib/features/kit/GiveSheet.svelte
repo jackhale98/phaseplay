@@ -1,7 +1,7 @@
 <!-- Pick who gets an item: a staff assign (immediate) or a handover (they accept first). -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import type { InventoryItem } from '@phaseplay/shared';
+  import { can, type InventoryItem } from '@phaseplay/shared';
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import Button from '#lib/components/Button.svelte';
@@ -31,8 +31,17 @@
       (m) => m.id !== item?.holderMemberId && (mode === 'assign' || m.userId !== null),
     ),
   );
-  const first = $derived(people.filter((m) => suggest.includes(m.id)));
-  const rest = $derived(people.filter((m) => !suggest.includes(m.id)));
+  // Players can't see who else is going (they only sync their own replies), so when there's no
+  // one to suggest, put coaches and kit managers first: they can always take kit back.
+  const going = $derived(people.filter((m) => suggest.includes(m.id)));
+  const fallback = $derived(
+    going.length ? [] : people.filter((m) => can(m.role, 'inventory.manage')),
+  );
+  const first = $derived(going.length ? going : fallback);
+  const firstLabel = $derived(
+    going.length ? 'Going to the next session' : 'Coaches and kit managers',
+  );
+  const rest = $derived(people.filter((m) => !first.includes(m)));
 
   $effect(() => {
     if (!open) return;
@@ -76,7 +85,7 @@
         <select {id} aria-describedby={describedby} bind:value={to}>
           <option value="" disabled>Choose…</option>
           {#if first.length}
-            <optgroup label="Going to the next session">
+            <optgroup label={firstLabel}>
               {#each first as m (m.id)}<option value={m.id}>{m.displayName}</option>{/each}
             </optgroup>
             <optgroup label="Everyone else">

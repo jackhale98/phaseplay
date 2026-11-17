@@ -56,6 +56,8 @@
   let giveOpen = $state(false);
   let splitOpen = $state(false);
   let retireOpen = $state(false);
+  let lostOpen = $state(false);
+  let deleteOpen = $state(false);
   let take = $state(1);
 
   function openGive(mode: 'assign' | 'handover') {
@@ -193,8 +195,7 @@
         {:else if manage && item.status === 'with_someone'}
           <Button onclick={() => act('return', 'Taken back to the store')}>Take it back</Button>
         {/if}
-        <Button onclick={() => act('lost', `Marked the ${itemPhrase(item)} lost`)}>Mark lost</Button
-        >
+        <Button onclick={() => (lostOpen = true)}>Mark lost</Button>
         {#if manage && item.quantity > 1}
           <Button
             onclick={() => {
@@ -218,7 +219,7 @@
         {#if item.status !== 'retired'}
           <Button onclick={() => (retireOpen = true)}>Retire</Button>
         {/if}
-        <Button variant="ghost" onclick={remove}
+        <Button variant="ghost" onclick={() => (deleteOpen = true)}
           >{#snippet icon()}<IconTrash />{/snippet}Delete</Button
         >
       </section>
@@ -287,6 +288,43 @@
       >
     </div>
   </Sheet>
+  <Sheet bind:open={lostOpen} title="Mark the {itemPhrase(item)} lost?" size="sm">
+    <div class="stack">
+      <p class="muted">
+        {manage
+          ? 'It shows as lost until someone marks it found.'
+          : 'It shows as lost in the kit list, and only a coach or kit manager can mark it found again.'}
+      </p>
+      <Button
+        variant="danger"
+        block
+        onclick={async () => {
+          lostOpen = false;
+          await act('lost', `Marked the ${itemPhrase(item!)} lost`);
+        }}>Mark lost</Button
+      >
+      <Button variant="ghost" block onclick={() => (lostOpen = false)}>Cancel</Button>
+    </div>
+  </Sheet>
+  {#if manage}
+    <Sheet bind:open={deleteOpen} title="Delete the {itemPhrase(item)}?" size="sm">
+      <div class="stack">
+        <p class="muted">
+          It disappears from the kit list along with its history. To keep the history, retire it
+          instead.
+        </p>
+        <Button
+          variant="danger"
+          block
+          onclick={async () => {
+            deleteOpen = false;
+            await remove();
+          }}>Delete</Button
+        >
+        <Button variant="ghost" block onclick={() => (deleteOpen = false)}>Cancel</Button>
+      </div>
+    </Sheet>
+  {/if}
 {/if}
 
 <style>

@@ -81,6 +81,25 @@ describe('kit items', () => {
     expect((await history(t, t.player, id))[1]!.note).toBeNull();
   });
 
+  it('a retried create (same details, no If-Match) is not an edit', async () => {
+    const t = await fixtureTeam();
+    const first = await addItem(t, t.coach, { tag: 'SH-1' });
+    ok(first.r, 201);
+    const again = await call('PUT', `${base(t)}/inventory/${first.id}`, {
+      cookie: t.coach.cookie,
+      body: {
+        kind: 'tackle_shields',
+        name: 'Tackle shields',
+        quantity: 6,
+        home: 'Shed',
+        tag: 'SH-1',
+      },
+    });
+    expect(again.status).toBe(200);
+    expect(again.body.item.version).toBe(1);
+    expect((await history(t, t.coach, first.id)).map((e) => e.kind)).toEqual(['created']);
+  });
+
   it('tags are unique per team, not across teams', async () => {
     const a = await fixtureTeam('Team A');
     const b = await fixtureTeam('Team B');
@@ -265,6 +284,20 @@ describe('handovers', () => {
     const s = await sync(t, other);
     expect(s.items.find((i) => i.id === id)?.holderMemberId).toBe(other.memberId);
     expect((await history(t, t.coach, id)).map((e) => e.kind)).not.toContain('handoff_accepted');
+  });
+
+  it("can't complete a handover to someone who has left the team", async () => {
+    const t = await fixtureTeam();
+    const mate = await joinPlayer(t, 'Mate Mo');
+    const id = await held(t);
+    const handoffId = uuidv7();
+    ok(await offer(t, t.player, id, mate.memberId, handoffId), 201);
+    await env.DB.prepare("UPDATE memberships SET status = 'removed' WHERE id = ?")
+      .bind(mate.memberId)
+      .run();
+    expect((await answer(t, t.coach, handoffId, 'accept')).status).toBe(409);
+    const s = await sync(t, t.coach);
+    expect(s.items.find((i) => i.id === id)?.holderMemberId).toBe(t.player.memberId);
   });
 
   it('two accepts race: exactly one wins, the other gets 409', async () => {

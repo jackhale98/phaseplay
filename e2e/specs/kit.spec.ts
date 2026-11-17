@@ -169,3 +169,33 @@ test('kit list: table with filters on desktop, grouped list on phones; match-day
   await expect(md).toContainText('1/1 ready');
   await axe(page);
 });
+
+test('a player asks before marking kit lost, and hand-over suggests the coaches', async ({
+  team,
+  axe,
+}) => {
+  const pip = await team.join('player', 'Pip Player');
+  const id = await addItem(team, { kind: 'balls', name: 'Training balls', quantity: 10 });
+  await team.post(`/teams/:teamId/inventory/${id}/assign`, { memberId: pip.memberId });
+  const page = pip.page;
+
+  // Hand over: with no replies to go on, coaches and kit managers come first.
+  await openTeam(page, team.teamId, `/kit/${id}`);
+  await page.getByRole('button', { name: /Give it to someone else|Hand it over/ }).click();
+  const give = page.getByRole('dialog').first();
+  await expect(
+    give.locator('optgroup[label="Coaches and kit managers"] option', { hasText: 'Coach Casey' }),
+  ).toHaveCount(1);
+  await page.keyboard.press('Escape');
+
+  // Mark lost asks first, and cancelling changes nothing.
+  await page.getByRole('button', { name: 'Mark lost' }).click();
+  const confirm = page.getByRole('dialog', { name: /Mark the .* lost\?/ });
+  await expect(confirm).toContainText('only a coach or kit manager can mark it found');
+  await axe(page);
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('region', { name: 'Where it is' })).toContainText('Pip Player');
+  await page.getByRole('button', { name: 'Mark lost' }).click();
+  await confirm.getByRole('button', { name: 'Mark lost' }).click();
+  await expect(page.getByText(/Marked the .* lost/)).toBeVisible();
+});
