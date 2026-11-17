@@ -380,19 +380,31 @@
   }
   .wait {
     position: relative;
-    border-radius: var(--r-lg);
-    transition:
-      box-shadow var(--m-fast) var(--ease),
-      transform 280ms var(--ease);
+    transition: transform 280ms var(--ease);
     /* Composite the card on its own layer so the collapse animates without repainting it. */
     will-change: transform;
   }
   .wait {
     /* Each card owns the space below it, so a leaving card's collapse animates that space too. */
     margin-bottom: var(--s-3);
+    /* Room for the "saved" badge (above the card) and the ring, inside the box the collapse clips
+       to, cancelled by negative margins so nothing moves. Clicks pass through the extra room. */
+    padding: 16px 4px 0;
+    margin-top: -16px;
+    margin-inline: -4px;
+    pointer-events: none;
+  }
+  .wait > :global(*) {
+    pointer-events: auto;
   }
   .wait.done {
     transform: scale(0.985);
+  }
+  .wait > :global(*:not(.saved)) {
+    border-radius: var(--r-lg);
+    transition: box-shadow var(--m-fast) var(--ease);
+  }
+  .wait.done > :global(*:not(.saved)) {
     box-shadow: 0 0 0 2px var(--ok);
   }
   .wait.done :global(.card),
@@ -402,8 +414,8 @@
   .saved {
     position: absolute;
     z-index: 1;
-    top: -12px;
-    left: 12px;
+    top: 4px;
+    left: 16px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
