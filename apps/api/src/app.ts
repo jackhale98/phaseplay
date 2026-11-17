@@ -16,6 +16,7 @@ import { playRoutes } from './routes/plays';
 import { drillRoutes } from './routes/drills';
 import { practiceRoutes } from './routes/practice';
 import { matchRoutes } from './routes/match';
+import { statsRoutes } from './routes/stats';
 import { calendarRoutes } from './routes/calendar';
 import { syncRoutes } from './routes/sync';
 import { testRoutes } from './routes/test';
@@ -87,6 +88,7 @@ export function createApp() {
   drillRoutes(app);
   practiceRoutes(app);
   matchRoutes(app);
+  statsRoutes(app);
   calendarRoutes(app);
   syncRoutes(app);
   if (__TEST_AUTH__) testRoutes(app);

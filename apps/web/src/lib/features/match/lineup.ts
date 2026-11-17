@@ -2,13 +2,13 @@
 import {
   OFFENCE_LABELS,
   OUTCOME_LABELS,
-  RULES,
   SCORE_LABELS,
   STOPPAGE_LABELS,
   isFrontRowCapable,
   matchConfig,
-  type Format,
+  sheetLineup,
   type MatchConfig,
+  type SheetLineup,
   type MatchEvent,
   type TallyKind,
   type TeamEvent,
@@ -16,33 +16,12 @@ import {
 import { eventFormat, memberName, sheetFor } from '#lib/data/selectors';
 import type { TeamSnapshot } from '#lib/data/types';
 
-export type Lineup = {
-  format: Format;
-  starters: string[];
-  bench: string[];
-  /** member id → shirt number (sheet slot). */
-  shirt: Map<string, number>;
-  hasSheet: boolean;
-};
+export type Lineup = SheetLineup;
 
 /** The event's team sheet: slots 1..starters start, the rest are the bench. */
 export function lineupFor(s: TeamSnapshot | null, e: TeamEvent): Lineup {
   const sheet = sheetFor(s, e.id);
-  const format = sheet?.format ?? eventFormat(s, e);
-  const n = RULES[format].starters;
-  const slots = Object.entries(sheet?.slots ?? {})
-    .map(([k, id]) => [Number(k), id] as const)
-    .filter((x): x is readonly [number, string] => !!x[1])
-    .sort((a, b) => a[0] - b[0]);
-  const shirt = new Map<string, number>();
-  const starters: string[] = [];
-  const bench: string[] = [];
-  for (const [slot, id] of slots) {
-    if (shirt.has(id)) continue;
-    shirt.set(id, slot);
-    (slot <= n ? starters : bench).push(id);
-  }
-  return { format, starters, bench, shirt, hasSheet: !!sheet && slots.length > 0 };
+  return sheetLineup(sheet?.format ?? eventFormat(s, e), sheet?.slots);
 }
 
 export function configFor(s: TeamSnapshot | null, e: TeamEvent, lineup: Lineup): MatchConfig {
