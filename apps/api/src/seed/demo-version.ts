@@ -5,13 +5,14 @@
  */
 import type { DemoTables } from './demo';
 
-export const DEMO_CONTENT_VERSION = 'fb2106437d0d7f7ebd554299';
+export const DEMO_CONTENT_VERSION = 'a47e0dd20ae4ed90487abb18';
 
 export async function demoContentHash(t: DemoTables): Promise<string> {
   const content = JSON.stringify([
     t.plays.map((p) => [p.title, p.data]),
     t.drills.map((d) => [d.title, d.diagram, d.coaching_points]),
     t.team_roles.map((r) => [r.name, r.permissions]),
+    t.inventory_items.map((i) => [i.name, i.quantity, i.holder_member_id]),
   ]);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
   return [...new Uint8Array(hash).slice(0, 12)]

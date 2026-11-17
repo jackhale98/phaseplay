@@ -79,6 +79,7 @@ for (const scheme of ['light', 'dark']) {
     const lastGame = [...events].reverse().find((e) => e.type === 'match' && e.startsAt < now);
     const plan = sync.plans.find((p) => p.data.lanes.length > 1) ?? sync.plans[0];
     const play = sync.plays.find((p) => /lineout/i.test(p.title)) ?? sync.plays[0];
+    const bibs = (sync.items ?? []).find((i) => i.name === 'Red bibs');
     const shot = () => page.screenshot();
 
     if (kind === 'phone') {
@@ -92,6 +93,11 @@ for (const scheme of ['light', 'dark']) {
       await save(page, `phone-summary${sfx}`, await shot(), 640);
       await open(page, `/plays/${play.id}`);
       await save(page, `phone-play${sfx}`, await shot(), 640);
+      // Kit: the red bibs, with a handover waiting for an answer.
+      if (bibs) {
+        await open(page, `/kit/${bibs.id}`);
+        await save(page, `phone-kit${sfx}`, await shot(), 640);
+      }
       // A live split session: start it and move on to the first forwards/backs block.
       await open(page, `/practice/${plan.id}/run`);
       await page.getByRole('button', { name: 'Start session' }).click();
@@ -116,6 +122,8 @@ for (const scheme of ['light', 'dark']) {
       await save(page, `desktop-practice${sfx}`, await shot());
       await open(page, `/plays/${play.id}/edit`);
       await save(page, `desktop-play${sfx}`, await shot());
+      await open(page, '/kit');
+      await save(page, `desktop-kit${sfx}`, await shot());
       if (!sfx) {
         // The exported team sheet image (same for both themes: it uses team colours).
         await open(page, `/events/${nextGame.id}/sheet`);

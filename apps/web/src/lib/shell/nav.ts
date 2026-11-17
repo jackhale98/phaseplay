@@ -7,6 +7,7 @@ import {
   IconUsers,
   IconTimer,
   IconSettings,
+  IconClipboard,
 } from '#lib/icons';
 
 export type NavItem = {
@@ -29,6 +30,8 @@ export const NAV: NavItem[] = [
     match: /^\/practice/,
     desktopOnly: true,
   },
+  // On phones Kit lives under More.
+  { href: '/kit', label: 'Kit', icon: IconClipboard, match: /^\/kit/, desktopOnly: true },
   { href: '/more', label: 'More', icon: IconMore, match: /^\/(more|settings)/ },
 ];
 

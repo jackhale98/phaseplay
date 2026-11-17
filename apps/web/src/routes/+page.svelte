@@ -111,6 +111,27 @@
       ),
     },
     {
+      k: 'kit',
+      eyebrow: 'Kit and equipment',
+      title: 'Know where every ball and bib is.',
+      body: 'Log the club’s kit once, then see who has the match balls, the first-aid bag and the bibs. Players hand kit to a teammate in the app, and the teammate accepts before it moves.',
+      points: [
+        'Flags kit at risk when the person holding it says they can’t make it',
+        'A match-day checklist of what has to be there',
+        'Full history for every item: who had it, when, and its condition',
+      ],
+      main: shot(
+        'desktop-kit',
+        DESK,
+        'The kit list: balls, shields, bibs and the first-aid kit, with who has each one.',
+      ),
+      side: shot(
+        'phone-kit',
+        PHONE,
+        'A set of bibs on a phone, with a handover to a teammate waiting for an answer.',
+      ),
+    },
+    {
       k: 'match',
       eyebrow: 'Match day',
       title: 'The whole game, recorded with one thumb.',

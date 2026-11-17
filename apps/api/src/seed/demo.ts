@@ -6,6 +6,7 @@
 import {
   zonedToUtc,
   addDays,
+  INVENTORY_HANDOFF_TTL_MS,
   dateInTz,
   type Entity,
   type Frame,
@@ -40,6 +41,9 @@ export const DEMO_TABLE_ORDER = [
   'practice_plans',
   'match_events',
   'audit_log',
+  'inventory_items',
+  'inventory_events',
+  'inventory_handoffs',
 ] as const;
 export type DemoTables = Record<(typeof DEMO_TABLE_ORDER)[number], Record<string, unknown>[]>;
 
@@ -761,6 +765,161 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     target_id: TEAM,
     at: now - 90 * 86400e3,
   });
+  // Kit: the shed, what people have at home, and a handover waiting for an answer.
+  const byName = (name: string) => members.find((m) => m.name === name)!;
+  const coach = byName('Alex Morgan');
+  const KIT: {
+    kind: string;
+    name: string;
+    tag?: string;
+    quantity: number;
+    condition?: string;
+    home: string;
+    matchDay?: boolean;
+    holder?: string;
+    notes?: string;
+  }[] = [
+    {
+      kind: 'balls',
+      name: 'Match balls',
+      tag: 'BALL-M',
+      quantity: 6,
+      home: 'Kit shed',
+      matchDay: true,
+      holder: 'Katie Bennett',
+    },
+    { kind: 'balls', name: 'Training balls', tag: 'BALL-T', quantity: 14, home: 'Kit shed' },
+    {
+      kind: 'tackle_shields',
+      name: 'Tackle shields',
+      tag: 'SHIELD',
+      quantity: 8,
+      home: 'Kit shed',
+    },
+    {
+      kind: 'tackle_bags',
+      name: 'Tackle bags',
+      quantity: 4,
+      condition: 'worn',
+      home: 'Pitch 2 cage',
+    },
+    {
+      kind: 'bibs',
+      name: 'Red bibs',
+      tag: 'BIB-R',
+      quantity: 15,
+      home: 'Kit shed',
+      holder: 'Megan Hughes',
+      notes: 'Taken home to wash',
+    },
+    { kind: 'bibs', name: 'Blue bibs', tag: 'BIB-B', quantity: 15, home: 'Kit shed' },
+    { kind: 'cones', name: 'Cones', quantity: 40, home: 'Kit shed' },
+    {
+      kind: 'first_aid_kit',
+      name: 'First-aid kit',
+      tag: 'FA-1',
+      quantity: 1,
+      home: 'Clubhouse',
+      matchDay: true,
+      holder: 'Priya Shah',
+    },
+    {
+      kind: 'kicking_tees',
+      name: 'Kicking tees',
+      quantity: 3,
+      home: 'Kit shed',
+      matchDay: true,
+      holder: 'Zara Khan',
+    },
+    { kind: 'flags', name: 'Corner flags', quantity: 8, home: 'Clubhouse', matchDay: true },
+    {
+      kind: 'contact_suits',
+      name: 'Contact suit',
+      tag: 'SUIT-1',
+      quantity: 1,
+      condition: 'needs_repair',
+      home: 'Kit shed',
+      notes: 'Zip broken',
+    },
+    { kind: 'scrum_machine', name: 'Scrum sled', quantity: 1, home: 'Pitch 2' },
+  ];
+  KIT.forEach((k, i) => {
+    const itemId = id('ki');
+    const created = now - (60 - i) * 86400e3;
+    const holder = k.holder ? byName(k.holder) : null;
+    const held = holder ? now - (3 + i) * 86400e3 : created;
+    insert('inventory_items', {
+      id: itemId,
+      team_id: TEAM,
+      kind: k.kind,
+      name: k.name,
+      tag: k.tag ?? null,
+      quantity: k.quantity,
+      condition: k.condition ?? 'good',
+      status: holder ? 'with_someone' : 'available',
+      holder_member_id: holder?.id ?? null,
+      home: k.home,
+      notes: k.notes ?? null,
+      match_day: k.matchDay ? 1 : 0,
+      version: 1,
+      created_by: coach.userId,
+      created_at: created,
+      updated_at: held,
+    });
+    insert('inventory_events', {
+      id: id('ke'),
+      team_id: TEAM,
+      item_id: itemId,
+      kind: 'created',
+      actor_member_id: coach.id,
+      from_member_id: null,
+      to_member_id: null,
+      note: null,
+      at: created,
+    });
+    if (holder)
+      insert('inventory_events', {
+        id: id('ke'),
+        team_id: TEAM,
+        item_id: itemId,
+        kind: 'assigned',
+        actor_member_id: coach.id,
+        from_member_id: null,
+        to_member_id: holder.id,
+        note: null,
+        at: held,
+      });
+    if (k.name === 'Red bibs') {
+      // Megan is handing the bibs to Hannah for Thursday; Hannah hasn't answered yet.
+      const to = byName('Hannah Price');
+      const at = now - 5 * 3600e3;
+      insert('inventory_handoffs', {
+        id: id('kh'),
+        team_id: TEAM,
+        item_id: itemId,
+        from_member_id: holder!.id,
+        to_member_id: to.id,
+        note: 'Washed, can you bring them Thursday?',
+        created_at: at,
+        expires_at: at + INVENTORY_HANDOFF_TTL_MS,
+        resolved_at: null,
+        outcome: null,
+        updated_at: at,
+      });
+      insert('inventory_events', {
+        id: id('ke'),
+        team_id: TEAM,
+        item_id: itemId,
+        kind: 'handoff_requested',
+        actor_member_id: holder!.id,
+        from_member_id: holder!.id,
+        to_member_id: to.id,
+        note: 'Washed, can you bring them Thursday?',
+        at,
+      });
+    }
+  });
+
   if (owner.userId !== DEMO_USER_ID) throw new Error('demo owner id drifted');
   return tables;
 }
