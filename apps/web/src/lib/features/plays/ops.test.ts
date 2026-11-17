@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import * as v from 'valibot';
 import { Play as PlaySchema, type Play } from '@phaseplay/shared';
 import { newPlay, addFrame } from '@phaseplay/diagram/presets';
-import { resolvedBall, sample } from '@phaseplay/diagram/sample';
+import { resolvedBall, resolvedPositions, sample } from '@phaseplay/diagram/sample';
 import {
   addEntity,
+  clearMove,
+  hasMove,
   addPlayersOp,
   applyPreset,
   deleteFrame,
@@ -48,6 +50,45 @@ describe('editor ops', () => {
     expect(resolvedBall(p, 3)?.holder).toBe('a12');
     expect(p.frames[1]!.moves.a4).toEqual({ kind: 'run', ctrl: [{ x: 9, y: 39 }] });
     expect(p.frames[1]!.moves.ball?.kind).toBe('pass');
+  });
+
+  it("removes one player's move in a frame and keeps them put until their next move", () => {
+    let p = addFrame(lineout(), 0);
+    const start = resolvedPositions(p, 0).a4!;
+    p = setRun(p, 1, 'a4', { x: 10, y: 38 }, [{ x: 9, y: 39 }]);
+    p = setRun(p, 1, 'a5', { x: 12, y: 30 }, []);
+    p = addFrame(p, 1); // frame 2 carries a4's new spot along
+    p = addFrame(p, 2);
+    p = setRun(p, 3, 'a4', { x: 20, y: 40 }, []); // a real move later on
+    expect(hasMove(p, 1, 'a4')).toBe(true);
+    expect(hasMove(p, 2, 'a4')).toBe(false);
+
+    const q = clearMove(p, 1, 'a4');
+    valid(q);
+    expect(q.frames[1]!.moves.a4).toBeUndefined();
+    expect(resolvedPositions(q, 1).a4).toEqual(start);
+    expect(resolvedPositions(q, 2).a4).toEqual(start); // no jump in frame 2
+    expect(resolvedPositions(q, 3).a4).toEqual({ x: 20, y: 40 }); // later move untouched
+    expect(hasMove(q, 1, 'a4')).toBe(false);
+    // Other players' moves in the frame stay.
+    expect(q.frames[1]!.moves.a5).toBeDefined();
+    expect(resolvedPositions(q, 1).a5).toEqual({ x: 12, y: 30 });
+    // Frame 0 has no moves to remove.
+    expect(clearMove(q, 0, 'a4')).toBe(q);
+  });
+
+  it('removes a pass, leaving the ball with the passer', () => {
+    let p = addFrame(lineout(), 0);
+    p = passTo(p, 1, 'a9');
+    p = addFrame(p, 1);
+    p = passTo(p, 2, 'a10');
+    const before = resolvedBall(p, 0)?.holder;
+    expect(hasMove(p, 2, 'ball')).toBe(true);
+    const q = clearMove(p, 2, 'ball');
+    valid(q);
+    expect(resolvedBall(q, 2)?.holder).toBe('a9');
+    expect(resolvedBall(q, 1)?.holder).toBe('a9');
+    expect(before).not.toBe('a10');
   });
 
   it('marks a run by the ball carrier as a carry', () => {

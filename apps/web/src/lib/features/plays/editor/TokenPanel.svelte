@@ -4,9 +4,9 @@
   import { resolvedBall } from '@phaseplay/diagram/sample';
   import { grass, textOn } from '@phaseplay/diagram/themes';
   import Button from '#lib/components/Button.svelte';
-  import { IconCopy, IconTrash } from '#lib/icons';
+  import { IconCopy, IconTrash, IconUndo } from '#lib/icons';
   import { entityLabel } from '../describe';
-  import { giveBall, isPerson, setMove, updateEntity } from '../ops';
+  import { clearMove, giveBall, hasMove, isPerson, setMove, updateEntity } from '../ops';
 
   type Props = {
     play: Play;
@@ -200,6 +200,16 @@
           >Give ball</Button
         >
       {/if}
+      {#if hasMove(play, fi, id)}
+        <Button
+          size="sm"
+          onclick={() =>
+            apply((p) => clearMove(p, fi, id), e.kind === 'ball' ? 'Remove pass' : 'Remove move')}
+          >{#snippet icon()}<IconUndo />{/snippet}{e.kind === 'ball'
+            ? 'Remove pass or kick'
+            : 'Remove this move'}</Button
+        >
+      {/if}
       {#if fi > 0 && move?.ctrl?.length}
         <Button
           size="sm"
@@ -213,7 +223,9 @@
         >
       {/if}
       <Button size="sm" variant="danger" onclick={ondelete}
-        >{#snippet icon()}<IconTrash />{/snippet}Delete</Button
+        >{#snippet icon()}<IconTrash />{/snippet}{isPerson(e.kind)
+          ? 'Delete player'
+          : 'Delete'}</Button
       >
     </div>
   </div>

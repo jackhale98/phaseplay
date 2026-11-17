@@ -152,6 +152,7 @@ export const SHORTCUTS: [string, string][] = [
   ['Enter', 'Token properties'],
   ['⌘Z / ⇧⌘Z', 'Undo / redo'],
   ['Del', 'Delete selection'],
+  ['⇧Del', "Remove the selection's move in this frame"],
   ['Esc', 'Clear selection'],
   ['?', 'This sheet'],
 ];

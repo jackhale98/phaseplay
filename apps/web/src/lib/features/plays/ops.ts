@@ -4,7 +4,7 @@
  */
 import type { Entity, Frame, Move, Play, Vec2 } from '@phaseplay/shared';
 import type { Scene } from '@phaseplay/diagram/sample';
-import { resolvedBall } from '@phaseplay/diagram/sample';
+import { resolvedBall, resolvedPositions } from '@phaseplay/diagram/sample';
 import { addFrame, nextEntityId, type PresetResult } from '@phaseplay/diagram/presets';
 import { addPlayers } from '@phaseplay/diagram/drill-templates';
 import { drillArea, inRotatedRect, playBounds } from '@phaseplay/diagram/viewport';
@@ -291,6 +291,54 @@ export function updateEntity(
     return next;
   });
   return changed ? { ...play, entities } : play;
+}
+
+const samePoint = (a: Vec2 | undefined, b: Vec2 | undefined) =>
+  !!a && !!b && Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01;
+
+/** Does `id` do anything in frame `fi`: travel somewhere, or (the ball) get passed or kicked? */
+export function hasMove(play: Play, fi: number, id: string): boolean {
+  if (fi <= 0) return false;
+  const f = play.frames[fi];
+  if (!f) return false;
+  if (f.moves[id]) return true;
+  const isBall = ballEntity(play)?.id === id;
+  if (isBall) return !!f.ball;
+  return !samePoint(resolvedPositions(play, fi - 1)[id], resolvedPositions(play, fi)[id]);
+}
+
+/**
+ * Undo `id`'s movement in frame `fi`: it stays where it was at the end of the previous frame.
+ * Later frames that only carried the old end position along (no move of their own) follow, so
+ * the token stays put until its next real move instead of jumping later.
+ */
+export function clearMove(play: Play, fi: number, id: string): Play {
+  if (fi <= 0 || !play.frames[fi]) return play;
+  const isBall = ballEntity(play)?.id === id;
+  const prev = resolvedPositions(play, fi - 1)[id];
+  const oldEnd = resolvedPositions(play, fi)[id];
+  const frames = play.frames.slice();
+  const f = frames[fi] as Frame;
+  const moves = { ...f.moves };
+  delete moves[id];
+  const pos = { ...f.pos };
+  if (prev) pos[id] = clean(prev);
+  else delete pos[id];
+  const next: Frame = { ...f, pos, moves };
+  if (isBall) delete next.ball; // the ball stays with whoever had it
+  frames[fi] = next;
+  for (let j = fi + 1; j < frames.length; j++) {
+    const g = frames[j] as Frame;
+    if (g.moves[id] || (isBall && g.ball)) break;
+    const at = g.pos[id];
+    if (at === undefined) continue;
+    if (!samePoint(at, oldEnd)) break;
+    const gp = { ...g.pos };
+    if (prev) gp[id] = clean(prev);
+    else delete gp[id];
+    frames[j] = { ...g, pos: gp };
+  }
+  return { ...play, frames };
 }
 
 /** Change how an entity travels into frame `fi` (kind/ease/delay); `null` clears the move. */

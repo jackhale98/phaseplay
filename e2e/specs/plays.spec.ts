@@ -451,6 +451,41 @@ test.describe('play designer', () => {
     expect(shared).toBeTruthy();
   });
 
+  test("remove one player's move in a frame without deleting the player", async ({
+    page,
+    team,
+    axe,
+    isMobile,
+  }) => {
+    const id = await makePlay(team, 'team');
+    await openTeam(page, team.teamId, `/plays/${id}/edit`);
+    await expect(page.locator('[data-token="a12"]')).toHaveAttribute('data-x', /\d/);
+    await page.getByRole('button', { name: /^Frame 4/ }).click();
+    await page.locator('[data-token="a12"]').focus();
+    await page.keyboard.press('Enter');
+    const scope = isMobile
+      ? page.getByRole('dialog', { name: /12/ })
+      : page.getByRole('complementary', { name: 'Properties' });
+    await expect(scope.getByRole('button', { name: 'Delete player' })).toBeVisible();
+    await axe(page);
+    await scope.getByRole('button', { name: 'Remove this move' }).click();
+    await expect(page.locator('[data-token="a12"]')).toBeVisible();
+
+    if (!isMobile) {
+      // Keyboard: Shift+Delete removes the selection's move, Delete would remove the player.
+      await page.locator('[data-token="a10"]').focus();
+      await page.keyboard.press('Shift+Delete');
+      await expect(page.locator('[data-token="a10"]')).toBeVisible();
+    }
+
+    await waitForSaved(team, id, (p) => {
+      const f3 = p.data.frames[3];
+      const ok12 = !f3.moves.a12 && f3.pos.a12.x === 27 && f3.pos.a12.y === 51;
+      const ok10 = isMobile || (f3.pos.a10.x === 20 && f3.pos.a10.y === 49);
+      return ok12 && ok10 && p.data.entities.length === 7;
+    });
+  });
+
   test('duplicate and delete with undo', async ({ page, team }) => {
     const id = await makePlay(team, 'team');
     await openTeam(page, team.teamId, `/plays/${id}`);

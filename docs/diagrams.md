@@ -118,6 +118,7 @@ type Frame = {
 | Arrow keys | Nudge (Shift = 1 m) |
 | `⌘Z` / `⇧⌘Z` | Undo / redo |
 | `Del` | Delete |
+| `⇧Del` | Remove the selection's move in this frame (it stays where it was) |
 | `?` | Shortcut sheet |
 
 - **Keyboard access:** Tab cycles through tokens, arrow keys move them, and Enter opens their properties.

@@ -55,6 +55,8 @@
     passTo,
     pick,
     removeEntities,
+    clearMove,
+    hasMove,
     setPositions,
     setRun,
     snapPoint,
@@ -833,6 +835,20 @@
     menu = null;
     toasts.undo(`Deleted ${what}`, () => undo());
   }
+  /** Undo the selected tokens' movement in this frame (they stay where they were). */
+  function clearSelectedMoves() {
+    const ids = selected.filter((id) => hasMove(play, fi, id));
+    menu = null;
+    if (!ids.length) {
+      announce('Nothing moves in this frame');
+      return;
+    }
+    apply((p) => ids.reduce((q, id) => clearMove(q, fi, id), p), 'Remove move');
+    toasts.undo(
+      ids.length === 1 ? `Removed ${label(ids[0]!)}'s move` : `Removed ${ids.length} moves`,
+      () => undo(),
+    );
+  }
   function duplicateSelected() {
     const ids = selected.slice();
     const out: string[] = [];
@@ -949,7 +965,9 @@
     }
     if ((k === 'Delete' || k === 'Backspace') && selected.length) {
       e.preventDefault();
-      deleteSelected();
+      // Shift+Delete removes just this frame's move; Delete removes the token.
+      if (e.shiftKey) clearSelectedMoves();
+      else deleteSelected();
       return;
     }
     if (k === 'Enter' && onToken && one) {
@@ -1291,8 +1309,19 @@
             }}>Give ball</button
           >
         {/if}
+        {#if menu && hasMove(play, fi, menu.id)}
+          <button role="menuitem" onclick={clearSelectedMoves}
+            >{play.entities.find((x) => x.id === menu?.id)?.kind === 'ball'
+              ? 'Remove pass or kick'
+              : 'Remove this move'}</button
+          >
+        {/if}
         <button role="menuitem" onclick={duplicateSelected}>Duplicate</button>
-        <button role="menuitem" class="danger" onclick={deleteSelected}>Delete</button>
+        <button role="menuitem" class="danger" onclick={deleteSelected}
+          >{isPerson(play.entities.find((x) => x.id === menu?.id)?.kind ?? 'cone')
+            ? 'Delete player'
+            : 'Delete'}</button
+        >
       </div>
     {/if}
   </div>
