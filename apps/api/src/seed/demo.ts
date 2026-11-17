@@ -5,6 +5,7 @@
  */
 import {
   zonedToUtc,
+  defaultAnswerBy,
   addDays,
   INVENTORY_HANDOFF_TTL_MS,
   dateInTz,
@@ -35,6 +36,8 @@ export const DEMO_TABLE_ORDER = [
   'recurrences',
   'events',
   'rsvps',
+  'event_options',
+  'proposal_answers',
   'team_sheets',
   'plays',
   'drills',
@@ -1267,6 +1270,92 @@ export function buildDemo(now: number = Date.now()): DemoTables {
       });
     }
   });
+
+  // Not confirmed yet: a date-poll friendly (the second date is short a hooker) and a tentative
+  // social. Jess (the player login) hasn't answered either, so her Home asks "Would you play?".
+  {
+    const squad = members.slice(3);
+    const proposal = (
+      e: { type: string; title: string; opponent?: string; place: string; hours: number },
+      dates: [number, string][],
+      answers: { in: number[]; cant: number[] }[],
+    ) => {
+      const eventId = id('e');
+      const starts = dates.map(([d, at]) => zonedToUtc(addDays(monday, d), at, TZ));
+      insert('events', {
+        id: eventId,
+        team_id: TEAM,
+        season_id: season,
+        type: e.type,
+        format: e.type === 'match' ? '15s' : null,
+        title: e.title,
+        opponent: e.opponent ?? null,
+        starts_at: starts[0],
+        meet_at: e.type === 'match' ? starts[0]! - 75 * 60e3 : null,
+        ends_at: starts[0]! + e.hours * 3600e3,
+        location_name: e.place,
+        version: 1,
+        created_by: owner.userId,
+        updated_at: now,
+        status: 'proposed',
+        answer_by: defaultAnswerBy(now, starts[0]!),
+        check_positions: 1,
+      });
+      starts.forEach((startsAt, i) => {
+        const optionId = id('f');
+        insert('event_options', {
+          id: optionId,
+          team_id: TEAM,
+          event_id: eventId,
+          starts_at: startsAt,
+          meet_at: e.type === 'match' ? startsAt - 75 * 60e3 : null,
+          ends_at: startsAt + e.hours * 3600e3,
+          updated_at: now,
+        });
+        for (const answer of ['in', 'cant'] as const)
+          for (const p of answers[i]![answer])
+            insert('proposal_answers', {
+              option_id: optionId,
+              member_id: squad[p]!.id,
+              event_id: eventId,
+              team_id: TEAM,
+              answer,
+              updated_at: now - (p % 7) * 3600e3,
+            });
+      });
+    };
+    const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+    proposal(
+      {
+        type: 'match',
+        title: 'Friendly',
+        opponent: 'Harlequins',
+        place: 'Riverside Park, Pitch 1',
+        hours: 2,
+      },
+      [
+        [13, '14:00'],
+        [27, '14:00'],
+      ],
+      [
+        // 20 in, front row covered (Ffion and Lowri hook).
+        { in: [...range(1, 12), ...range(14, 17), ...range(19, 22)], cant: [13, 18, 23, 24] },
+        // 14 in and only Holly can hook.
+        { in: [1, 4, 5, ...range(6, 12), 14, 15, 16, 27], cant: [2, 3, 13, ...range(17, 24)] },
+      ],
+    );
+    proposal(
+      { type: 'social', title: 'Curry night', place: 'The Spice Lounge', hours: 3 },
+      [[11, '19:30']],
+      [{ in: range(1, 10), cant: range(11, 13) }],
+    );
+  }
+
+  // Bulk loads fill missing columns with NULL: give every event the NOT NULL defaults.
+  for (const e of tables.events) {
+    e.status ??= 'confirmed';
+    e.check_positions ??= 1;
+  }
 
   if (owner.userId !== DEMO_USER_ID) throw new Error('demo owner id drifted');
   return tables;

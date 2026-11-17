@@ -23,7 +23,7 @@ const MATCH_ROW_CAP = 10_000;
 /** Events that took place in [?2, ?3) before ?4: indexed by (team_id, starts_at). */
 const HELD = (types: string) =>
   `e.team_id = ?1 AND e.starts_at >= ?2 AND e.starts_at < ?3 AND e.starts_at <= ?4
-   AND e.deleted_at IS NULL AND e.cancelled_at IS NULL AND e.type IN (${types})`;
+   AND e.deleted_at IS NULL AND e.cancelled_at IS NULL AND e.status = 'confirmed' AND e.type IN (${types})`;
 
 /**
  * Season stats feed (PLAN.md M7): one membership check plus one batch. The web computes every stat

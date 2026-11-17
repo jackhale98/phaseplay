@@ -7,6 +7,8 @@ import type {
   PlayMeta,
   PracticePlan,
   Rsvp,
+  EventOption,
+  OptionAnswer,
   Season,
   Team,
   TeamEvent,
@@ -27,7 +29,7 @@ const ns = (x: unknown) => (x ?? null) as string | null;
 const nn = (x: unknown) => (x ?? null) as number | null;
 
 export const TEAM_COLS =
-  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility, hidden_templates';
+  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility, hidden_templates, proposal_target_15s, proposal_target_7s';
 export const teamFromRow = (r: Row): Team => ({
   id: s(r.id),
   name: s(r.name),
@@ -44,6 +46,10 @@ export const teamFromRow = (r: Row): Team => ({
   pendingOwnerAt: nn(r.pending_owner_at),
   rsvpVisibility: ((r.rsvp_visibility as string) ?? 'counts') as Team['rsvpVisibility'],
   hiddenTemplates: parseJson(r.hidden_templates as string | null, [] as string[]),
+  proposalTargets: {
+    '15s': Number(r.proposal_target_15s ?? 20),
+    '7s': Number(r.proposal_target_7s ?? 10),
+  },
 });
 
 export const MEMBER_COLS =
@@ -73,7 +79,7 @@ export const seasonFromRow = (r: Row): Season => ({
 });
 
 export const EVENT_COLS =
-  'id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id, cancelled_at, settings, version, updated_at, deleted_at';
+  'id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id, cancelled_at, settings, status, answer_by, target, check_positions, version, updated_at, deleted_at';
 export const eventFromRow = (r: Row): TeamEvent => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -92,6 +98,11 @@ export const eventFromRow = (r: Row): TeamEvent => ({
   recurrenceId: ns(r.recurrence_id),
   cancelledAt: nn(r.cancelled_at),
   settings: parseJson(ns(r.settings), null),
+  status: ((r.status as string) ?? 'confirmed') as TeamEvent['status'],
+  answerBy: nn(r.answer_by),
+  target: nn(r.target),
+  checkPositions:
+    r.check_positions === undefined || r.check_positions === null || bool(r.check_positions),
   version: n(r.version),
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
@@ -104,6 +115,33 @@ export const rsvpFromRow = (r: Row, showNote: boolean): Rsvp => ({
   status: ns(r.status) as Rsvp['status'],
   note: showNote ? ns(r.note) : null,
   attended: nullableBool(r.attended),
+  reconfirm: bool(r.reconfirm),
+  updatedAt: n(r.updated_at),
+});
+
+export const RSVP_COLS =
+  'event_id, member_id, team_id, status, note, attended, reconfirm, updated_at';
+
+export const OPTION_COLS =
+  'id, event_id, team_id, starts_at, meet_at, ends_at, updated_at, deleted_at';
+export const optionFromRow = (r: Row): EventOption => ({
+  id: s(r.id),
+  eventId: s(r.event_id),
+  teamId: s(r.team_id),
+  startsAt: n(r.starts_at),
+  meetAt: nn(r.meet_at),
+  endsAt: nn(r.ends_at),
+  updatedAt: n(r.updated_at),
+  deletedAt: nn(r.deleted_at),
+});
+
+export const ANSWER_COLS = 'option_id, event_id, member_id, team_id, answer, updated_at';
+export const answerFromRow = (r: Row): OptionAnswer => ({
+  optionId: s(r.option_id),
+  eventId: s(r.event_id),
+  memberId: s(r.member_id),
+  teamId: s(r.team_id),
+  answer: s(r.answer) as OptionAnswer['answer'],
   updatedAt: n(r.updated_at),
 });
 

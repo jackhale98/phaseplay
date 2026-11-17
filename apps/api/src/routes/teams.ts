@@ -44,7 +44,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]')`,
+          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]', 20, 10)`,
         )
         .bind(
           input.id,
@@ -129,6 +129,10 @@ export function teamRoutes(app: Hono<AppEnv>) {
     if (input.colors) {
       sets.push('colors = ?');
       vals.push(JSON.stringify(input.colors));
+    }
+    if (input.proposalTargets) {
+      sets.push('proposal_target_15s = ?', 'proposal_target_7s = ?');
+      vals.push(input.proposalTargets['15s'], input.proposalTargets['7s']);
     }
     if (!sets.length) return c.json({ ok: true });
     const t = now();

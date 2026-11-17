@@ -138,3 +138,68 @@ export function planShared(teamId: string, id: string, title: string): Message {
     tag: `plan-${id}`,
   };
 }
+
+/** "Sat 12" in the team's timezone. */
+export function dayText(ms: number, tz: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz,
+      weekday: 'short',
+      day: 'numeric',
+    }).formatToParts(ms);
+    const get = (k: string) => parts.find((x) => x.type === k)?.value ?? '';
+    return `${get('weekday')} ${get('day')}`;
+  } catch {
+    return new Date(ms).toUTCString().slice(0, 7);
+  }
+}
+
+/** "Sat 12, 2:30 PM" (US zones) or "Sat 12, 14:30". */
+export function dayTimeText(ms: number, tz: string) {
+  try {
+    const clock = new Intl.DateTimeFormat(tz.startsWith('America/') ? 'en-US' : 'en-GB', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(ms);
+    return `${dayText(ms, tz)}, ${clock}`;
+  } catch {
+    return dayText(ms, tz);
+  }
+}
+
+const orList = (xs: string[]) =>
+  xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`;
+export const datesText = (dates: number[], tz: string) =>
+  orList([...dates].sort((a, b) => a - b).map((d) => dayText(d, tz)));
+const isGameType = (type: string) => type === 'match' || type === 'tournament';
+
+/** "Would you play? · PRFC v Harlequins: Sat 12 or Sat 19". */
+export function proposalCreated(teamId: string, e: EventInfo, dates: number[]): Message {
+  return {
+    title: isGameType(e.type) ? 'Would you play?' : 'Are you in?',
+    body: `${eventLabel(e)}: ${datesText(dates, e.timezone)}. Not confirmed yet, tap to answer.`,
+    url: eventUrl(teamId, e.id),
+    tag: `event-${e.id}`,
+  };
+}
+
+/** To everyone who was in for the chosen date: "It's on: PRFC v Harlequins · Sat 12, 2:30. Still in?" */
+export function proposalConfirmed(teamId: string, e: EventInfo): Message {
+  return {
+    title: `It's on: ${eventLabel(e)}`,
+    body: `${dayTimeText(e.starts_at, e.timezone)}${where(e.location_name)}. Still in?`,
+    url: eventUrl(teamId, e.id),
+    tag: `event-${e.id}`,
+  };
+}
+
+/** To everyone who answered a proposal that won't happen. */
+export function proposalDropped(teamId: string, e: EventInfo): Message {
+  return {
+    title: `Not going ahead: ${eventLabel(e)}`,
+    body: 'Thanks for answering. It’s off for now.',
+    url: `/schedule?team=${teamId}`,
+    tag: `event-${e.id}`,
+  };
+}

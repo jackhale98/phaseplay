@@ -21,7 +21,7 @@ export function sheetRoutes(app: Hono<AppEnv>) {
       .prepare(
         `INSERT INTO team_sheets (id, event_id, team_id, format, replacements, slots, captain_id, vice_id, status, version, created_by, updated_at)
          SELECT ?, e.id, e.team_id, ?, ?, ?, ?, ?, 'draft', 1, ?, ?
-         FROM events e WHERE e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.type IN ('match', 'tournament')
+         FROM events e WHERE e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.status = 'confirmed' AND e.type IN ('match', 'tournament')
          ON CONFLICT(id) DO UPDATE SET format = excluded.format, replacements = excluded.replacements, slots = excluded.slots,
            captain_id = excluded.captain_id, vice_id = excluded.vice_id, status = 'draft',
            version = team_sheets.version + 1, updated_at = excluded.updated_at

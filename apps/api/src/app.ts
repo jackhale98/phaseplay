@@ -11,6 +11,7 @@ import { inventoryRoutes } from './routes/inventory';
 import { pushRoutes } from './routes/push';
 import { memberRoutes } from './routes/members';
 import { eventRoutes } from './routes/events';
+import { proposalRoutes } from './routes/proposals';
 import { sheetRoutes } from './routes/sheets';
 import { playRoutes } from './routes/plays';
 import { drillRoutes } from './routes/drills';
@@ -83,6 +84,7 @@ export function createApp() {
   pushRoutes(app);
   memberRoutes(app);
   eventRoutes(app);
+  proposalRoutes(app);
   sheetRoutes(app);
   playRoutes(app);
   drillRoutes(app);

@@ -15,7 +15,7 @@ const PAST_MS = 90 * 86400e3;
 
 const EVENT_SQL = `SELECT e.id, e.type, e.title, e.starts_at, e.meet_at, e.ends_at, e.location_name, e.location_url,
     e.opponent, e.notes, e.cancelled_at, e.version, e.updated_at, t.short_name, t.name AS team_name, t.timezone
-  FROM teams t JOIN events e ON e.team_id = t.id AND e.deleted_at IS NULL AND e.starts_at > ?`;
+  FROM teams t JOIN events e ON e.team_id = t.id AND e.deleted_at IS NULL AND e.status = 'confirmed' AND e.starts_at > ?`;
 
 type EventRow = Record<string, string | number | null>;
 

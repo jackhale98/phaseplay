@@ -1,6 +1,10 @@
 import type { Context, Hono } from 'hono';
 import {
   AttendancePut,
+  PROPOSAL_REMIND_BEFORE_MS,
+  byStart,
+  defaultAnswerBy,
+  type ProposalOption,
   EventCreate,
   EventUpdate,
   RSVP_NOTE_TTL_MS,
@@ -29,13 +33,16 @@ import {
   eventChanged,
   eventCreated,
   eventRestored,
+  proposalCreated,
   seriesChanged,
   seriesCreated,
   seriesRemoved,
   type EventInfo,
 } from '../lib/push/messages';
 
-type EventFields = Omit<EventCreateT, 'id'> & { id: string };
+type EventFields = Omit<EventCreateT, 'id' | 'status' | 'options'> & { id: string };
+/** Proposal columns for a new event (confirmed events keep the defaults). */
+type ProposalCols = { answerBy: number; remindedAt: number | null };
 
 export function insertEventStmt(
   db: D1Database,
@@ -45,12 +52,14 @@ export function insertEventStmt(
   recurrenceId: string | null,
   t: number,
   returning = '',
+  proposal: ProposalCols | null = null,
 ) {
   return db
     .prepare(
       `INSERT INTO events (id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name,
-        location_url, opponent, notes, rsvp_deadline, recurrence_id, settings, version, created_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT DO NOTHING ${returning}`,
+        location_url, opponent, notes, rsvp_deadline, recurrence_id, settings, version, created_by, updated_at,
+        status, answer_by, target, check_positions, proposal_reminded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING ${returning}`,
     )
     .bind(
       e.id,
@@ -71,8 +80,45 @@ export function insertEventStmt(
       e.settings ? JSON.stringify(e.settings) : null,
       userId,
       t,
+      proposal ? 'proposed' : 'confirmed',
+      proposal?.answerBy ?? null,
+      proposal ? (e.target ?? null) : null,
+      e.checkPositions === false ? 0 : 1,
+      proposal?.remindedAt ?? null,
     );
 }
+
+/**
+ * Upsert a proposal's dates and retire the ones no longer listed, in one statement. Kept ids keep
+ * their answers; the caller deletes answers on retired dates in the same batch.
+ */
+export function putOptionsStmt(
+  db: D1Database,
+  teamId: string,
+  eventId: string,
+  options: ProposalOption[],
+  t: number,
+) {
+  return db
+    .prepare(
+      `INSERT INTO event_options (id, team_id, event_id, starts_at, meet_at, ends_at, updated_at, deleted_at)
+       SELECT j.value->>'id', e.team_id, e.id, j.value->>'startsAt', j.value->>'meetAt', j.value->>'endsAt', ?1, NULL
+         FROM json_each(?2) j JOIN events e ON e.id = ?3 AND e.team_id = ?4
+       UNION ALL
+       SELECT o.id, o.team_id, o.event_id, o.starts_at, o.meet_at, o.ends_at, ?1, ?1 FROM event_options o
+         WHERE o.event_id = ?3 AND o.team_id = ?4 AND o.deleted_at IS NULL
+           AND o.id NOT IN (SELECT value->>'id' FROM json_each(?2))
+       ON CONFLICT(id) DO UPDATE SET starts_at = excluded.starts_at, meet_at = excluded.meet_at,
+         ends_at = excluded.ends_at, deleted_at = excluded.deleted_at, updated_at = excluded.updated_at
+       WHERE event_options.team_id = excluded.team_id AND event_options.event_id = excluded.event_id
+         AND (event_options.starts_at IS NOT excluded.starts_at OR event_options.meet_at IS NOT excluded.meet_at
+           OR event_options.ends_at IS NOT excluded.ends_at OR event_options.deleted_at IS NOT excluded.deleted_at)`,
+    )
+    .bind(t, JSON.stringify(options), eventId, teamId);
+}
+
+/** The event row mirrors a proposal's earliest date, so it sorts and syncs like any event. */
+const firstOption = (options: ProposalOption[]) => [...options].sort(byStart)[0]!;
 
 const FIELD_COLS: Record<string, string> = {
   seasonId: 'season_id',
@@ -150,24 +196,51 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const input = await body(c, EventCreate);
     const t = now();
+    const options = input.status === 'proposed' ? (input.options ?? []) : [];
+    const first = options.length ? firstOption(options) : null;
+    const fields: EventFields = first
+      ? { ...input, startsAt: first.startsAt, meetAt: first.meetAt, endsAt: first.endsAt }
+      : input;
+    let proposal: ProposalCols | null = null;
+    if (first) {
+      const answerBy = input.answerBy ?? defaultAnswerBy(t, first.startsAt);
+      // Due within two days already: the proposal itself is the reminder.
+      proposal = { answerBy, remindedAt: answerBy - PROPOSAL_REMIND_BEFORE_MS <= t ? t : null };
+    }
     // Returns a row only when this request inserted it (a retried outbox write returns none).
-    const team = await insertEventStmt(
+    const insert = insertEventStmt(
       c.var.db,
       me.teamId,
       me.userId,
-      input,
+      fields,
       null,
       t,
       `RETURNING ${TEAM_INFO}`,
-    ).first<{ timezone: string; short_name: string }>();
-    if (team && input.startsAt > t) {
-      const info: EventInfo = { ...input, ...team, ...eventSnake(input) };
+      proposal,
+    );
+    type TeamInfo = { timezone: string; short_name: string };
+    let team: TeamInfo | null;
+    if (first) {
+      const [ins] = await c.var.db.batch([
+        insert,
+        putOptionsStmt(c.var.db, me.teamId, input.id, options, t),
+      ]);
+      team = (ins?.results[0] as TeamInfo | undefined) ?? null;
+    } else team = await insert.first<TeamInfo>();
+    if (team && fields.startsAt > t) {
+      const info: EventInfo = { ...fields, ...team, ...eventSnake(fields) };
       await notifyStmt(
         c.var.db,
         me.teamId,
         { team: true },
         'events',
-        eventCreated(me.teamId, info),
+        first
+          ? proposalCreated(
+              me.teamId,
+              info,
+              options.map((o) => o.startsAt),
+            )
+          : eventCreated(me.teamId, info),
         me.userId,
       ).run();
       flushNotifications(c);
@@ -187,6 +260,17 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const id = c.req.param('eventId')!;
     const input = await body(c, EventUpdate);
+    const t = now();
+    // A proposal's dates: the event mirrors the earliest one (its own times are ignored).
+    const options = input.options;
+    if (options) {
+      const first = firstOption(options);
+      Object.assign(input, {
+        startsAt: first.startsAt,
+        meetAt: first.meetAt,
+        endsAt: first.endsAt,
+      });
+    }
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [k, col] of Object.entries(FIELD_COLS)) {
@@ -209,15 +293,34 @@ export function eventRoutes(app: Hono<AppEnv>) {
       sets.push('cancelled_at = ?');
       vals.push(input.cancelled ? now() : null);
     }
+    if (input.answerBy !== undefined) {
+      // A new deadline gets its own reminder, unless it's already within the reminder window.
+      sets.push(
+        'proposal_reminded_at = CASE WHEN answer_by IS ? THEN proposal_reminded_at WHEN ? THEN ? ELSE NULL END',
+        'answer_by = ?',
+      );
+      const soon = input.answerBy !== null && input.answerBy - PROPOSAL_REMIND_BEFORE_MS <= t;
+      vals.push(input.answerBy, soon ? 1 : 0, t, input.answerBy);
+    }
+    if (input.target !== undefined) {
+      sets.push('target = ?');
+      vals.push(input.target);
+    }
+    if (input.checkPositions !== undefined) {
+      sets.push('check_positions = ?');
+      vals.push(input.checkPositions ? 1 : 0);
+    }
     const version = ifMatch(c);
     // The current row: to check times, and to tell the team what changed (time, place, cancelled).
     let cur: CurrentEvent | null = null;
+    // Proposals tell nobody about edits, and their dates are checked by the schema.
     if (
-      input.startsAt !== undefined ||
-      input.endsAt !== undefined ||
-      input.meetAt !== undefined ||
-      input.locationName !== undefined ||
-      input.cancelled !== undefined
+      !options &&
+      (input.startsAt !== undefined ||
+        input.endsAt !== undefined ||
+        input.meetAt !== undefined ||
+        input.locationName !== undefined ||
+        input.cancelled !== undefined)
     ) {
       cur = await c.var.db
         .prepare(
@@ -240,13 +343,25 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const row = await c.var.db
       .prepare(
         `UPDATE events SET ${[...sets, 'version = version + 1', 'updated_at = ?'].join(', ')}
-         WHERE id = ? AND team_id = ? AND deleted_at IS NULL AND (? IS NULL OR version = ?) RETURNING ${EVENT_COLS}`,
+         WHERE id = ? AND team_id = ? AND deleted_at IS NULL AND (? IS NULL OR version = ?)
+           AND (? = 0 OR status = 'proposed') RETURNING ${EVENT_COLS}`,
       )
-      .bind(...vals, now(), id, me.teamId, version, version)
+      .bind(...vals, t, id, me.teamId, version, version, options ? 1 : 0)
       .first();
     if (row) {
       const ev = eventFromRow(row);
       const stmts: D1PreparedStatement[] = [];
+      if (options)
+        stmts.push(
+          putOptionsStmt(c.var.db, me.teamId, id, options, t),
+          // A removed date takes its answers with it.
+          c.var.db
+            .prepare(
+              `DELETE FROM proposal_answers WHERE event_id = ? AND team_id = ?
+               AND option_id NOT IN (SELECT value->>'id' FROM json_each(?))`,
+            )
+            .bind(id, me.teamId, JSON.stringify(options)),
+        );
       if (input.cancelled !== undefined)
         stmts.push(
           auditStmt(c.var.db, {
@@ -584,12 +699,12 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const note = input.note?.trim() ? input.note.trim() : null;
     const row = await c.var.db
       .prepare(
-        `INSERT INTO rsvps (event_id, member_id, team_id, status, note, note_expires_at, updated_at)
-         SELECT e.id, m.id, e.team_id, ?, ?, CASE WHEN ? IS NULL THEN NULL ELSE coalesce(e.ends_at, e.starts_at) + ? END, ?
+        `INSERT INTO rsvps (event_id, member_id, team_id, status, note, note_expires_at, updated_at, reconfirm)
+         SELECT e.id, m.id, e.team_id, ?, ?, CASE WHEN ? IS NULL THEN NULL ELSE coalesce(e.ends_at, e.starts_at) + ? END, ?, 0
          FROM events e JOIN memberships m ON m.team_id = e.team_id AND m.id = ? AND m.status != 'removed'
-         WHERE e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL
+         WHERE e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.status = 'confirmed'
          ON CONFLICT(event_id, member_id) DO UPDATE SET status = excluded.status, note = excluded.note,
-           note_expires_at = excluded.note_expires_at, updated_at = excluded.updated_at
+           note_expires_at = excluded.note_expires_at, updated_at = excluded.updated_at, reconfirm = 0
          RETURNING event_id`,
       )
       .bind(
@@ -617,7 +732,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
          SELECT e.id, m.id, e.team_id, NULL, j.value->>'attended', ?
          FROM json_each(?) j
          JOIN memberships m ON m.id = j.value->>'memberId' AND m.team_id = ?
-         JOIN events e ON e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL
+         JOIN events e ON e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.status = 'confirmed'
          WHERE true
          ON CONFLICT(event_id, member_id) DO UPDATE SET attended = excluded.attended, updated_at = excluded.updated_at`,
       )

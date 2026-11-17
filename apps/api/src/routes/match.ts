@@ -50,7 +50,7 @@ export function matchRoutes(app: Hono<AppEnv>) {
         `INSERT INTO match_events (id, event_id, team_id, seq, kind, payload, game_ms, wall_at, supersedes_id, created_by, created_at)
          SELECT j.value->>'id', e.id, e.team_id, j.value->>'seq', j.value->>'kind', j.value->>'payload', j.value->>'game_ms',
            j.value->>'wall_at', j.value->>'supersedes_id', ?, ?
-         FROM json_each(?) j JOIN events e ON e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL
+         FROM json_each(?) j JOIN events e ON e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.status = 'confirmed'
          WHERE true ON CONFLICT(id) DO NOTHING`,
       )
       .bind(me.userId, t, JSON.stringify(rows), c.req.param('eventId'), me.teamId)

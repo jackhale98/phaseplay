@@ -119,7 +119,15 @@ export function meRoutes(app: Hono<AppEnv>) {
     const u = requireUser(c);
     const [user, members, rsvps, creds, devices] = await c.var.db.batch([
       c.var.db
-        .prepare('SELECT id, display_name, created_at, notify_prefs FROM users WHERE id = ?')
+        .prepare(
+          `SELECT id, display_name, created_at, notify_prefs,
+             (SELECT json_group_array(json_object('event_id', a.event_id, 'title', e.title, 'date', o.starts_at,
+                'answer', a.answer, 'updated_at', a.updated_at))
+              FROM proposal_answers a JOIN memberships m ON m.id = a.member_id
+              JOIN events e ON e.id = a.event_id JOIN event_options o ON o.id = a.option_id
+              WHERE m.user_id = users.id) AS date_answers
+           FROM users WHERE id = ?`,
+        )
         .bind(u.id),
       c.var.db
         .prepare(
@@ -140,10 +148,13 @@ export function meRoutes(app: Hono<AppEnv>) {
         .prepare('SELECT label, created_at, last_ok_at FROM push_subscriptions WHERE user_id = ?')
         .bind(u.id),
     ]);
+    const userRow = user!.results[0] as Record<string, unknown> | undefined;
     c.header('Content-Disposition', 'attachment; filename="phaseplay-export.json"');
     return c.json({
       exportedAt: new Date().toISOString(),
-      user: user!.results[0],
+      user: { ...userRow, date_answers: undefined },
+      /** Answers to proposed dates ("Would you play?"). */
+      dateAnswers: JSON.parse((userRow?.date_answers as string | undefined) ?? '[]'),
       memberships: members!.results,
       rsvps: rsvps!.results,
       passkeys: creds!.results,

@@ -5,7 +5,8 @@
  */
 import { DEMO_TEAM_ID, DEMO_USER_ID } from '../../seed/demo';
 import { payloadJson, wantsTopicSql, whenText } from '../notify';
-import { eventLabel } from './messages';
+import { PROPOSAL_REMIND_BEFORE_MS } from '@phaseplay/shared';
+import { datesText, eventLabel } from './messages';
 
 const H = 3600e3;
 /** Reminders go out for events starting 18–30 h from now, once each (`events.reminded_at`). */
@@ -39,7 +40,7 @@ export async function queueReminders(db: D1Database, t: number): Promise<number>
        FROM teams t CROSS JOIN events e
        WHERE e.team_id = t.id AND t.deleted_at IS NULL AND t.id <> ?
          AND e.starts_at >= ? AND e.starts_at < ? AND e.reminded_at IS NULL
-         AND e.deleted_at IS NULL AND e.cancelled_at IS NULL
+         AND e.deleted_at IS NULL AND e.cancelled_at IS NULL AND e.status = 'confirmed'
          AND (e.rsvp_deadline IS NULL OR e.rsvp_deadline > ?)
        ORDER BY e.starts_at LIMIT ${MAX_EVENTS}`,
     )
@@ -103,6 +104,7 @@ export async function queueKitAtRisk(db: D1Database, t: number, tick: number): P
          AND m.id = r.member_id
          AND e.team_id = t.id AND t.deleted_at IS NULL AND t.id <> ?1
          AND e.starts_at >= ?2 AND e.starts_at < ?3 AND e.deleted_at IS NULL AND e.cancelled_at IS NULL
+         AND e.status = 'confirmed'
          AND ((e.starts_at >= ?3 - ?4 AND r.updated_at < ?2 - ?4) OR (r.updated_at >= ?2 - ?4 AND r.updated_at < ?2))
        GROUP BY e.id, m.id
        LIMIT 200`,
@@ -136,4 +138,55 @@ export async function queueKitAtRisk(db: D1Database, t: number, tick: number): P
     .bind(t, JSON.stringify(rows))
     .run();
   return rows.length;
+}
+
+/**
+ * "Answers due soon": two days before a proposal's answer-by time, to members who haven't answered
+ * any of its dates. Once per proposal (`events.proposal_reminded_at`), looked up through the
+ * partial index on proposed events' `answer_by`.
+ */
+export async function queueProposalReminders(db: D1Database, t: number): Promise<number> {
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.team_id, e.title, e.type, e.opponent, t.timezone, t.short_name,
+         (SELECT json_group_array(o.starts_at) FROM event_options o
+           WHERE o.event_id = e.id AND o.deleted_at IS NULL) AS dates
+       FROM events e JOIN teams t ON t.id = e.team_id AND t.deleted_at IS NULL
+       WHERE e.status = 'proposed' AND e.answer_by > ?1 AND e.answer_by <= ?2
+         AND e.proposal_reminded_at IS NULL AND e.deleted_at IS NULL AND e.team_id <> ?3
+       ORDER BY e.answer_by LIMIT ${MAX_EVENTS}`,
+    )
+    .bind(t, t + PROPOSAL_REMIND_BEFORE_MS, DEMO_TEAM_ID)
+    .all<EventRow & { dates: string }>();
+  if (!results.length) return 0;
+  const events = JSON.stringify(
+    results.map((e) => ({
+      id: e.id,
+      p: payloadJson('reminders', e.team_id, {
+        title: `Answers due soon: ${eventLabel(e)}`,
+        body: `${datesText(JSON.parse(e.dates) as number[], e.timezone)}. Can you make it? Tap to answer.`,
+        url: `/events/${e.id}?team=${e.team_id}`,
+        tag: `event-${e.id}`,
+      }),
+    })),
+  );
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO push_queue (id, user_id, payload, created_at, attempts, next_at)
+         SELECT lower(hex(randomblob(16))), m.user_id, j.value->>'p', ?1, 0, ?1
+         FROM json_each(?2) j
+         JOIN events e ON e.id = j.value->>'id' AND e.proposal_reminded_at IS NULL AND e.status = 'proposed'
+         ${recipientsSql('?3')}
+           AND NOT EXISTS (SELECT 1 FROM proposal_answers a WHERE a.event_id = e.id AND a.member_id = m.id)`,
+      )
+      .bind(t, events, '$.reminders'),
+    db
+      .prepare(
+        `UPDATE events SET proposal_reminded_at = ? WHERE id IN (SELECT j.value->>'id' FROM json_each(?) j)
+         AND proposal_reminded_at IS NULL`,
+      )
+      .bind(t, events),
+  ]);
+  return results.length;
 }

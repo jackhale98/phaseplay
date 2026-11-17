@@ -1,12 +1,13 @@
 /**
- * Fingerprint of the demo team's content (plays, drills, roles, kit, match logs, sheets and plans;
+ * Fingerprint of the demo team's content (plays, drills, roles, kit, match logs, sheets, plans and
+ * proposal answers;
  * not dates). When it changes, the next demo start reseeds instead of waiting for the daily
  * refresh. test/demo-version.test.ts fails with the new value whenever demo content changes, so
  * it can't be forgotten.
  */
 import type { DemoTables } from './demo';
 
-export const DEMO_CONTENT_VERSION = '2fef56a4f7bbfab19d27277b';
+export const DEMO_CONTENT_VERSION = '26a1db5ca789ddb47b41a581';
 
 export async function demoContentHash(t: DemoTables): Promise<string> {
   const content = JSON.stringify([
@@ -18,6 +19,9 @@ export async function demoContentHash(t: DemoTables): Promise<string> {
     t.match_events.map((e) => e.payload),
     t.team_sheets.map((s) => s.slots),
     t.practice_plans.map((p) => [p.title, p.blocks]),
+    // Proposals ("Not confirmed yet"): who answered what for each date.
+    t.event_options.length,
+    t.proposal_answers.map((a) => [a.member_id, a.answer]),
   ]);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
   return [...new Uint8Array(hash).slice(0, 12)]

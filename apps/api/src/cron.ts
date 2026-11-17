@@ -2,9 +2,9 @@ import type { Env } from './env';
 import { ensureDemo } from './seed/load-demo';
 import { drainOptions } from './lib/notify';
 import { drainQueue, MAX_DEVICE_FAILURES } from './lib/push/queue';
-import { queueKitAtRisk, queueReminders } from './lib/push/jobs';
+import { queueKitAtRisk, queueProposalReminders, queueReminders } from './lib/push/jobs';
 
-/** Every few minutes: reply reminders, kit at risk, and the next batch of queued pushes. */
+/** Every few minutes: reply and proposal reminders, kit at risk, and the next batch of queued pushes. */
 export const FREQUENT_CRON = '*/5 * * * *';
 /** Every minute: just the next batch of queued pushes (cheap when the queue is empty). */
 export const DRAIN_CRON = '* * * * *';
@@ -25,6 +25,7 @@ export async function frequent(env: Env, t: number) {
   const jobs = [
     () => queueReminders(env.DB, t),
     () => queueKitAtRisk(env.DB, t, TICK_MS),
+    () => queueProposalReminders(env.DB, t),
     () => drainQueue(env.DB, drainOptions(env)),
   ];
   for (const job of jobs)
