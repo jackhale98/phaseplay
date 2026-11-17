@@ -336,19 +336,19 @@
     width: 18px;
     height: 18px;
   }
+  /* Solid status fills, as on the RSVP buttons (components/RsvpButtons.svelte). */
   .pickst .yes[aria-pressed='true'] {
-    background: var(--ok);
-    border-color: var(--ok);
-    color: light-dark(#fff, #08140c);
+    --st: var(--ok);
   }
   .pickst .maybe[aria-pressed='true'] {
-    background: var(--warn-soft);
-    border-color: var(--maybe);
-    color: var(--warn);
+    --st: var(--warn);
   }
   .pickst .no[aria-pressed='true'] {
-    background: var(--danger-soft);
-    border-color: var(--no);
-    color: var(--danger);
+    --st: var(--danger);
+  }
+  .pickst [aria-pressed='true'] {
+    background: var(--st);
+    border-color: var(--st);
+    color: var(--on-sel);
   }
 </style>

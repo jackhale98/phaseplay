@@ -66,11 +66,9 @@
     color: var(--text-2);
     font-weight: 650;
     font-size: var(--t-14);
-    transition:
-      background var(--m-fast) var(--ease),
-      color var(--m-fast) var(--ease);
+    /* No colour fade: the selected fill switches at once (crisper, and never half-contrast). */
   }
-  button:hover {
+  button:not([aria-checked='true']):hover {
     color: var(--text);
   }
   .ic {
@@ -88,13 +86,15 @@
     font-weight: 700;
     color: var(--text-3);
   }
+  /* Selected: the app-wide solid fill (tokens.css --sel / --on-sel). */
   [aria-checked='true'] {
-    background: var(--surface);
-    color: var(--text);
+    background: var(--sel);
+    color: var(--on-sel);
     box-shadow: var(--e-1);
   }
-  [aria-checked='true'] .ic {
-    color: var(--cat);
+  [aria-checked='true'] .ic,
+  [aria-checked='true'] .n {
+    color: var(--on-sel);
   }
   .all {
     --cat: var(--text);
@@ -121,8 +121,8 @@
       background: var(--surface-3);
     }
     [aria-checked='true'] .n {
-      background: var(--surface-2);
-      color: var(--text-2);
+      background: color-mix(in srgb, var(--on-sel) 20%, transparent);
+      color: var(--on-sel);
     }
   }
 </style>
