@@ -357,6 +357,9 @@ class AppState {
       id?: string;
     },
   ) {
+    // Callers often pass component state ($state proxies), which IndexedDB can't clone: store plain
+    // data. (This crashed saving a member's positions after the request had gone out.)
+    entry = $state.snapshot(entry) as typeof entry;
     const teamId = entry.teamId ?? this.teamId;
     if (!teamId) throw new Error('No team selected');
     if (entry.versionOf && entry.baseVersion === undefined) {

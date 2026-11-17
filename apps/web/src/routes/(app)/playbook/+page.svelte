@@ -11,6 +11,7 @@
     type ContactLevel,
     type DrillCategory,
     type PlayCategory,
+    playsForTeam,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { activeMembers } from '#lib/data/selectors';
@@ -62,7 +63,7 @@
     }
   });
 
-  const playerCount = $derived(activeMembers(s).filter((m) => m.role === 'player').length);
+  const playerCount = $derived(activeMembers(s).filter(playsForTeam).length);
   const allPlays = $derived(
     Object.values(s?.rows.plays ?? {})
       .filter((p) => !p.deletedAt && !hidden.has(p.id) && !!p.archivedAt === archived)

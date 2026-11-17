@@ -52,6 +52,9 @@
   );
   let positions = $state<number[]>([]);
   let jersey = $state<number | null>(null);
+  /** Staff can also play (player-coaches): they then need at least one position. */
+  const staffRole = $derived(!!m && m.role !== 'player');
+  let plays = $state(false);
   let dirty = $state(false);
   let confirmRemove = $state(false);
   let relinkUrl = $state<string | null>(null);
@@ -61,6 +64,7 @@
     if (m && !dirty) {
       positions = [...m.positions];
       jersey = m.jersey;
+      plays = m.role === 'player' || m.positions.length > 0;
     }
   });
 
@@ -169,28 +173,61 @@
     </header>
 
     <section class="card pad">
-      <h2 class="h">Shirt and positions</h2>
-      <label class="jersey">
-        <span>Usual shirt number</span>
-        <input
-          type="number"
-          min="0"
-          max="99"
-          value={jersey ?? ''}
+      <h2 class="h">{staffRole ? 'Playing' : 'Shirt and positions'}</h2>
+      {#if staffRole}
+        <label class="row-label">
+          <span>
+            <strong>Plays for the team</strong>
+            <small class="muted"
+              >For player-coaches: they show up in team sheets, availability by position and stats.</small
+            >
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={plays}
+            disabled={!canEdit}
+            onchange={(e) => {
+              plays = e.currentTarget.checked;
+              if (!plays) {
+                positions = [];
+                jersey = null;
+              }
+              dirty = true;
+            }}
+          />
+        </label>
+      {/if}
+      {#if plays}
+        <label class="jersey">
+          <span>Usual shirt number</span>
+          <input
+            type="number"
+            min="0"
+            max="99"
+            value={jersey ?? ''}
+            disabled={!canEdit}
+            oninput={(e) => (
+              (jersey = e.currentTarget.value === '' ? null : Number(e.currentTarget.value)),
+              (dirty = true)
+            )}
+          />
+        </label>
+        <PositionPicker
+          bind:value={() => positions, (v) => ((positions = v), (dirty = true))}
           disabled={!canEdit}
-          oninput={(e) => (
-            (jersey = e.currentTarget.value === '' ? null : Number(e.currentTarget.value)),
-            (dirty = true)
-          )}
         />
-      </label>
-      <PositionPicker
-        bind:value={() => positions, (v) => ((positions = v), (dirty = true))}
-        disabled={!canEdit}
-      />
+        {#if staffRole && !positions.length}
+          <p class="subtle hint">Pick at least one position so they appear as a player.</p>
+        {/if}
+      {/if}
       {#if canEdit}
         <div class="actions">
-          <Button variant="primary" disabled={!dirty} onclick={save}>Save</Button>
+          <Button
+            variant="primary"
+            disabled={!dirty || (staffRole && plays && !positions.length)}
+            onclick={save}>Save</Button
+          >
         </div>
       {/if}
     </section>
@@ -313,6 +350,31 @@
 </Sheet>
 
 <style>
+  .row-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    min-height: 48px;
+    cursor: pointer;
+  }
+  .row-label > span {
+    display: grid;
+    gap: 2px;
+  }
+  .row-label small {
+    font-size: var(--t-14);
+  }
+  .row-label input {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    accent-color: var(--accent);
+  }
+  .hint {
+    font-size: var(--t-14);
+    margin: 0;
+  }
   .narrow {
     max-width: 680px;
   }

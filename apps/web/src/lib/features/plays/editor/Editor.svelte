@@ -7,6 +7,7 @@
   import { shownTemplate } from '#lib/features/plays/templates';
   import { onMount, tick, untrack } from 'svelte';
   import type { Member, Play, Vec2 } from '@phaseplay/shared';
+  import { playsForTeam } from '@phaseplay/shared';
   import { History } from '@phaseplay/diagram/history';
   import {
     frameTimes,
@@ -140,7 +141,7 @@
   const names = $derived(Object.fromEntries(members.map((m) => [m.id, m.displayName])) as Names);
   const one = $derived(selected.length === 1 ? selected[0] : undefined);
   const oneEntity = $derived(one ? play.entities.find((e) => e.id === one) : undefined);
-  const players = $derived(members.filter((m) => m.role === 'player' || m.positions.length > 0));
+  const players = $derived(members.filter(playsForTeam));
 
   // ---------------------------------------------------------------------------------- history
   export function apply(fn: (p: Play) => Play, label: string) {

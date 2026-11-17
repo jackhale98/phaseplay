@@ -12,6 +12,7 @@ import {
   type Rsvp,
   type RsvpStatus,
   type TeamEvent,
+  playsForTeam,
 } from '@phaseplay/shared';
 import type { LocalHandoff, TeamSnapshot } from './types';
 import { rsvpKey } from './types';
@@ -31,8 +32,7 @@ export const squad = (s: TeamSnapshot | null): Member[] =>
         .sort(byName)
     : [];
 
-export const players = (s: TeamSnapshot | null): Member[] =>
-  squad(s).filter((m) => m.role === 'player' || m.positions.length > 0);
+export const players = (s: TeamSnapshot | null): Member[] => squad(s).filter(playsForTeam);
 
 export function byName(a: Member, b: Member) {
   return a.displayName.localeCompare(b.displayName);

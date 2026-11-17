@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Member, PlayMeta, SeenBy } from '@phaseplay/shared';
+  import { playsForTeam } from '@phaseplay/shared';
   import Avatar from '#lib/components/Avatar.svelte';
   import Button from '#lib/components/Button.svelte';
   import { copyText } from '#lib/share';
@@ -23,7 +24,7 @@
     });
   });
 
-  const squad = $derived(members.filter((m) => m.role === 'player' && m.status === 'active'));
+  const squad = $derived(members.filter((m) => playsForTeam(m) && m.status === 'active'));
   const seenMap = $derived(new Map((data?.seen ?? []).map((s) => [s.memberId, s.firstViewedAt])));
   const seen = $derived(squad.filter((m) => seenMap.has(m.id)));
   const notSeen = $derived(squad.filter((m) => !seenMap.has(m.id)));

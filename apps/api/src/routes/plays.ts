@@ -1,5 +1,13 @@
 import type { Hono } from 'hono';
-import { PlayCreate, PlayUpdate, can, dateInTz, type Perms, type SeenBy } from '@phaseplay/shared';
+import {
+  PLAYS_FOR_TEAM_SQL,
+  PlayCreate,
+  PlayUpdate,
+  can,
+  dateInTz,
+  type Perms,
+  type SeenBy,
+} from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
@@ -190,7 +198,7 @@ export function playRoutes(app: Hono<AppEnv>) {
         .bind(c.req.param('playId'), me.teamId),
       c.var.db
         .prepare(
-          `SELECT count(*) AS n FROM memberships WHERE team_id = ? AND status = 'active' AND role = 'player'`,
+          `SELECT count(*) AS n FROM memberships m WHERE m.team_id = ? AND m.status = 'active' AND ${PLAYS_FOR_TEAM_SQL}`,
         )
         .bind(me.teamId),
     ]);

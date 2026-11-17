@@ -282,3 +282,36 @@ test('copy from last match, versions, and PNG export in three sizes', async ({
   await vs.getByRole('button', { name: /^Restore/ }).click();
   await expect(page.getByText(/Restored the version/)).toBeVisible();
 });
+
+test('a player-coach: staff switch on "Plays for the team" and can be picked', async ({
+  page,
+  team,
+  axe,
+}) => {
+  await openTeam(page, team.teamId, `/squad/${team.owner.memberId}`);
+  await expect(page.getByRole('heading', { name: 'Playing' })).toBeVisible();
+  const plays = page.getByRole('switch', { name: /Plays for the team/ });
+  await expect(plays).not.toBeChecked();
+  await plays.check();
+  // They need a position before saving.
+  const save = page.getByRole('button', { name: 'Save' });
+  await expect(save).toBeDisabled();
+  await page.getByRole('button', { name: /^Scrum-half/ }).click();
+  await axe(page);
+  await save.click();
+  await expect(save).toBeDisabled(); // saved: nothing left to save
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(plays).toBeChecked();
+
+  // Listed with the coaches and under their position.
+  await openTeam(page, team.teamId, '/squad');
+  await expect(page.getByRole('link', { name: /Coach Casey/ })).toHaveCount(2);
+
+  // And they can be picked for the scrum-half slot.
+  const ev = await match(team);
+  await openTeam(page, team.teamId, `/events/${ev}/sheet`);
+  await slot(page, 9, 'empty').click();
+  const picker = page.getByRole('dialog');
+  await expect(picker.getByRole('option').first()).toContainText('Coach Casey');
+});

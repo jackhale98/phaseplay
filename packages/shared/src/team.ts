@@ -121,3 +121,12 @@ export const HiddenTemplates = v.object({
   hidden: v.pipe(v.array(TemplateKey), v.maxLength(100)),
 });
 export type HiddenTemplates = v.InferOutput<typeof HiddenTemplates>;
+
+/**
+ * Who plays: every player, plus staff with positions (player-coaches). Used for team sheets, the
+ * availability board, attendance, "seen by" and stats. Membership role still decides permissions.
+ */
+export const playsForTeam = (m: { role: string; positions: readonly number[] }): boolean =>
+  m.role === 'player' || m.positions.length > 0;
+/** The same rule in SQL, for a `memberships` row aliased `m`. */
+export const PLAYS_FOR_TEAM_SQL = `(m.role = 'player' OR json_array_length(m.positions) > 0)`;

@@ -9,6 +9,7 @@
     type Member,
     type PositionGroup,
     ROLE_LABELS,
+    playsForTeam,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { squad } from '#lib/data/selectors';
@@ -35,15 +36,14 @@
   const members = $derived(squad(s));
   const pending = $derived(members.filter((m) => m.status === 'pending'));
   const active = $derived(members.filter((m) => m.status === 'active'));
-  const staffMembers = $derived(
-    active.filter((m) => m.role !== 'player' && m.positions.length === 0),
-  );
+  // Player-coaches are listed under coaches & staff and under their positions.
+  const staffMembers = $derived(active.filter((m) => m.role !== 'player'));
   const groups = $derived.by(() => {
     const out: { g: PositionGroup | 'unassigned'; label: string; list: Member[] }[] = RULES[
       fmt
     ].groups.map((g) => ({ g, label: GROUP_LABELS[g], list: [] as Member[] }));
     const unassigned: Member[] = [];
-    for (const m of active.filter((x) => !staffMembers.includes(x))) {
+    for (const m of active.filter(playsForTeam)) {
       const g = m.positions[0] !== undefined ? groupOf(fmt, m.positions[0]) : undefined;
       const bucket = out.find((x) => x.g === g);
       (bucket ? bucket.list : unassigned).push(m);
