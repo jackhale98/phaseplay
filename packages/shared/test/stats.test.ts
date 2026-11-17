@@ -4,6 +4,7 @@ import {
   currentSeason,
   heldEvents,
   matchLine,
+  matchLineup,
   pct,
   penaltyTrend,
   planLoad,
@@ -130,6 +131,16 @@ describe('attendanceStats', () => {
     expect(all.games).toEqual({ held: 1, taken: 1, avgPresent: 2 });
   });
 
+  it('turnout only counts people who play', () => {
+    const t = turnoutFromMarks(marks, (id) => id !== 'late');
+    expect(t.find((x) => x.eventId === 'g1')).toEqual({
+      eventId: 'g1',
+      taken: true,
+      present: 1,
+      yes: 1,
+    });
+  });
+
   it('a player sees only their line, with taken flags and turnout from the server', () => {
     const mine = marks.filter((m) => m.memberId === 'b');
     const turnout = turnoutFromMarks(marks);
@@ -231,11 +242,41 @@ describe('matchLine', () => {
     expect(l.players[ids[13]!]).toBeUndefined();
   });
 
-  it('a draft sheet or an empty log gives no minutes', () => {
-    const draft = { ...sheet, status: 'draft' as const, publishedAt: null };
+  it('the line-up is the published sheet on every device, else the sheet as it stands', () => {
+    // A coach's copy carries later draft edits plus the published snapshot; a player's copy is
+    // the snapshot. Both count the same minutes.
+    const edited = [...ids];
+    [edited[1], edited[16]] = [edited[16]!, edited[1]!];
+    const staffCopy = {
+      ...sheet,
+      status: 'draft' as const,
+      slots: Object.fromEntries(edited.map((id, i) => [String(i + 1), id])),
+      published: { format: '15s' as const, slots },
+    };
+    const staff = matchLine({
+      event: game,
+      sheet: staffCopy,
+      log: fullMatch(),
+      defaultFormat: '15s',
+    });
+    const player = matchLine({ event: game, sheet, log: fullMatch(), defaultFormat: '15s' });
+    expect(staff.minutes).toEqual(player.minutes);
+    expect(staff.minutes[ids[1]!]).toBe(80 * MIN);
+    expect(matchLineup(staffCopy, '7s').starters).toEqual(ids.slice(0, 15));
+    // Never published: the sheet as it stands, like match mode's recorder.
+    const draft = { ...staffCopy, published: null, publishedAt: null };
+    expect(matchLineup(draft, '15s').starters).toContain(ids[16]);
     expect(
-      matchLine({ event: game, sheet: draft, log: fullMatch(), defaultFormat: '15s' }).minutes,
-    ).toEqual({});
+      matchLine({ event: game, sheet: draft, log: fullMatch(), defaultFormat: '15s' }).hasSheet,
+    ).toBe(true);
+    // No sheet: no minutes, but the game still counts.
+    const none = matchLine({ event: game, sheet: null, log: fullMatch(), defaultFormat: '15s' });
+    expect(none.minutes).toEqual({});
+    expect(none.games).toHaveLength(1);
+    expect(matchLineup(null, '7s')).toMatchObject({ format: '7s', hasSheet: false });
+  });
+
+  it('an empty log is not recorded', () => {
     const empty = matchLine({ event: game, sheet, log: [], defaultFormat: '15s' });
     expect(empty.recorded).toBe(false);
     expect(empty.games).toEqual([]);
@@ -245,6 +286,30 @@ describe('matchLine', () => {
     const log = fullMatch().slice(0, 4); // up to 12'
     const l = matchLine({ event: game, sheet, log, defaultFormat: '15s' });
     expect(l.minutes[ids[1]!]).toBe(12 * MIN);
+  });
+
+  it('a tournament game left without full time stops counting at its last entry', () => {
+    const seven = ids.slice(0, 12);
+    const tSheet = {
+      ...sheet,
+      format: '7s' as const,
+      slots: Object.fromEntries(seven.map((id, i) => [String(i + 1), id])),
+    };
+    const day = event({ id: 't2', type: 'tournament', startsAt: T0, format: '7s' });
+    const log = [
+      ev(0, { kind: 'period_start', period: 1 }),
+      ev(7, { kind: 'period_end', period: 1 }),
+      ev(7, { kind: 'period_start', period: 2 }, 2 * MIN),
+      ev(13, { kind: 'score', team: 'us', type: 'try', playerId: seven[2] }, 2 * MIN),
+      // No period_end for game 1; game 2 kicks off two hours later and finishes properly.
+      ev(14, { kind: 'period_start', period: 3 }, 120 * MIN),
+      ev(21, { kind: 'period_end', period: 3 }, 120 * MIN),
+      ev(21, { kind: 'period_start', period: 4 }, 122 * MIN),
+      ev(28, { kind: 'period_end', period: 4 }, 122 * MIN),
+    ];
+    const l = matchLine({ event: day, sheet: tSheet, log, defaultFormat: '15s' });
+    expect(l.games).toHaveLength(2);
+    expect(l.minutes[seven[1]!]).toBe((13 + 14) * MIN);
   });
 
   it('a 7s tournament day counts every game and sums minutes', () => {

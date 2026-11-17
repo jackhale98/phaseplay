@@ -1,6 +1,7 @@
 /**
- * Season stats (PLAN.md M7): coaches see everyone's attendance and minutes, players see team
- * totals plus only their own line; season picker; axe clean in light and dark on every device.
+ * Season stats (PLAN.md M7): coaches see everyone's attendance, players see team turnout and only
+ * their own attendance; minutes are for the whole team, like each match summary. Season picker,
+ * the offline (cached) state, and axe clean in light and dark on every device.
  */
 import { test, expect, openTeam, uuid, type Actor, type TeamFixture } from '../fixtures';
 
@@ -153,7 +154,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(glance).toContainText('1–0–0');
     });
 
-    test('a player sees team totals and only their own attendance and minutes', async ({
+    test('a player sees team totals, everyone’s minutes and only their own attendance', async ({
       team,
       axe,
     }) => {
@@ -175,7 +176,10 @@ for (const scheme of ['light', 'dark'] as const) {
       const minutes = page.getByRole('region', { name: 'Minutes played' });
       await expect(minutes).toContainText("40'");
       await expect(minutes).toContainText('for you');
-      await expect(minutes).not.toContainText('Squad');
+      // Minutes are for the whole team (as in every match summary).
+      await minutes.getByRole('button', { name: 'Show all 15 players' }).click();
+      // Pending names aren't synced to players, so they show as squad members.
+      await expect(minutes.getByRole('listitem')).toHaveCount(15);
       // Scoring is for everyone.
       await expect(page.getByRole('region', { name: 'Scoring and cards' })).toContainText(
         'Pia Player',
@@ -203,4 +207,32 @@ test('Stats is in the sidebar (key 7) on desktop and under More on phones', asyn
   }
   await expect(page).toHaveURL(/\/stats/);
   await expect(page.getByRole('heading', { name: 'Nothing played yet' })).toBeVisible();
+});
+
+test('offline, the stats saved on this device still show', async ({
+  page,
+  team,
+  context,
+  isMobile,
+}) => {
+  const player = await team.join('player', 'Pia Player', [9]);
+  await seed(team, player);
+  await openTeam(page, team.teamId, '/stats');
+  await expect(page.getByText('Up to date')).toBeVisible();
+  // Leave for a page that links back (loaded while online), then go offline and return in-app.
+  if (isMobile)
+    await page
+      .getByRole('navigation', { name: 'Main' })
+      .getByRole('link', { name: 'More' })
+      .click();
+  else await page.locator('aside nav').getByRole('link', { name: 'Home' }).click();
+  await expect(page).toHaveURL(isMobile ? /\/more/ : /\/home/);
+  await context.setOffline(true);
+  if (isMobile) await page.getByRole('link', { name: 'Season stats' }).click();
+  else await page.locator('aside nav').getByRole('link', { name: 'Stats' }).click();
+  await expect(page.getByText('Offline: showing stats saved on this device')).toBeVisible();
+  const glance = page.getByRole('list', { name: 'Season at a glance' });
+  await expect(glance).toContainText('1–0–0');
+  await expect(page.getByRole('region', { name: 'Minutes played' })).toContainText("40'");
+  await context.setOffline(false);
 });

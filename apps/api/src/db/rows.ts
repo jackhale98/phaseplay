@@ -124,8 +124,8 @@ export const sheetFromRow = (r: Row, asPlayer: boolean): TeamSheet | null => {
     publishedAt: nn(r.published_at),
     updatedAt: n(r.updated_at),
   };
-  if (!asPlayer) return base;
   const pub = parseJson<Partial<TeamSheet> | null>(ns(r.published), null);
+  if (!asPlayer) return { ...base, published: (pub as TeamSheet['published']) ?? null };
   if (!pub) return null;
   return { ...base, ...pub, status: 'published' };
 };
