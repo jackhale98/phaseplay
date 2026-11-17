@@ -33,11 +33,30 @@
           for (var k in s) document.documentElement.style.setProperty(k, s[k]);
         }
       } catch (e) {}
-      // Below-the-fold images (data-defer) load after the page, so the first paint isn't slowed.
+      // Below-the-fold images (data-defer) load only as they come near the screen, so they never
+      // compete with the first paint and phones on poor signal don't download what isn't seen.
       addEventListener('load', function () {
-        document.querySelectorAll('[data-defer]').forEach(function (el) {
-          if (el.dataset.srcset) el.srcset = el.dataset.srcset;
-          if (el.dataset.src) el.src = el.dataset.src;
+        var fill = function (img) {
+          var group = img.closest('picture') || img;
+          group.querySelectorAll('[data-defer]').forEach(function (el) {
+            if (el.dataset.srcset) el.srcset = el.dataset.srcset;
+          });
+          if (img.dataset.src) img.src = img.dataset.src;
+        };
+        var imgs = document.querySelectorAll('img[data-defer]');
+        if (!('IntersectionObserver' in window)) return imgs.forEach(fill);
+        var io = new IntersectionObserver(
+          function (hits) {
+            hits.forEach(function (h) {
+              if (!h.isIntersecting) return;
+              io.unobserve(h.target);
+              fill(h.target);
+            });
+          },
+          { rootMargin: '600px 0px' },
+        );
+        imgs.forEach(function (img) {
+          io.observe(img);
         });
       });
     </script>

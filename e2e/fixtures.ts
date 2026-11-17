@@ -124,6 +124,20 @@ export const test = base.extend<{ team: TeamFixture; axe: (page: Page) => Promis
   // eslint-disable-next-line no-empty-pattern
   axe: async ({}, use) => {
     await use(async (page: Page) => {
+      // Let finite animations finish first (a sheet fading out over the page reads as low
+      // contrast). Endless ones (spinners) never finish, so don't wait for those.
+      await page
+        .waitForFunction(
+          () =>
+            document
+              .getAnimations()
+              .every(
+                (a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity,
+              ),
+          undefined,
+          { timeout: 3000 },
+        )
+        .catch(() => {});
       const r = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
         .analyze();
