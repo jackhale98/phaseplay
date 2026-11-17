@@ -14,6 +14,7 @@
     RSVP_VISIBILITY,
     RSVP_VISIBILITY_LABELS,
     liveNominee,
+    DEFAULT_PROPOSAL_TARGETS,
     type RsvpVisibility,
   } from '@phaseplay/shared';
   import Segmented from '#lib/components/Segmented.svelte';
@@ -70,6 +71,37 @@
     busy = true;
     try {
       await api(teamPath(''), { method: 'PATCH', body: { rsvpVisibility: v } });
+      await app.sync();
+      toasts.success('Saved');
+    } catch (err) {
+      toasts.error(err instanceof ApiError ? err.message : 'Could not save');
+    } finally {
+      busy = false;
+    }
+  }
+
+  /** Default "players needed" for proposed games ("Not confirmed yet"), per format. */
+  let t15 = $state(DEFAULT_PROPOSAL_TARGETS['15s']);
+  let t7 = $state(DEFAULT_PROPOSAL_TARGETS['7s']);
+  let targetsFor = '';
+  $effect(() => {
+    const t = team?.proposalTargets;
+    const key = `${team?.id}:${t?.['15s']}:${t?.['7s']}`;
+    if (key === targetsFor) return;
+    targetsFor = key;
+    t15 = t?.['15s'] ?? DEFAULT_PROPOSAL_TARGETS['15s'];
+    t7 = t?.['7s'] ?? DEFAULT_PROPOSAL_TARGETS['7s'];
+  });
+  const targetsOk = $derived(t15 >= 2 && t15 <= 60 && t7 >= 2 && t7 <= 30);
+  async function saveTargets(ev: SubmitEvent) {
+    ev.preventDefault();
+    if (!targetsOk) return;
+    busy = true;
+    try {
+      await api(teamPath(''), {
+        method: 'PATCH',
+        body: { proposalTargets: { '15s': t15, '7s': t7 } },
+      });
       await app.sync();
       toasts.success('Saved');
     } catch (err) {
@@ -189,6 +221,43 @@
           and only staff see the reasons people add to a reply.
         </p>
       </section>
+
+      <form class="card sect" aria-labelledby="need-h" onsubmit={saveTargets}>
+        <h2 class="h" id="need-h">Players needed for a game</h2>
+        <p class="muted">
+          When a game isn't confirmed yet, each date shows how close it is to this many players. You
+          can change it on any game.
+        </p>
+        <div class="targets">
+          <Field label="15s" error={t15 >= 2 && t15 <= 60 ? undefined : '2 to 60'}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="number"
+                inputmode="numeric"
+                min="2"
+                max="60"
+                aria-describedby={describedby}
+                bind:value={t15}
+              />
+            {/snippet}
+          </Field>
+          <Field label="7s" error={t7 >= 2 && t7 <= 30 ? undefined : '2 to 30'}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="number"
+                inputmode="numeric"
+                min="2"
+                max="30"
+                aria-describedby={describedby}
+                bind:value={t7}
+              />
+            {/snippet}
+          </Field>
+          <Button type="submit" disabled={!targetsOk || busy}>Save</Button>
+        </div>
+      </form>
     {/if}
 
     <section class="card sect" aria-labelledby="own-h">
@@ -317,6 +386,13 @@
   }
   .sect p {
     margin: 0;
+  }
+  .targets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 140px)) auto;
+    gap: var(--s-3);
+    align-items: end;
+    justify-content: start;
   }
   .crest-row {
     display: flex;

@@ -2,6 +2,8 @@
   Create / edit an event in a bottom sheet. Creating starts with a clear choice of Game, Practice or
   Event, then the form adapts: opponent, format and match settings for games, weekly repeat for
   practices. All times are entered in the team's timezone, which is always shown.
+  Games and events can be "Not confirmed yet": one date (tentative) or up to four (a date poll),
+  with sensible defaults for when answers are due and how many players are needed.
 -->
 <script lang="ts">
   import {
@@ -15,6 +17,12 @@
     addDays,
     weekdayOf,
     zonedToUtc,
+    MAX_OPTIONS,
+    canPropose,
+    defaultAnswerBy,
+    proposalTarget,
+    uuidv7,
+    type ProposalOption,
     type EventCategory,
     type EventType,
     type EventUpdate,
@@ -29,9 +37,10 @@
   import Button from '#lib/components/Button.svelte';
   import Chip from '#lib/components/Chip.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
-  import { fromLocalInput, toLocalInput, tzName, day, time } from '#lib/format';
+  import { fromLocalInput, toLocalInput, tzName, day, time, shortDay, plural } from '#lib/format';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { IconChevronLeft, IconChevronRight } from '#lib/icons';
+  import { IconChevronLeft, IconChevronRight, IconPlus, IconX } from '#lib/icons';
+  import { optionsOf } from '#lib/data/selectors';
   import { CATEGORY_ICON, CATEGORY_BLURB, TYPE_ICON } from './category';
   import {
     createEvent,
@@ -78,6 +87,21 @@
   let loadingSeries = $state(false);
   let confirmDeleteSeries = $state(false);
   const inSeries = $derived(!!event?.recurrenceId);
+
+  /* "Not confirmed yet": the first date is the main date and time; extra dates add a poll. */
+  type ExtraDate = { key: string; optionId: string | null; date: string; start: string };
+  let proposed = $state(false);
+  let firstOptionId = $state<string | null>(null);
+  let extra = $state<ExtraDate[]>([]);
+  let moreOpen = $state(false);
+  let answerBy = $state('');
+  let answerByTouched = $state(false);
+  let targetValue = $state(20);
+  let targetTouched = $state(false);
+  let checkPositions = $state(true);
+  /** Saving would clear answers on dates that were removed or moved to another day. */
+  let lossNote = $state<string | null>(null);
+  const editingProposal = $derived(!!event && event.status === 'proposed');
   const seriesMode = $derived(inSeries && scope === 'series' && !!series);
 
   async function chooseScope(next: 'one' | 'series') {
@@ -193,8 +217,18 @@
       scope = 'one';
       series = null;
       confirmDeleteSeries = false;
+      proposed = false;
+      firstOptionId = null;
+      extra = [];
+      moreOpen = false;
+      answerBy = '';
+      answerByTouched = false;
+      targetTouched = false;
+      checkPositions = true;
+      lossNote = null;
       if (event) {
         v = fromEvent(event);
+        if (event.status === 'proposed') loadProposal(event);
         step = 'form';
       } else if (category) {
         v = blank(category);
@@ -204,12 +238,134 @@
     wasOpen = open;
   });
 
+  function loadProposal(e: TeamEvent) {
+    proposed = true;
+    const opts = optionsOf(app.snap, e.id);
+    const [first, ...rest] = opts;
+    if (first) {
+      firstOptionId = first.id;
+      v.date = dateInTz(first.startsAt, tz);
+      v.start = hhmm(first.startsAt, tz);
+      v.meet = first.meetAt ? hhmm(first.meetAt, tz) : '';
+      v.finish = first.endsAt ? hhmm(first.endsAt, tz) : '';
+    }
+    extra = rest.map((o) => ({
+      key: o.id,
+      optionId: o.id,
+      date: dateInTz(o.startsAt, tz),
+      start: hhmm(o.startsAt, tz),
+    }));
+    if (e.answerBy) {
+      answerBy = dateInTz(e.answerBy, tz);
+      answerByTouched = true;
+    }
+    if (e.target !== null) {
+      targetValue = e.target;
+      targetTouched = true;
+    }
+    checkPositions = e.checkPositions !== false;
+  }
+
   const cat = $derived(eventCategory(v.type));
   const game = $derived(isGame(v.type));
   const tzLabel = $derived(`${tzName(tz, Date.now())} (${tz.replace(/_/g, ' ')})`);
   const moved = $derived(
-    !!event && v.date && v.start && zonedToUtc(v.date, v.start, tz) !== event.startsAt,
+    !!event &&
+      !editingProposal &&
+      v.date &&
+      v.start &&
+      zonedToUtc(v.date, v.start, tz) !== event.startsAt,
   );
+  const proposable = $derived(canPropose(v.type) && !seriesMode && (!editing || editingProposal));
+  const asProposal = $derived(proposable && proposed);
+  const teamTarget = $derived(proposalTarget(app.team?.proposalTargets, v.format, null));
+  const target = $derived(targetTouched ? targetValue : teamTarget);
+  const firstStart = $derived(v.date && v.start ? zonedToUtc(v.date, v.start, tz) : null);
+  const allStarts = $derived(
+    [firstStart, ...extra.map((x) => (x.date && x.start ? zonedToUtc(x.date, x.start, tz) : null))]
+      .filter((x): x is number => x !== null)
+      .sort((a, b) => a - b),
+  );
+  const answerByDefault = $derived(
+    allStarts[0] ? dateInTz(defaultAnswerBy(Date.now(), allStarts[0]), tz) : '',
+  );
+  const answerByShown = $derived(answerByTouched && answerBy ? answerBy : answerByDefault);
+  const dayLabel = (date: string) => (date ? day(zonedToUtc(date, '12:00', tz), tz) : '');
+  const defaultsLine = $derived(
+    [
+      answerByShown ? `Answers by ${dayLabel(answerByShown)}` : '',
+      game ? `need ${target}` : '',
+      game && checkPositions ? 'checks front row' : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  );
+  // Keep the default target in step with the format until someone changes it.
+  $effect(() => {
+    if (!targetTouched) targetValue = teamTarget;
+  });
+
+  function addDate() {
+    if (extra.length + 1 >= MAX_OPTIONS) return;
+    const last = extra.at(-1)?.date || v.date;
+    extra = [
+      ...extra,
+      {
+        key: crypto.randomUUID(),
+        optionId: null,
+        date: last ? addDays(last, 7) : '',
+        start: extra.at(-1)?.start || v.start,
+      },
+    ];
+    queueMicrotask(() =>
+      document.querySelector<HTMLElement>(`#event-form .extra li:last-child input`)?.focus(),
+    );
+  }
+  function removeDate(key: string) {
+    extra = extra.filter((x) => x.key !== key);
+    lossNote = null;
+  }
+
+  /** The dates as the API takes them. A date moved to another day is a new date (fresh answers). */
+  function buildOptions(): ProposalOption[] {
+    const prev = event ? optionsOf(app.snap, event.id) : [];
+    const sameDay = (id: string | null, date: string) =>
+      !!id && prev.some((o) => o.id === id && dateInTz(o.startsAt, tz) === date);
+    const offset = (hm: string) => (hm ? minutesBetween(v.start, hm) * 60e3 : null);
+    const meetOff = offset(v.meet);
+    const endOff = offset(v.finish);
+    const make = (id: string | null, date: string, start: string): ProposalOption => {
+      const startsAt = zonedToUtc(date, start, tz);
+      return {
+        id: sameDay(id, date) ? id! : uuidv7(),
+        startsAt,
+        meetAt: meetOff !== null ? startsAt + meetOff : null,
+        endsAt: endOff !== null ? startsAt + endOff : null,
+      };
+    };
+    return [
+      make(firstOptionId, v.date, v.start),
+      ...extra.map((x) => make(x.optionId, x.date, x.start)),
+    ];
+  }
+
+  /** Answers that saving would clear (dates removed, or moved to another day). */
+  function answersLost(next: ProposalOption[]): string | null {
+    if (!event) return null;
+    const keep = new Set(next.map((o) => o.id));
+    const gone = optionsOf(app.snap, event.id)
+      .filter((o) => !keep.has(o.id))
+      .map((o) => {
+        const c = app.snap?.rows.answerCounts?.[o.id];
+        return { o, n: c ? c.in + c.cant : 0 };
+      })
+      .filter((x) => x.n > 0);
+    if (!gone.length) return null;
+    const n = gone.reduce((a, x) => a + x.n, 0);
+    return `${gone.map((x) => shortDay(x.o.startsAt, tz)).join(' and ')} ${
+      gone.length === 1 ? 'has' : 'have'
+    } ${plural(n, 'answer')}. Saving clears ${n === 1 ? 'it' : 'them'}.`;
+  }
 
   function pick(c: EventCategory) {
     v = blank(c);
@@ -245,6 +401,18 @@
       e.meet = 'Meet time must be before the start';
     if (v.start && v.finish && minutesBetween(v.start, v.finish) <= 0)
       e.finish = 'Finish must be after the start';
+    if (asProposal) {
+      extra.forEach((x, i) => {
+        if (!x.date) e[`extra${i}`] = 'Pick a date';
+        else if (!x.start) e[`extra${i}`] = 'Pick a time';
+      });
+      const keys = [`${v.date} ${v.start}`, ...extra.map((x) => `${x.date} ${x.start}`)];
+      const dup = keys.findIndex((k, i) => keys.indexOf(k) !== i);
+      if (dup > 0) e[`extra${dup - 1}`] = 'That date is already on the list';
+      if (game && !(targetValue >= 1 && targetValue <= 99)) e.target = '1 to 99 players';
+      if (answerByTouched && answerBy && allStarts[0] && answerBy > dateInTz(allStarts.at(-1)!, tz))
+        e.answerBy = 'Answers are due before the last date';
+    }
     if (v.locationUrl.trim() && !/^https?:\/\/\S+\.\S+/i.test(v.locationUrl.trim()))
       e.locationUrl = 'Paste a full link, starting with https://';
     if (game) {
@@ -283,7 +451,9 @@
       v.title.trim() ||
       (game && v.opponent.trim() && v.type === 'match'
         ? `v ${v.opponent.trim()}`
-        : DEFAULT_TITLE[v.type] || 'Team event');
+        : asProposal && v.type === 'match'
+          ? 'v TBC'
+          : DEFAULT_TITLE[v.type] || 'Team event');
     const startsAt = zonedToUtc(v.date, v.start, tz);
     const fields = {
       type: v.type,
@@ -306,8 +476,70 @@
           }
         : null,
     };
+    // Proposal extras: the dates, when answers are due, players needed and the position check.
+    const options = asProposal ? buildOptions() : null;
+    if (options && editing && !lossNote) {
+      const lost = answersLost(options);
+      if (lost) {
+        lossNote = lost;
+        busy = false;
+        return;
+      }
+    }
+    const answerByMs =
+      asProposal && answerByTouched && answerBy ? zonedToUtc(answerBy, '21:00', tz) : undefined;
+    const proposal = options
+      ? {
+          options,
+          ...(answerByMs !== undefined ? { answerBy: answerByMs } : {}),
+          target: game && targetTouched && targetValue !== teamTarget ? targetValue : null,
+          checkPositions: game ? checkPositions : true,
+        }
+      : null;
+    if (proposal) {
+      fields.rsvpDeadline = null;
+      fields.startsAt = Math.min(...options!.map((o) => o.startsAt));
+    }
     try {
-      if (event?.recurrenceId && seriesMode && series) {
+      if (event && editingProposal && proposal) {
+        const patch: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(fields)) {
+          if (k === 'startsAt' || k === 'meetAt' || k === 'endsAt') continue;
+          const cur = (event as Record<string, unknown>)[k];
+          if (JSON.stringify(cur ?? null) !== JSON.stringify(val ?? null)) patch[k] = val;
+        }
+        const prev = optionsOf(app.snap, event.id).map((o) => ({
+          id: o.id,
+          startsAt: o.startsAt,
+          meetAt: o.meetAt,
+          endsAt: o.endsAt,
+        }));
+        const sorted = [...proposal.options].sort((a, b) => a.startsAt - b.startsAt);
+        if (JSON.stringify(prev) !== JSON.stringify(sorted)) patch.options = proposal.options;
+        if (proposal.answerBy !== undefined && proposal.answerBy !== event.answerBy)
+          patch.answerBy = proposal.answerBy;
+        if (proposal.target !== event.target) patch.target = proposal.target;
+        if (proposal.checkPositions !== event.checkPositions)
+          patch.checkPositions = proposal.checkPositions;
+        if (Object.keys(patch).length) await updateEvent(event.id, patch as EventUpdate);
+        toasts.success('Saved');
+        open = false;
+        onsaved?.(event.id);
+      } else if (proposal) {
+        const id = await createEvent({
+          ...fields,
+          seasonId: null,
+          status: 'proposed',
+          ...proposal,
+        });
+        toasts.success(
+          options!.length > 1
+            ? `Date poll added: ${plural(options!.length, 'date')} to pick from`
+            : 'Added as not confirmed yet',
+        );
+        open = false;
+        onsaved?.(id);
+      } else if (event?.recurrenceId && seriesMode && series) {
         const res = await updateSeries(event.recurrenceId, {
           type: v.type as RepeatableType,
           title,
@@ -397,10 +629,16 @@
     {seriesMode
       ? 'Save series'
       : editing
-        ? 'Save changes'
-        : v.repeat && isRepeatable(v.type)
-          ? 'Add series'
-          : 'Add to schedule'}
+        ? lossNote
+          ? 'Save anyway'
+          : 'Save changes'
+        : asProposal
+          ? extra.length
+            ? 'Add date poll'
+            : 'Add as not confirmed'
+          : v.repeat && isRepeatable(v.type)
+            ? 'Add series'
+            : 'Add to schedule'}
   </Button>
 {/snippet}
 
@@ -513,9 +751,29 @@
         </div>
       {/if}
 
+      {#if proposable && !editing}
+        <div class="status">
+          <Segmented
+            label="Is it on?"
+            bind:value={
+              () => (proposed ? 'proposed' : 'confirmed'), (x) => (proposed = x === 'proposed')
+            }
+            options={[
+              { value: 'confirmed', label: 'Confirmed' },
+              { value: 'proposed', label: 'Not confirmed yet' },
+            ]}
+          />
+          {#if proposed}
+            <p class="subtle">
+              The squad says if they can make it. Add more dates to find the one that works best.
+            </p>
+          {/if}
+        </div>
+      {/if}
+
       <div class="grid2">
         {#if !seriesMode}
-          <Field label="Date" error={errors.date}>
+          <Field label={asProposal && extra.length ? 'Date 1' : 'Date'} error={errors.date}>
             {#snippet children({ id, describedby })}
               <input
                 {id}
@@ -573,7 +831,116 @@
         </label>
       {/if}
 
-      {#if (isRepeatable(v.type) && !editing) || seriesMode}
+      {#if asProposal}
+        {#if extra.length}
+          <ol class="list extra" aria-label="More dates">
+            {#each extra as x, i (x.key)}
+              <li>
+                <Field label="Date {i + 2}" error={errors[`extra${i}`]}>
+                  {#snippet children({ id, describedby })}
+                    <input
+                      {id}
+                      type="date"
+                      aria-describedby={describedby}
+                      aria-invalid={!!errors[`extra${i}`]}
+                      bind:value={x.date}
+                      onchange={() => (lossNote = null)}
+                    />
+                  {/snippet}
+                </Field>
+                <Field label={game ? 'Kickoff' : 'Starts'} hint={tzName(tz)}>
+                  {#snippet children({ id, describedby })}
+                    <input {id} type="time" aria-describedby={describedby} bind:value={x.start} />
+                  {/snippet}
+                </Field>
+                <button
+                  type="button"
+                  class="rm"
+                  aria-label="Remove date {i + 2}{x.date ? `, ${dayLabel(x.date)}` : ''}"
+                  onclick={() => removeDate(x.key)}><IconX /></button
+                >
+              </li>
+            {/each}
+          </ol>
+        {/if}
+        {#if extra.length + 1 < MAX_OPTIONS}
+          <button type="button" class="change add" onclick={addDate}
+            ><IconPlus />Add another date</button
+          >
+        {/if}
+        <div class="defaults">
+          <p>
+            <span>{defaultsLine}</span>
+            <button
+              type="button"
+              class="change"
+              aria-expanded={moreOpen}
+              aria-controls="prop-more"
+              onclick={() => (moreOpen = !moreOpen)}>{moreOpen ? 'Done' : 'Change'}</button
+            >
+          </p>
+          {#if moreOpen}
+            <div class="grid2" id="prop-more">
+              <Field
+                label="Answers by"
+                error={errors.answerBy}
+                hint="We remind anyone who hasn't answered two days before"
+              >
+                {#snippet children({ id, describedby })}
+                  <input
+                    {id}
+                    type="date"
+                    aria-describedby={describedby}
+                    aria-invalid={!!errors.answerBy}
+                    value={answerByShown}
+                    oninput={(ev) => {
+                      answerBy = (ev.currentTarget as HTMLInputElement).value;
+                      answerByTouched = true;
+                    }}
+                  />
+                {/snippet}
+              </Field>
+              {#if game}
+                <Field
+                  label="Players needed"
+                  error={errors.target}
+                  hint="Team default for {v.format}: {teamTarget}"
+                >
+                  {#snippet children({ id, describedby })}
+                    <input
+                      {id}
+                      type="number"
+                      inputmode="numeric"
+                      min="1"
+                      max="99"
+                      aria-describedby={describedby}
+                      aria-invalid={!!errors.target}
+                      bind:value={targetValue}
+                      oninput={() => (targetTouched = true)}
+                    />
+                  {/snippet}
+                </Field>
+              {/if}
+            </div>
+            {#if game}
+              <label class="check">
+                <input type="checkbox" bind:checked={checkPositions} />
+                <span
+                  ><strong>Check the front row</strong><br /><small class="muted"
+                    >Flags a date without enough props and hookers among those who are in</small
+                  ></span
+                >
+              </label>
+              <p class="subtle">No opponent yet? Leave it blank and it shows as “v TBC”.</p>
+            {/if}
+          {/if}
+        </div>
+        {#if lossNote}
+          <p class="loss" role="alert">{lossNote}</p>
+        {/if}
+      {/if}
+
+      {#if !asProposal && ((isRepeatable(v.type) && !editing) || seriesMode)}
         <div class="repeat card">
           {#if seriesMode}
             <p class="series-h"><strong>Repeats every week</strong></p>
@@ -686,7 +1053,7 @@
               : 'Anything the squad should know'}></textarea>
         {/snippet}
       </Field>
-      {#if !seriesMode}
+      {#if !seriesMode && !asProposal}
         <Field label="Reply by (optional)" hint="We'll show a deadline on the event · {tzName(tz)}">
           {#snippet children({ id, describedby })}
             <input
@@ -869,9 +1236,70 @@
     justify-content: space-between;
     gap: var(--s-3);
   }
-  .scope {
+  .scope,
+  .status {
     display: grid;
     gap: var(--s-2);
+  }
+  .status p {
+    margin: 0;
+  }
+  .extra {
+    display: grid;
+    gap: var(--s-3);
+  }
+  .extra li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+    gap: var(--s-3);
+    align-items: end;
+  }
+  .rm {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    color: var(--text-2);
+  }
+  .rm :global(svg) {
+    width: 18px;
+    height: 18px;
+  }
+  .add {
+    margin-top: calc(-1 * var(--s-2));
+  }
+  .defaults {
+    display: grid;
+    gap: var(--s-3);
+    padding: var(--s-3) var(--s-4);
+    border: 1.5px dashed var(--tent-line);
+    border-radius: var(--r-md);
+    background: var(--tent-fill);
+  }
+  .defaults > p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-1) var(--s-3);
+    margin: 0;
+    font-size: var(--t-14);
+    font-weight: 600;
+  }
+  .defaults .change {
+    min-height: 44px;
+  }
+  .loss {
+    margin: 0;
+    padding: var(--s-2) var(--s-3);
+    border-radius: var(--r-md);
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: var(--t-14);
+    font-weight: 600;
   }
   .scope p,
   .series-h {

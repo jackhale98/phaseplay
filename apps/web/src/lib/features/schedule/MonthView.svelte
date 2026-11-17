@@ -24,11 +24,8 @@
   const grid = $derived(monthGrid(month));
   const days = $derived(byDay(events, tz));
   const maybes = $derived.by(() => {
-    const m = new Map<string, Tentative[]>();
-    for (const t of tentative) {
-      const k = dateInTz(t.startsAt, tz);
-      m.set(k, [...(m.get(k) ?? []), t]);
-    }
+    const m: Record<string, Tentative[]> = {};
+    for (const t of tentative) (m[dateInTz(t.startsAt, tz)] ??= []).push(t);
     return m;
   });
   const weeks = $derived(Array.from({ length: 6 }, (_, i) => grid.slice(i * 7, i * 7 + 7)));
@@ -74,7 +71,7 @@
         <tr>
           {#each wk as d (d)}
             {@const list = days.get(d) ?? []}
-            {@const tents = maybes.get(d) ?? []}
+            {@const tents = maybes[d] ?? []}
             <td class:out={d.slice(0, 7) !== month.slice(0, 7)} class:today={d === today}>
               <span class="num"
                 ><span aria-hidden="true">{+d.slice(8)}</span><span class="sr-only"

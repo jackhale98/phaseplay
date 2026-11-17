@@ -2,7 +2,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { app } from '#lib/data/app.svelte';
-  import { upcoming, squad } from '#lib/data/selectors';
+  import { upcoming, squad, proposals } from '#lib/data/selectors';
   import { day } from '#lib/format';
   import { NAV, DESKTOP_EXTRA } from './nav';
 
@@ -29,6 +29,13 @@
       list.push({
         label: e.opponent ? `${e.title} v ${e.opponent}` : e.title,
         hint: day(e.startsAt, tz),
+        href: `/events/${e.id}`,
+      });
+    // Proposals show up too, labelled so nobody mistakes them for fixtures.
+    for (const e of proposals(s).slice(0, 10))
+      list.push({
+        label: e.opponent ? `${e.title} v ${e.opponent}` : e.title,
+        hint: `Not confirmed yet · ${day(e.startsAt, tz)}`,
         href: `/events/${e.id}`,
       });
     for (const p of Object.values(s?.rows.plays ?? {}))
