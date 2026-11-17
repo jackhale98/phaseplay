@@ -94,7 +94,7 @@
             <label for="{uid}-{i.id}">{itemLabel(i)}</label>
             <small id="{uid}-{i.id}-d"
               >{whereIs(app.snap, i)}{#if pick && has(i, pick)}<span class="skip"
-                  >{' · already with them, skipped'}</span
+                  >&nbsp;· already with them, skipped</span
                 >{/if}</small
             >
           </span>
