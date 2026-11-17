@@ -144,8 +144,8 @@
           <span style:width="{pct(o.counts.in)}%" class:full={o.counts.in >= v.target}></span>
         </div>
         <p class="nums tnum">
-          <strong>{o.counts.in} in</strong>{game ? ` of ${v.target} needed` : ''} · {o.counts.cant}
-          can't
+          <strong>{o.counts.in} in</strong
+          >{`${game ? ` of ${v.target} needed` : ''} · ${o.counts.cant} can't`}
         </p>
         {#if o.cover}
           <p class="cover" class:ok={o.cover.ok}>
@@ -200,8 +200,8 @@
               size="sm"
               variant={best || v.options.length === 1 ? 'primary' : 'secondary'}
               onclick={() => askConfirm(o.option.id)}
-              >Confirm {shortDay(o.option.startsAt, tz)}<span class="sr-only">
-                , {longDay(o.option.startsAt, tz)}</span
+              >Confirm {shortDay(o.option.startsAt, tz)}<span class="sr-only"
+                >{`, ${longDay(o.option.startsAt, tz)}`}</span
               ></Button
             >
           {/if}
