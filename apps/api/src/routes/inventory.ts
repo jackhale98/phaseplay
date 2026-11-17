@@ -203,9 +203,13 @@ async function loadHandoff(c: C, handoffId: string) {
   return row;
 }
 
-/** An open, unexpired handover whose item can still change hands. */
+/**
+ * An open, unexpired handover whose item can still change hands, and is still with the person who
+ * offered it (a coach may have reassigned it since: then the handover no longer applies).
+ */
 const HANDOFF_OPEN = `status IN ('available', 'with_someone') AND EXISTS (SELECT 1 FROM inventory_handoffs h
-  WHERE h.id = ? AND h.team_id = ? AND h.resolved_at IS NULL AND h.expires_at > ?)`;
+  WHERE h.id = ? AND h.team_id = ? AND h.resolved_at IS NULL AND h.expires_at > ?
+    AND h.from_member_id IS holder_member_id)`;
 
 export function inventoryRoutes(app: Hono<AppEnv>) {
   route(app, 'inventory.history', async (c) => {
@@ -266,7 +270,7 @@ export function inventoryRoutes(app: Hono<AppEnv>) {
             .prepare(
               `INSERT INTO inventory_items (id, team_id, kind, name, tag, quantity, condition, home, notes, match_day, status, version, created_by, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', 1, ?, ?, ?)
-               ON CONFLICT DO NOTHING RETURNING ${ITEM_COLS}`,
+               ON CONFLICT (id) DO NOTHING RETURNING ${ITEM_COLS}`,
             )
             .bind(id, me.teamId, ...vals, me.userId, t, t),
         ]),
@@ -605,13 +609,21 @@ export function inventoryRoutes(app: Hono<AppEnv>) {
       db
         .prepare(
           `UPDATE inventory_handoffs SET resolved_at = ?, outcome = 'accepted', updated_at = ?
-           WHERE id = ? AND team_id = ? AND resolved_at IS NULL AND expires_at > ? RETURNING ${HANDOFF_COLS}`,
+           WHERE id = ? AND team_id = ? AND resolved_at IS NULL AND expires_at > ?
+             AND EXISTS (SELECT 1 FROM inventory_items i WHERE i.id = ? AND i.team_id = ?
+               AND i.holder_member_id = ? AND i.updated_at = ?)
+           RETURNING ${HANDOFF_COLS}`,
         )
-        .bind(t, t, h.id, me.teamId, t),
+        .bind(t, t, h.id, me.teamId, t, itemId, me.teamId, h.to_member_id, t),
     ]);
     const item = res[1]?.results[0] as Row | undefined;
     const done = res[2]?.results[0] as Row | undefined;
-    if (!item || !done) throw conflict('This handover was already answered');
+    if (!item || !done)
+      throw conflict(
+        h.item_holder === h.from_member_id
+          ? 'This handover was already answered'
+          : 'This kit has changed hands since, so the handover no longer applies',
+      );
     return c.json({ handoff: handoffFromRow(done), item: itemFromRow(item, manages(c)) });
   });
 

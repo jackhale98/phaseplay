@@ -87,6 +87,14 @@ describe('kit items', () => {
     ok((await addItem(a, a.owner, { tag: 'BALL-1' })).r, 201);
     const dup = await addItem(a, a.coach, { tag: 'BALL-1' });
     expect(dup.r.status).toBe(409);
+    expect(JSON.stringify(dup.r.body)).toContain('Another item already has that tag');
+    // The failed create leaves no history behind.
+    const orphans = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM inventory_events WHERE item_id = ?',
+    )
+      .bind(dup.id)
+      .first<{ n: number }>();
+    expect(orphans?.n).toBe(0);
     ok((await addItem(b, b.owner, { tag: 'BALL-1' })).r, 201);
     // Editing another item onto a used tag is also a conflict.
     const other = await addItem(a, a.owner, { tag: 'BALL-2' });
@@ -238,6 +246,25 @@ describe('handovers', () => {
       'handoff_requested',
       'handoff_accepted',
     ]);
+  });
+
+  it("a handover can't be accepted once a coach has given the kit to someone else", async () => {
+    const t = await fixtureTeam();
+    const mate = await joinPlayer(t, 'Mate Mo');
+    const other = await joinPlayer(t, 'Other Oz');
+    const id = await held(t);
+    const handoffId = uuidv7();
+    ok(await offer(t, t.player, id, mate.memberId, handoffId), 201);
+    // A coach's reassign that read the item before the offer existed: the handover stays open.
+    await env.DB.prepare('UPDATE inventory_items SET holder_member_id = ? WHERE id = ?')
+      .bind(other.memberId, id)
+      .run();
+    const r = await answer(t, mate, handoffId, 'accept');
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body)).toContain('changed hands');
+    const s = await sync(t, other);
+    expect(s.items.find((i) => i.id === id)?.holderMemberId).toBe(other.memberId);
+    expect((await history(t, t.coach, id)).map((e) => e.kind)).not.toContain('handoff_accepted');
   });
 
   it('two accepts race: exactly one wins, the other gets 409', async () => {
