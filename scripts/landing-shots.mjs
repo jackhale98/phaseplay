@@ -93,6 +93,8 @@ for (const scheme of ['light', 'dark']) {
       await save(page, `phone-summary${sfx}`, await shot(), 640);
       await open(page, `/plays/${play.id}`);
       await save(page, `phone-play${sfx}`, await shot(), 640);
+      await open(page, '/stats');
+      await save(page, `phone-stats${sfx}`, await shot(), 640);
       // Kit: the red bibs, with a handover waiting for an answer.
       if (bibs) {
         await open(page, `/kit/${bibs.id}`);
@@ -124,6 +126,8 @@ for (const scheme of ['light', 'dark']) {
       await save(page, `desktop-play${sfx}`, await shot());
       await open(page, '/kit');
       await save(page, `desktop-kit${sfx}`, await shot());
+      await open(page, '/stats');
+      await save(page, `desktop-stats${sfx}`, await shot());
       if (!sfx) {
         // The exported team sheet image (same for both themes: it uses team colours).
         await open(page, `/events/${nextGame.id}/sheet`);

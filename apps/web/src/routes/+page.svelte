@@ -149,6 +149,27 @@
       side: shot('phone-summary', PHONE, 'The match summary with the score progression chart.'),
       phoneMain: true,
     },
+    {
+      k: 'stats',
+      eyebrow: 'Season stats',
+      title: 'See how the season is really going.',
+      body: 'Results, attendance, minutes played and who’s scoring, built from what you already record. Penalty trends show what to fix at training, and the training load shows how much contact the squad is doing.',
+      points: [
+        'Attendance for practices and games, player by player',
+        'Minutes, tries, kicks and cards from match mode',
+        'Players see the team’s numbers and their own',
+      ],
+      main: shot(
+        'desktop-stats',
+        DESK,
+        'Season stats: the record, points, results, attendance and minutes played.',
+      ),
+      side: shot(
+        'phone-stats',
+        PHONE,
+        'Season stats on a phone: record, points, practices and contact minutes a week.',
+      ),
+    },
   ];
 
   const extras = [
