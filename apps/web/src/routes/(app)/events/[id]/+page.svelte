@@ -6,8 +6,10 @@
     RSVP_NOTE_TTL_MS,
     eventCategory,
     isGame,
+    isProposal,
     playersSeeReplies,
   } from '@phaseplay/shared';
+  import ProposalDetails from '#lib/features/schedule/ProposalDetails.svelte';
   import { app } from '#lib/data/app.svelte';
   import { rsvpOf, sheetFor, planFor } from '#lib/data/selectors';
   import { setRsvp } from '#lib/data/actions';
@@ -50,7 +52,11 @@
   const s = $derived(app.snap);
   const tz = $derived(s?.team.timezone ?? 'UTC');
   const id = $derived(page.params.id ?? '');
-  const e = $derived(pendingDeletes.hidden(id) ? undefined : s?.rows.events[id]);
+  const e = $derived.by(() => {
+    const x = pendingDeletes.hidden(id) ? undefined : s?.rows.events[id];
+    // A dropped proposal is gone for everyone.
+    return x?.status === 'dropped' ? undefined : x;
+  });
   const me = $derived(s?.me);
   const manage = $derived(app.can('events.manage'));
   const seeAvail = $derived(app.can('availability.view'));
@@ -104,6 +110,10 @@
       <h1>This event isn't on the schedule any more</h1>
       <p class="muted">It may have been deleted. Have a look at what's coming up instead.</p>
       <Button href="/schedule" variant="primary">Open the schedule</Button>
+    </div>
+  {:else if isProposal(e)}
+    <div class="stack proposal">
+      <ProposalDetails event={e} onedit={() => (editOpen = true)} />
     </div>
   {:else}
     {#if e.cancelledAt}
@@ -415,6 +425,10 @@
     background: var(--warn-soft);
     border-color: color-mix(in srgb, var(--warn) 35%, transparent);
     color: var(--warn);
+  }
+  .proposal {
+    max-width: 760px;
+    gap: var(--s-4);
   }
   .layout {
     display: grid;

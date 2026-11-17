@@ -2,9 +2,19 @@
   import { untrack } from 'svelte';
   import { cubicInOut, cubicOut } from 'svelte/easing';
   import { fade, fly, slide } from 'svelte/transition';
-  import { GROUP_LABELS, type RsvpStatus } from '@phaseplay/shared';
+  import { GROUP_LABELS, isGame, type RsvpStatus } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
-  import { upcoming, myRsvp, availability, sheetFor, memberName } from '#lib/data/selectors';
+  import {
+    upcoming,
+    myRsvp,
+    availability,
+    sheetFor,
+    memberName,
+    needMyAnswer,
+    toReconfirm,
+  } from '#lib/data/selectors';
+  import ProposalCard from '#lib/features/schedule/ProposalCard.svelte';
+  import StillIn from '#lib/features/schedule/StillIn.svelte';
   import EventCard from '#lib/components/EventCard.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Button from '#lib/components/Button.svelte';
@@ -81,6 +91,34 @@
       .sort((a, b) => a.startsAt - b.startsAt),
   );
 
+  /**
+   * "Would you play?": one proposal at a time. Once every date has an answer its card folds to one
+   * line; it stays a moment so the answer is visible, then the next one slides up.
+   */
+  const asks = $derived(needMyAnswer(s));
+  let heldAsk = $state<string | null>(null);
+  let prevAsk: string | null = null;
+  $effect(() => {
+    const first = asks[0]?.id ?? null;
+    const list = asks;
+    untrack(() => {
+      if (prevAsk && prevAsk !== first && !list.some((e) => e.id === prevAsk)) {
+        const id = prevAsk;
+        heldAsk = id;
+        setTimeout(() => {
+          if (heldAsk === id) heldAsk = null;
+        }, HOLD_MS);
+      }
+      prevAsk = first;
+    });
+  });
+  const askNow = $derived(
+    (heldAsk ? s?.rows.events[heldAsk] : undefined) ??
+      (asks[0] as (typeof asks)[number] | undefined),
+  );
+  const askMore = $derived(asks.filter((e) => e.id !== askNow?.id).length);
+  const stillIn = $derived(toReconfirm(s));
+
   const later = $derived(
     next
       .slice(1)
@@ -111,6 +149,26 @@
   }
 </script>
 
+{#snippet wouldYouPlay()}
+  {#if askNow && s}
+    <h2 class="section-title">
+      {isGame(askNow.type) ? 'Would you play?' : 'Can you make it?'}
+      {#if askMore}<a href="/schedule">+{askMore} more</a>{/if}
+    </h2>
+    <div class="waits">
+      {#key askNow.id}
+        <div
+          class="wait"
+          in:fade={{ duration: d, delay: d / 2, easing: cubicOut }}
+          out:slide={{ duration: d * 1.4, easing: cubicInOut }}
+        >
+          <ProposalCard event={askNow} />
+        </div>
+      {/key}
+    </div>
+  {/if}
+{/snippet}
+
 <svelte:head><title>Home · {s?.team.shortName ?? 'Phaseplay'}</title></svelte:head>
 
 <div class="page">
@@ -126,6 +184,7 @@
   {#if !s}
     <div class="sk" aria-busy="true"></div>
   {:else if !hero}
+    {@render wouldYouPlay()}
     <EmptyState
       title={staff ? 'Add your first training' : 'Nothing scheduled yet'}
       body={staff
@@ -150,6 +209,17 @@
       />
     </section>
     <NotifyPrompt />
+
+    {#if stillIn.length}
+      <h2 class="section-title">Still in?</h2>
+      <div class="waits">
+        {#each stillIn as e (e.id)}
+          <div class="wait" out:slide={{ duration: d * 1.4, easing: cubicInOut }}>
+            <StillIn event={e} />
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     {#if avail}
       <section class="card glance" aria-labelledby="glance-h">
@@ -215,6 +285,8 @@
         <IconCheck /> You're all caught up. Thanks!
       </p>
     {/if}
+
+    {@render wouldYouPlay()}
 
     {#if showSheet && sheet && nextMatch}
       <h2 class="section-title">Team sheet</h2>

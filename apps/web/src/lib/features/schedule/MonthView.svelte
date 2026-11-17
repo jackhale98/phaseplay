@@ -1,4 +1,7 @@
-<!-- Desktop month calendar. Each event shows its category by colour AND icon, never colour alone. -->
+<!--
+  Desktop month calendar. Each event shows its category by colour AND icon, never colour alone.
+  Proposals ("Not confirmed yet") show as dashed "?" pills: one on each candidate date of a poll.
+-->
 <script lang="ts">
   import { EVENT_TYPE_LABELS, eventCategory, dateInTz, type TeamEvent } from '@phaseplay/shared';
   import { monthYear, time, longDay } from '#lib/format';
@@ -7,12 +10,27 @@
   import { TYPE_ICON } from './category';
   import { byDay, displayTitle, monthGrid, monthOf, shiftMonth } from './schedule';
 
-  type Props = { events: TeamEvent[]; tz: string; month: string; teamShort?: string };
-  let { events, tz, month = $bindable(), teamShort }: Props = $props();
+  type Tentative = { key: string; event: TeamEvent; startsAt: number; poll: boolean };
+  type Props = {
+    events: TeamEvent[];
+    tentative?: Tentative[];
+    tz: string;
+    month: string;
+    teamShort?: string;
+  };
+  let { events, tentative = [], tz, month = $bindable(), teamShort }: Props = $props();
 
   const today = $derived(dateInTz(Date.now(), tz));
   const grid = $derived(monthGrid(month));
   const days = $derived(byDay(events, tz));
+  const maybes = $derived.by(() => {
+    const m = new Map<string, Tentative[]>();
+    for (const t of tentative) {
+      const k = dateInTz(t.startsAt, tz);
+      m.set(k, [...(m.get(k) ?? []), t]);
+    }
+    return m;
+  });
   const weeks = $derived(Array.from({ length: 6 }, (_, i) => grid.slice(i * 7, i * 7 + 7)));
   const label = $derived(monthYear(Date.parse(`${month}T12:00:00Z`), 'UTC'));
   const MAX = 3;
@@ -56,13 +74,14 @@
         <tr>
           {#each wk as d (d)}
             {@const list = days.get(d) ?? []}
+            {@const tents = maybes.get(d) ?? []}
             <td class:out={d.slice(0, 7) !== month.slice(0, 7)} class:today={d === today}>
               <span class="num"
                 ><span aria-hidden="true">{+d.slice(8)}</span><span class="sr-only"
                   >{dayName(d)}</span
                 ></span
               >
-              {#if list.length}
+              {#if list.length || tents.length}
                 <ul class="list">
                   {#each list.slice(0, MAX) as e (e.id)}
                     {@const Icon = TYPE_ICON[e.type]}
@@ -84,6 +103,25 @@
                   {#if list.length > MAX}
                     <li class="more">+{list.length - MAX} more</li>
                   {/if}
+                  {#each tents as t (t.key)}
+                    <li>
+                      <a
+                        href="/events/{t.event.id}"
+                        class="ev tent {eventCategory(t.event.type)}"
+                        title="{t.poll ? 'Date poll' : 'Not confirmed yet'}: {displayTitle(
+                          t.event,
+                          teamShort,
+                        )}"
+                      >
+                        <span class="q" aria-hidden="true">?</span>
+                        <span class="sr-only"
+                          >{t.poll ? 'Date poll, possible date' : 'Not confirmed yet'}:</span
+                        >
+                        <span class="tm tnum">{time(t.startsAt, tz)}</span>
+                        <span class="tt">{displayTitle(t.event)}</span>
+                      </a>
+                    </li>
+                  {/each}
                 </ul>
               {/if}
             </td>
@@ -102,6 +140,11 @@
     <li class="events">
       <span class="sh" aria-hidden="true"><EIcon /></span>Events
     </li>
+    {#if tentative.length}
+      <li class="maybe">
+        <span class="q" aria-hidden="true">?</span>Not confirmed yet
+      </li>
+    {/if}
   </ul>
 </section>
 
@@ -209,6 +252,28 @@
   .sh :global(svg) {
     width: 13px;
     height: 13px;
+  }
+  /* Proposals: dashed, lighter, with a "?" instead of the category icon. */
+  .ev.tent {
+    background: var(--tent-fill);
+    border: 1px dashed var(--tent-line);
+    border-radius: var(--r-full);
+    padding-left: 2px;
+  }
+  .ev.tent:hover {
+    background: var(--surface-2);
+  }
+  .q {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px dashed currentColor;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-2);
   }
   .more {
     padding-left: 6px;

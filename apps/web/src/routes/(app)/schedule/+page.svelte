@@ -1,17 +1,32 @@
 <script lang="ts">
   import Loader from '#lib/components/Loader.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { page } from '$app/state';
   import { replaceState } from '$app/navigation';
-  import { EVENT_CATEGORY_LABELS, dateInTz, type EventCategory } from '@phaseplay/shared';
+  import {
+    EVENT_CATEGORY_LABELS,
+    dateInTz,
+    isProposal,
+    type EventCategory,
+    type TeamEvent,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
-  import { events, myRsvp, past, upcoming } from '#lib/data/selectors';
+  import {
+    events,
+    myRsvp,
+    needMyAnswer,
+    optionsOf,
+    past,
+    proposals,
+    upcoming,
+  } from '#lib/data/selectors';
+  import ProposalCard from '#lib/features/schedule/ProposalCard.svelte';
   import EventCard from '#lib/components/EventCard.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Button from '#lib/components/Button.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
   import { tzName } from '#lib/format';
-  import { IconCalendarPlus, IconPlus, IconSearch, IconX } from '#lib/icons';
+  import { IconCalendarPlus, IconHelp, IconPlus, IconSearch, IconX } from '#lib/icons';
   import EventForm from '#lib/features/schedule/EventForm.svelte';
   import CategoryTabs from '#lib/features/schedule/CategoryTabs.svelte';
   import MonthView from '#lib/features/schedule/MonthView.svelte';
@@ -76,13 +91,50 @@
 
   const visible = (list: ReturnType<typeof events>) =>
     list.filter((e) => !pendingDeletes.hidden(e.id));
-  const all = $derived(visible(events(s)));
-  const base = $derived(visible(when === 'upcoming' ? upcoming(s) : past(s)));
+  const byStart = (a: TeamEvent, b: TeamEvent) => a.startsAt - b.startsAt;
+  // Proposals ("Not confirmed yet") sit on their earliest date among what's coming up.
+  const open = $derived(visible(proposals(s)));
+  const all = $derived(visible([...events(s), ...open].sort(byStart)));
+  const base = $derived(
+    visible(when === 'upcoming' ? [...upcoming(s), ...open].sort(byStart) : past(s)),
+  );
+  const ask = $derived(visible(needMyAnswer(s)));
+  const tentative = $derived(
+    open
+      .filter((e) => matches(e, show, q))
+      .flatMap((e) => {
+        const opts = optionsOf(s, e.id);
+        return opts.map((o) => ({
+          key: o.id,
+          event: e,
+          startsAt: o.startsAt,
+          poll: opts.length > 1,
+        }));
+      }),
+  );
+
+  /** "N need your answer": show the agenda with everything, then move to the first one. */
+  async function jumpToAsk() {
+    const first = ask[0];
+    if (!first) return;
+    show = 'all';
+    q = '';
+    when = 'upcoming';
+    view = 'agenda';
+    await tick();
+    const el = document.getElementById(`p-${first.id}`);
+    el?.scrollIntoView({
+      block: 'center',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+    // Straight to the first answer button, so keyboard users land where they can answer.
+    el?.querySelector<HTMLElement>('.body button')?.focus({ preventScroll: true });
+  }
   const monthMode = $derived(wide && view === 'month');
   const counts = $derived(countByCategory(monthMode ? all : base, q));
   const list = $derived(base.filter((e) => matches(e, show, q)));
   const groups = $derived(groupByWeek(list, tz));
-  const monthList = $derived(all.filter((e) => matches(e, show, q)));
+  const monthList = $derived(all.filter((e) => !isProposal(e) && matches(e, show, q)));
 
   function openForm(c: EventCategory | null) {
     formCategory = c;
@@ -166,13 +218,23 @@
       </label>
     </div>
 
+    {#if ask.length}
+      <button type="button" class="ask" onclick={jumpToAsk}>
+        <IconHelp />
+        <span class="grow"
+          ><strong>{ask.length} need{ask.length === 1 ? 's' : ''} your answer</strong>
+          <small>Not confirmed yet: tell the coaches if you can make it</small></span
+        >
+      </button>
+    {/if}
+
     <p class="sr-only" aria-live="polite">
       {monthMode ? monthList.length : list.length}
       {noun} shown
     </p>
 
     {#if monthMode}
-      <MonthView events={monthList} {tz} bind:month teamShort={s.team.shortName} />
+      <MonthView events={monthList} {tentative} {tz} bind:month teamShort={s.team.shortName} />
     {:else if !list.length}
       <div class="none">
         <p>
@@ -211,14 +273,18 @@
           <ul class="list stack">
             {#each g.events as e (e.id)}
               <li>
-                <EventCard
-                  event={e}
-                  {tz}
-                  counts={s.rows.counts[e.id]}
-                  myStatus={myRsvp(s, e.id)}
-                  memberId={when === 'upcoming' ? s.me.id : null}
-                  teamShort={s.team.shortName}
-                />
+                {#if isProposal(e)}
+                  <ProposalCard event={e} anchor />
+                {:else}
+                  <EventCard
+                    event={e}
+                    {tz}
+                    counts={s.rows.counts[e.id]}
+                    myStatus={myRsvp(s, e.id)}
+                    memberId={when === 'upcoming' ? s.me.id : null}
+                    teamShort={s.team.shortName}
+                  />
+                {/if}
               </li>
             {/each}
           </ul>
@@ -297,6 +363,34 @@
   .clr :global(svg) {
     width: 16px;
     height: 16px;
+  }
+  .ask {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    width: 100%;
+    min-height: 52px;
+    margin: var(--s-2) 0 var(--s-1);
+    padding: var(--s-2) var(--s-4);
+    border: 1.5px dashed var(--tent-line);
+    border-radius: var(--r-lg);
+    background: var(--tent-fill);
+    color: var(--text);
+    text-align: left;
+  }
+  .ask:hover {
+    background: var(--surface-2);
+  }
+  .ask > :global(svg) {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    color: var(--info);
+  }
+  .ask small {
+    display: block;
+    font-size: var(--t-12);
+    color: var(--text-2);
   }
   .none {
     display: grid;
