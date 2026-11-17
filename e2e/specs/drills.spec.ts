@@ -2,6 +2,12 @@ import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { test, expect, openTeam, uuid, type TeamFixture } from '../fixtures';
 
+/** Wait for an archive/restore to reach the server before reloading (writes go through the outbox). */
+const drillSaved = (page: import('@playwright/test').Page) =>
+  page.waitForResponse(
+    (r) => r.url().includes('/drills/') && r.request().method() !== 'GET' && r.ok(),
+  );
+
 /** Wait for the route's view transition so pointer input reaches the editor canvas. */
 async function editorReady(page: Page) {
   await expect(page).toHaveURL(/\/drills\/[^/]+\/edit/);
@@ -175,7 +181,7 @@ test.describe('drill library', () => {
   }) => {
     await openTeam(page, team.teamId, '/playbook?tab=drills');
     await page.getByRole('link', { name: /Triangle passing/ }).click();
-    await page.getByRole('button', { name: 'Archive' }).click();
+    await Promise.all([drillSaved(page), page.getByRole('button', { name: 'Archive' }).click()]);
     await expect(page.getByRole('button', { name: 'Restore' })).toBeVisible();
 
     await openTeam(page, team.teamId, '/playbook?tab=drills');
@@ -184,7 +190,7 @@ test.describe('drill library', () => {
     await expect(page.getByRole('link', { name: /Triangle passing/ })).toBeVisible();
     await axe(page);
     await page.getByRole('link', { name: /Triangle passing/ }).click();
-    await page.getByRole('button', { name: 'Restore' }).click();
+    await Promise.all([drillSaved(page), page.getByRole('button', { name: 'Restore' }).click()]);
     await openTeam(page, team.teamId, '/playbook?tab=drills');
     await expect(page.getByRole('link', { name: /Triangle passing/ })).toBeVisible();
 
