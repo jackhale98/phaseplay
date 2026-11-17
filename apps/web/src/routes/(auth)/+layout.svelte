@@ -1,10 +1,13 @@
 <script lang="ts">
   import Logo from '#lib/marketing/Logo.svelte';
+  import Wordmark from '#lib/marketing/Wordmark.svelte';
   let { children } = $props();
 </script>
 
 <div class="auth">
-  <header><a href="/" class="brand"><Logo size={28} /> Phaseplay</a></header>
+  <header>
+    <a href="/" class="brand" aria-label="Phaseplay home"><Logo size={34} /> <Wordmark /></a>
+  </header>
   <main>{@render children()}</main>
 </div>
 
@@ -34,6 +37,9 @@
     font-weight: 800;
     color: var(--text);
     text-decoration: none;
+  }
+  .brand :global(svg) {
+    flex: none;
   }
   main {
     flex: 1;

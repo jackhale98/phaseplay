@@ -66,6 +66,7 @@ Each milestone is a series of small PRs, and each milestone ends deployed to pro
 - `docs/decisions.md`, seeded with the stack choices.
 
 **Accepted when:** prod landing page scores Lighthouse mobile ≥ 95 perf and 100 a11y; `https://api.phaseplay.app/health` returns the deployed commit SHA; CI wall-clock time is under 8 minutes.
+- Install the brand kit from `brand/`: favicons, PWA and Apple icons, logo SVGs and the play loader (`docs/design.md` §Brand). Outline the ribbon text with the self-hosted Archivo.
 
 ### M1 — Accounts and teams
 - **Passkey sign-up:** display name only, no email or phone. Sign-in uses passkey autofill (conditional mediation) with a button fallback.

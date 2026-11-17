@@ -3,6 +3,7 @@
   background (lib/crest-bg.ts) so it looks right in both themes.
 -->
 <script lang="ts">
+  import Loader from './Loader.svelte';
   import { api, ApiError } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
   import { teamPath } from '#lib/data/actions';
@@ -97,7 +98,7 @@
   {#if error}
     <p class="err" role="alert">{error}</p>
   {:else if !url}
-    <div class="sk" aria-busy="true" aria-label="Preparing your emblem"></div>
+    <Loader label="Preparing your emblem" size={72} />
   {:else}
     <div class="swatches">
       <figure class="light">
@@ -177,10 +178,5 @@
   .err {
     color: var(--danger);
     font-weight: 600;
-  }
-  .sk {
-    height: 170px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
   }
 </style>

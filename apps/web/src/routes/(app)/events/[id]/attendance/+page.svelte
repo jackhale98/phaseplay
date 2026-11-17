@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { type Rsvp } from '@phaseplay/shared';
@@ -114,7 +115,7 @@
     ><IconBack /> {e ? displayTitle(e) : 'Schedule'}</a
   >
   {#if !s}
-    <div class="sk" aria-busy="true"></div>
+    <Loader label="Loading attendance" />
   {:else if !e}
     <p class="muted">This event isn't on the schedule any more.</p>
   {:else if !staff}
@@ -193,11 +194,6 @@
   .back :global(svg) {
     width: 18px;
     height: 18px;
-  }
-  .sk {
-    height: 320px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
   }
   .page-head {
     margin-top: var(--s-2);

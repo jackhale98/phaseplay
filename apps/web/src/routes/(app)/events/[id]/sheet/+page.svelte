@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { page } from '$app/state';
   import { isGame } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
@@ -26,7 +27,7 @@
 
 <div class="page">
   {#if !s}
-    <div class="sk" aria-busy="true" aria-label="Loading team sheet"></div>
+    <Loader label="Loading team sheet" />
   {:else if !event}
     <h1 class="sr-only">Team sheet</h1>
     <EmptyState
@@ -57,9 +58,4 @@
 </div>
 
 <style>
-  .sk {
-    height: 520px;
-    border-radius: var(--r-lg);
-    background: var(--surface-2);
-  }
 </style>

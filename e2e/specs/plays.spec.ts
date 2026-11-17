@@ -177,6 +177,9 @@ async function waitForSaved(team: TeamFixture, id: string, check: (p: any) => bo
 }
 
 test.describe('play designer', () => {
+  // The service worker's "Update available" toast can sit over the frame strip on phones.
+  test.use({ serviceWorkers: 'block' });
+
   test('builds a 4-frame lineout move with touch on a phone', async ({ page, team, axe }, info) => {
     test.skip(info.project.name !== 'mobile-chromium', 'touch via CDP (Chromium phone)');
     test.setTimeout(90_000);

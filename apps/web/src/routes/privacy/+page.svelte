@@ -1,5 +1,6 @@
 <script lang="ts">
   import Logo from '#lib/marketing/Logo.svelte';
+  import Wordmark from '#lib/marketing/Wordmark.svelte';
 </script>
 
 <svelte:head>
@@ -8,7 +9,7 @@
 </svelte:head>
 
 <main class="doc">
-  <a class="brand" href="/"><Logo size={28} /> Phaseplay</a>
+  <a class="brand" href="/" aria-label="Phaseplay home"><Logo size={34} /> <Wordmark /></a>
   <h1>Privacy, in plain language</h1>
   <p class="lede">
     Phaseplay exists to run a rugby team. We keep the minimum needed to do that, and nothing else.
@@ -81,6 +82,9 @@
     color: var(--text);
     text-decoration: none;
     margin-bottom: var(--s-10);
+  }
+  .brand :global(svg) {
+    flex: none;
   }
   h1 {
     font-size: clamp(2rem, 6vw, 2.75rem);

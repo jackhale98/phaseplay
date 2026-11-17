@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Loader from '#lib/components/Loader.svelte';
   import { onDestroy } from 'svelte';
   import { page } from '$app/state';
   import { ALL_LANE, laneLabel, type DrillMeta, type RunEvent } from '@phaseplay/shared';
@@ -283,7 +284,7 @@
   <p class="sr-only" aria-live="polite" aria-atomic="true">{announce}</p>
 
   {#if !s || (!loaded && plan)}
-    <div class="center"><div class="sk" aria-busy="true"></div></div>
+    <div class="center"><Loader label="Loading the session" /></div>
   {:else if !plan}
     <div class="center"><EmptyState title="Plan not found" body="It may have been deleted." /></div>
   {:else if !allowed}
@@ -558,12 +559,6 @@
     margin: 0 auto;
     padding: var(--s-6) var(--s-4) calc(var(--s-8) + var(--safe-b));
     text-align: center;
-  }
-  .sk {
-    width: min(70vw, 320px);
-    aspect-ratio: 1;
-    border-radius: 50%;
-    background: var(--surface-2);
   }
   .idle h1 {
     font-size: var(--t-32);
