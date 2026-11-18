@@ -52,6 +52,8 @@ export async function nightly(env: Env) {
     env.DB.prepare(
       'DELETE FROM practice_plans WHERE deleted_at IS NOT NULL AND deleted_at < ?',
     ).bind(month),
+    // Uploaded images: removed pages/photos, and those of deleted plays and drills.
+    env.DB.prepare('DELETE FROM media WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(month),
     env.DB.prepare('DELETE FROM seasons WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(
       month,
     ),

@@ -7,6 +7,7 @@ export * from './events';
 export * from './proposals';
 export * from './sheets';
 export * from './play';
+export * from './media';
 export * from './drills';
 export * from './practice';
 export * from './match';

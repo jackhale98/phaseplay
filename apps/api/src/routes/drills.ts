@@ -5,6 +5,7 @@ import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
 import { DRILL_META_COLS, drillFullFromRow, drillMetaFromRow } from '../db/rows';
 import { setsFrom, versionedUpdate } from '../lib/versioned';
+import { deleteOwnerMediaStmt } from './media';
 
 const MAP = {
   title: 'title',
@@ -112,13 +113,18 @@ export function drillRoutes(app: Hono<AppEnv>) {
 
   route(app, 'drills.delete', async (c) => {
     const t = now();
-    const r = await c.var.db
-      .prepare(
-        'UPDATE drills SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
-      )
-      .bind(t, t, c.req.param('drillId'), c.var.member.teamId)
-      .run();
-    if (!r.meta.changes) throw notFound('Drill not found');
+    const drillId = c.req.param('drillId')!;
+    const teamId = c.var.member.teamId;
+    const [r] = await c.var.db.batch([
+      c.var.db
+        .prepare(
+          'UPDATE drills SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL',
+        )
+        .bind(t, t, drillId, teamId),
+      // Its photos go with it (team-scoped, so another team's id touches nothing).
+      deleteOwnerMediaStmt(c.var.db, 'drill', drillId, teamId, t),
+    ]);
+    if (!r!.meta.changes) throw notFound('Drill not found');
     return c.json({ ok: true });
   });
 }

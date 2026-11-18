@@ -15,6 +15,7 @@ import { proposalRoutes } from './routes/proposals';
 import { sheetRoutes } from './routes/sheets';
 import { playRoutes } from './routes/plays';
 import { drillRoutes } from './routes/drills';
+import { mediaRoutes } from './routes/media';
 import { practiceRoutes } from './routes/practice';
 import { matchRoutes } from './routes/match';
 import { statsRoutes } from './routes/stats';
@@ -88,6 +89,7 @@ export function createApp() {
   sheetRoutes(app);
   playRoutes(app);
   drillRoutes(app);
+  mediaRoutes(app);
   practiceRoutes(app);
   matchRoutes(app);
   statsRoutes(app);

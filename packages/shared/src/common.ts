@@ -48,6 +48,7 @@ export type ApiErrorCode =
   | 'too_large'
   | 'rate_limited'
   | 'demo'
+  | 'quota'
   | 'internal';
 
 export type ApiError = { error: { code: ApiErrorCode; message: string; issues?: string[] } };

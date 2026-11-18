@@ -5,6 +5,7 @@ import {
   PlayUpdate,
   can,
   dateInTz,
+  picturePlaceholder,
   type Perms,
   type SeenBy,
 } from '@phaseplay/shared';
@@ -16,6 +17,7 @@ import { auditStmt } from '../lib/audit';
 import { setsFrom, versionedUpdate } from '../lib/versioned';
 import { flushNotifications, notifyStmt } from '../lib/notify';
 import { playShared } from '../lib/push/messages';
+import { deleteOwnerMediaStmt } from './media';
 
 const visibleTo = (perms: Perms) =>
   can(perms, 'plays.view_private') ? '' : `AND visibility = 'team'`;
@@ -36,11 +38,14 @@ export function playRoutes(app: Hono<AppEnv>) {
   route(app, 'plays.create', async (c) => {
     const me = c.var.member;
     const input = await body(c, PlayCreate);
+    // A picture play's pages are uploaded images; its diagram is only a placeholder.
+    if (input.kind === 'picture')
+      input.data = picturePlaceholder(input.id, input.title, input.format);
     const t = now();
     const r = await c.var.db
       .prepare(
-        `INSERT INTO plays (id, team_id, title, category, tags, format, visibility, description, data, frame_count, version, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?) ON CONFLICT DO NOTHING`,
+        `INSERT INTO plays (id, team_id, title, category, tags, format, visibility, description, data, frame_count, kind, version, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?) ON CONFLICT DO NOTHING`,
       )
       .bind(
         input.id,
@@ -53,6 +58,7 @@ export function playRoutes(app: Hono<AppEnv>) {
         input.description,
         JSON.stringify(input.data),
         input.data.frames.length,
+        input.kind,
         me.userId,
         t,
         t,
@@ -146,14 +152,18 @@ export function playRoutes(app: Hono<AppEnv>) {
       .bind(t, t, c.req.param('playId'), me.teamId)
       .first<{ title: string }>();
     if (!row) throw notFound('Play not found');
-    await auditStmt(c.var.db, {
-      teamId: me.teamId,
-      actorId: me.userId,
-      action: 'play.deleted',
-      targetType: 'play',
-      targetId: c.req.param('playId')!,
-      meta: { title: row.title },
-    }).run();
+    await c.var.db.batch([
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'play.deleted',
+        targetType: 'play',
+        targetId: c.req.param('playId')!,
+        meta: { title: row.title },
+      }),
+      // Its pages go with it (purged with the play after 30 days).
+      deleteOwnerMediaStmt(c.var.db, 'play', c.req.param('playId')!, me.teamId, t),
+    ]);
     return c.json({ ok: true });
   });
 

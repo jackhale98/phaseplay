@@ -18,6 +18,7 @@ import type {
   InventoryItem,
   InventoryHandoff,
   InventoryEvent,
+  MediaRef,
 } from '@phaseplay/shared';
 import { bool, nullableBool } from '../lib/db';
 import { parseJson } from '../lib/http';
@@ -169,7 +170,7 @@ export const sheetFromRow = (r: Row, asPlayer: boolean): TeamSheet | null => {
 };
 
 export const PLAY_META_COLS =
-  'id, team_id, title, category, tags, format, visibility, description, frame_count, version, created_by, updated_at, deleted_at, archived_at';
+  'id, team_id, title, category, tags, format, visibility, description, frame_count, version, created_by, updated_at, deleted_at, archived_at, kind, media';
 export const playMetaFromRow = (r: Row): PlayMeta => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -185,6 +186,8 @@ export const playMetaFromRow = (r: Row): PlayMeta => ({
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
   archivedAt: nn(r.archived_at),
+  kind: r.kind === 'picture' ? 'picture' : 'diagram',
+  media: parseJson(r.media as string | null, [] as MediaRef[]),
 });
 export const playFullFromRow = (r: Row): PlayFull => ({
   ...playMetaFromRow(r),
@@ -192,7 +195,7 @@ export const playFullFromRow = (r: Row): PlayFull => ({
 });
 
 export const DRILL_META_COLS =
-  'id, team_id, title, category, contact_level, intensity, players_min, players_max, area, equipment, default_duration_min, description, coaching_points, setup, variations, visibility, source, parent_id, version, created_by, updated_at, deleted_at, archived_at, diagram IS NOT NULL AS has_diagram';
+  'id, team_id, title, category, contact_level, intensity, players_min, players_max, area, equipment, default_duration_min, description, coaching_points, setup, variations, visibility, source, parent_id, version, created_by, updated_at, deleted_at, archived_at, diagram IS NOT NULL AS has_diagram, media';
 export const drillMetaFromRow = (r: Row): DrillMeta => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -218,6 +221,7 @@ export const drillMetaFromRow = (r: Row): DrillMeta => ({
   deletedAt: nn(r.deleted_at),
   hasDiagram: bool(r.has_diagram),
   archivedAt: nn(r.archived_at),
+  media: parseJson(r.media as string | null, [] as MediaRef[]),
 });
 export const drillFullFromRow = (r: Row): DrillFull => ({
   ...drillMetaFromRow(r),

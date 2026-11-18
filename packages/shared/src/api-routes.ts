@@ -365,6 +365,27 @@ export const ROUTES = {
     auth: 'team',
     action: 'plays.manage',
   },
+  /** Add a page (multipart: file, thumb, id, caption). */
+  'plays.media.add': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/plays/:playId/media',
+    auth: 'team',
+    action: 'plays.manage',
+  },
+  /** Order, captions and removal of a play's pages (MediaSet). */
+  'plays.media.set': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/plays/:playId/media',
+    auth: 'team',
+    action: 'plays.manage',
+  },
+  /** Image bytes; the owning play/drill's visibility applies (coaches-only → 404 for players). */
+  'media.get': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/media/:mediaId',
+    auth: 'team',
+    action: 'team.view',
+  },
 
   // Drills & practice
   'drills.get': {
@@ -388,6 +409,18 @@ export const ROUTES = {
   'drills.delete': {
     method: 'DELETE',
     path: '/api/v1/teams/:teamId/drills/:drillId',
+    auth: 'team',
+    action: 'drills.manage',
+  },
+  'drills.media.add': {
+    method: 'POST',
+    path: '/api/v1/teams/:teamId/drills/:drillId/media',
+    auth: 'team',
+    action: 'drills.manage',
+  },
+  'drills.media.set': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/drills/:drillId/media',
     auth: 'team',
     action: 'drills.manage',
   },

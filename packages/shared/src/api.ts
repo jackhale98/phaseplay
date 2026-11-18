@@ -5,6 +5,7 @@ import type { TeamColors } from './team';
 import type { EventType, MatchSettings, RsvpStatus, RsvpVisibility } from './events';
 import type { SheetSlots } from './sheets';
 import type { Play, PlayCategory, Visibility } from './play';
+import type { MediaRef, PlayKind } from './media';
 import type { ContactLevel, DrillCategory, EquipmentList } from './drills';
 import type { PlanData, RunEvent } from './practice';
 import type { MatchEvent } from './match';
@@ -201,6 +202,10 @@ export type PlayMeta = {
   frameCount: number;
   /** Archived: hidden from lists and pickers; still opens and works where used. */
   archivedAt?: number | null;
+  /** 'picture': uploaded pages in `media` instead of an animated diagram (absent = 'diagram'). */
+  kind?: PlayKind;
+  /** Uploaded images in order (picture-play pages). */
+  media?: MediaRef[];
 };
 export type PlayFull = PlayMeta & { data: Play };
 
@@ -230,6 +235,8 @@ export type DrillMeta = {
   hasDiagram: boolean;
   /** Archived: hidden from lists and pickers; still opens and works where used. */
   archivedAt?: number | null;
+  /** Uploaded photos in order (setup photos, scanned diagrams); a drill may have only these. */
+  media?: MediaRef[];
 };
 export type DrillFull = DrillMeta & { diagram: Play | null };
 

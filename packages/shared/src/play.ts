@@ -4,6 +4,7 @@
  */
 import * as v from 'valibot';
 import { Id, MAX_JSON_BYTES, text } from './common';
+import { PLAY_KINDS } from './media';
 
 export const Vec2 = v.object({ x: v.number(), y: v.number() });
 export type Vec2 = v.InferOutput<typeof Vec2>;
@@ -157,7 +158,12 @@ export const PlayInput = v.object({
   description: v.optional(v.nullable(text(2000)), null),
   data: PlayData,
 });
-export const PlayCreate = v.object({ id: Id, ...PlayInput.entries });
+export const PlayCreate = v.object({
+  id: Id,
+  ...PlayInput.entries,
+  /** Set at creation only. A picture play's `data` is a placeholder (`picturePlaceholder`). */
+  kind: v.optional(v.picklist(PLAY_KINDS), 'diagram'),
+});
 export type PlayCreate = v.InferOutput<typeof PlayCreate>;
 export const PlayUpdate = v.object({
   ...v.partial(PlayInput).entries,
@@ -165,3 +171,24 @@ export const PlayUpdate = v.object({
   archived: v.optional(v.boolean()),
 });
 export type PlayUpdate = v.InferOutput<typeof PlayUpdate>;
+
+/**
+ * The diagram stored with a picture play: plays.data stays a valid Play for every reader (sync,
+ * exports, older builds) while the pages live in `media`.
+ */
+export function picturePlaceholder(
+  id: string,
+  title: string,
+  format: Play['format'] = 'any',
+): Play {
+  return {
+    v: 1,
+    id,
+    mode: 'play',
+    title: title.slice(0, 80),
+    format,
+    view: 'full',
+    entities: [],
+    frames: [{ id: 'f0', durationMs: 0, pos: {}, moves: {} }],
+  };
+}

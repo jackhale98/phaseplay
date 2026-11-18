@@ -65,6 +65,7 @@ describe('tenancy matrix', () => {
         itemId: uuidv7(),
         handoffId: uuidv7(),
         seasonId: uuidv7(),
+        mediaId: uuidv7(),
       };
       const path = routePath(id, params);
       const opts = r.method === 'GET' ? {} : { body: {} };
