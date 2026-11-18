@@ -295,7 +295,9 @@ export function proposalView(s: TeamSnapshot | null, e: TeamEvent, staff: boolea
 
 /** Proposals still waiting for my answer (a date I haven't answered). */
 export const needMyAnswer = (s: TeamSnapshot | null, now = Date.now()) =>
-  proposals(s, now).filter((e) => optionsOf(s, e.id).some((o) => !myAnswer(s, o.id)));
+  proposals(s, now).filter((e) =>
+    optionsOf(s, e.id).some((o) => o.startsAt > now && !myAnswer(s, o.id)),
+  );
 
 /** Confirmed events I was put down for from a proposal, waiting for my "Still in?". */
 export const toReconfirm = (s: TeamSnapshot | null, now = Date.now()) =>

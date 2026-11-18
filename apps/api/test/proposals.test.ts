@@ -65,8 +65,11 @@ const answer = (a: Team, who: Actor, eventId: string, answers: unknown[]) =>
     body: { answers },
   });
 const sync = async (who: Actor, a: Team, since = 0) =>
-  (await call('GET', `/api/v1/teams/${a.teamId}/sync?since=${since}`, { cookie: who.cookie }))
-    .body as SyncResponse;
+  (
+    await call('GET', `/api/v1/teams/${a.teamId}/sync?since=${since}&caps=proposals`, {
+      cookie: who.cookie,
+    })
+  ).body as SyncResponse;
 
 beforeEach(async () => {
   await env.DB.prepare('DELETE FROM push_queue').run();
@@ -413,5 +416,127 @@ describe('proposals', () => {
     const stats = await call('GET', `/api/v1/teams/${a.teamId}/stats`, { cookie: a.player.cookie });
     expect(stats.status).toBe(200);
     expect(stats.body.marks.map((m: { eventId: string }) => m.eventId)).not.toContain(id);
+  });
+});
+
+describe('proposals: review follow-ups', () => {
+  it('deleting a proposal tells only the people who answered; a dropped one, nobody', async () => {
+    const a = await fixtureTeam('Del RFC');
+    for (const x of everyone(a)) await subscribe(x);
+    const p = await poll(a);
+    await answer(a, a.player, p.id, [{ optionId: p.options[0]!.id, answer: 'in' }]);
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const del = await call('DELETE', `/api/v1/teams/${a.teamId}/events/${p.id}`, {
+      cookie: a.coach.cookie,
+    });
+    expect(del.status).toBe(200);
+    const q = await queued(a);
+    expect(q.map((x) => x.userId)).toEqual([a.player.userId]);
+    expect(q[0]!.title).toMatch(/^Not going ahead/);
+
+    const d = await poll(a);
+    await answer(a, a.player, d.id, [{ optionId: d.options[0]!.id, answer: 'in' }]);
+    await call('POST', `/api/v1/teams/${a.teamId}/events/${d.id}/drop`, {
+      cookie: a.coach.cookie,
+      body: {},
+    });
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    await call('DELETE', `/api/v1/teams/${a.teamId}/events/${d.id}`, { cookie: a.coach.cookie });
+    expect(await queued(a)).toEqual([]);
+  });
+
+  it('a proposal only moves through its dates: no times, cancelling or practice type', async () => {
+    const a = await fixtureTeam('Guard RFC');
+    for (const x of everyone(a)) await subscribe(x);
+    const p = await poll(a);
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const patch = (b: unknown) =>
+      call('PATCH', `/api/v1/teams/${a.teamId}/events/${p.id}`, {
+        cookie: a.coach.cookie,
+        body: b,
+      });
+    for (const b of [
+      { startsAt: p.t + 30 * DAY },
+      { meetAt: p.options[0]!.startsAt - H },
+      { cancelled: true },
+      { type: 'training' },
+    ]) {
+      const r = await patch(b);
+      expect(r.status, JSON.stringify(b)).toBe(400);
+      budget(r);
+    }
+    // A plain detail edit is fine and tells nobody.
+    expect((await patch({ notes: 'Bring boots' })).status).toBe(200);
+    expect(await queued(a)).toEqual([]);
+    const s = await sync(a.player, a);
+    expect(s.events.find((e) => e.id === p.id)).toMatchObject({
+      status: 'proposed',
+      startsAt: p.options[0]!.startsAt,
+      cancelledAt: null,
+      type: 'match',
+    });
+  });
+
+  it('builds that do not ask for proposals never get them; dropped ones arrive as tombstones', async () => {
+    const a = await fixtureTeam('Caps RFC');
+    const p = await poll(a);
+    const old = (since = 0) =>
+      call('GET', `/api/v1/teams/${a.teamId}/sync?since=${since}`, { cookie: a.player.cookie });
+    const full = (await old()).body as SyncResponse;
+    expect(full.events.find((e) => e.id === p.id)).toBeUndefined();
+    expect(full.options).toEqual([]);
+    expect(full.answers).toEqual([]);
+    await env.DB.prepare('UPDATE memberships SET updated_at = 1 WHERE team_id = ?')
+      .bind(a.teamId)
+      .run();
+    const cursor = (await sync(a.player, a)).cursor;
+    await call('POST', `/api/v1/teams/${a.teamId}/events/${p.id}/drop`, {
+      cookie: a.coach.cookie,
+      body: {},
+    });
+    for (const s of [(await old(cursor)).body as SyncResponse, await sync(a.player, a, cursor)]) {
+      const ev = s.events.find((e) => e.id === p.id)!;
+      expect(ev.deletedAt).toBe(ev.updatedAt);
+    }
+  });
+
+  it('confirm records the date it was confirmed for; a retry of the same date is quiet', async () => {
+    const a = await fixtureTeam('Twice RFC');
+    for (const x of everyone(a)) await subscribe(x);
+    const p = await poll(a);
+    const pick = p.options[0]!;
+    await answer(a, a.player, p.id, [{ optionId: pick.id, answer: 'in' }]);
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const confirm = () =>
+      call('POST', `/api/v1/teams/${a.teamId}/events/${p.id}/confirm`, {
+        cookie: a.coach.cookie,
+        body: { optionId: pick.id, startsAt: pick.startsAt + H },
+      });
+    expect((await confirm()).status).toBe(200);
+    const row = await env.DB.prepare(
+      'SELECT confirmed_option_id, starts_at FROM events WHERE id = ?',
+    )
+      .bind(p.id)
+      .first();
+    expect(row).toEqual({ confirmed_option_id: pick.id, starts_at: pick.startsAt + H });
+    // One push each for everyone but the coach.
+    expect((await queued(a)).length).toBe(4);
+    // The same date again (kick-off moved, so the start differs from the date's): still a no-op.
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const again = await confirm();
+    expect(again.status).toBe(200);
+    budget(again);
+    expect(await queued(a)).toEqual([]);
+  });
+
+  it('no answer-by reminder for a cancelled proposal', async () => {
+    const a = await fixtureTeam('Off RFC');
+    for (const x of everyone(a)) await subscribe(x);
+    const t = Date.now();
+    const p = await poll(a, { answerBy: t + 4 * DAY });
+    await env.DB.prepare('UPDATE events SET cancelled_at = ? WHERE id = ?').bind(t, p.id).run();
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    await queueProposalReminders(env.DB, t + 2 * DAY + H);
+    expect((await queued(a)).filter((x) => x.url.includes(p.id))).toEqual([]);
   });
 });

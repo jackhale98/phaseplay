@@ -286,7 +286,9 @@ class AppState {
         // so a rejected write can still be rolled back.
         const prev = (await loadSnapshot(teamId).catch(() => undefined)) ?? null;
         const since = needsFullSync(prev) ? 0 : (prev?.cursor ?? 0);
-        const res = await api<SyncResponse>(v1(`/teams/${teamId}/sync?since=${since}`));
+        const res = await api<SyncResponse>(
+          v1(`/teams/${teamId}/sync?since=${since}&caps=proposals`),
+        );
         const merged = mergeSync(prev, res);
         await saveSnapshot(merged).catch((e) => console.warn('Could not cache team data', e));
         if (this.teamId === teamId) {

@@ -476,6 +476,14 @@
           }
         : null,
     };
+    // A proposal stays one until it's confirmed or dropped (never a practice, never via a plain edit).
+    if (editingProposal && !asProposal) {
+      toasts.error(
+        'Confirm or drop it first: a game or event that is not confirmed yet can’t become a practice.',
+      );
+      busy = false;
+      return;
+    }
     // Proposal extras: the dates, when answers are due, players needed and the position check.
     const options = asProposal ? buildOptions() : null;
     if (options && editing && !lossNote) {

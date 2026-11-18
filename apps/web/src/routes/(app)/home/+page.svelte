@@ -15,6 +15,7 @@
   } from '#lib/data/selectors';
   import ProposalCard from '#lib/features/schedule/ProposalCard.svelte';
   import StillIn from '#lib/features/schedule/StillIn.svelte';
+  import { pendingDeletes } from '#lib/features/schedule/actions.svelte';
   import EventCard from '#lib/components/EventCard.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
   import Button from '#lib/components/Button.svelte';
@@ -95,7 +96,7 @@
    * "Would you play?": one proposal at a time. Once every date has an answer its card folds to one
    * line; it stays a moment so the answer is visible, then the next one slides up.
    */
-  const asks = $derived(needMyAnswer(s));
+  const asks = $derived(needMyAnswer(s).filter((e) => !pendingDeletes.hidden(e.id)));
   let heldAsk = $state<string | null>(null);
   let prevAsk: string | null = null;
   $effect(() => {
@@ -113,8 +114,10 @@
     });
   });
   const askNow = $derived(
-    (heldAsk ? s?.rows.events[heldAsk] : undefined) ??
-      (asks[0] as (typeof asks)[number] | undefined),
+    // A held card stays only while it's still a proposal (confirmed, dropped or undone: gone).
+    (heldAsk && s?.rows.events[heldAsk]?.status === 'proposed' && !pendingDeletes.hidden(heldAsk)
+      ? s.rows.events[heldAsk]
+      : undefined) ?? (asks[0] as (typeof asks)[number] | undefined),
   );
   const askMore = $derived(asks.filter((e) => e.id !== askNow?.id).length);
   const stillIn = $derived(toReconfirm(s));

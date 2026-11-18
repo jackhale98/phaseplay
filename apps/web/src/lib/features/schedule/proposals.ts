@@ -12,7 +12,6 @@ import type { Optimistic } from '#lib/data/idb';
 import { answerKey, rsvpKey } from '#lib/data/types';
 import { myAnswer, optionsOf, rsvpOf } from '#lib/data/selectors';
 import { buzz } from '#lib/haptics';
-import { toasts } from '#lib/stores/toast.svelte';
 
 /** Save my answers for some dates (one tap = one date; "None work" = every date "can't"). */
 export async function answerProposal(
@@ -108,21 +107,23 @@ export async function confirmProposal(e: TeamEvent, optionId: string, meetAt?: n
   });
 }
 
-/** Not going ahead: hidden everywhere, and people who answered are told. */
-export async function dropProposal(e: TeamEvent) {
+/**
+ * Not going ahead: hidden everywhere, and people who answered are told. Screens go through
+ * `pendingDeletes.drop` (actions.svelte.ts) for the undo window; this sends it.
+ */
+export async function dropProposal(id: string) {
   await app.mutate({
     method: 'POST',
-    path: teamPath(`/events/${e.id}/drop`),
+    path: teamPath(`/events/${id}/drop`),
     body: {},
     label: 'Drop proposal',
     optimistic: [
       {
         op: 'patch',
         entity: 'events',
-        key: e.id,
+        key: id,
         value: { status: 'dropped', updatedAt: Date.now() },
       },
     ],
   });
-  toasts.show(`Dropped ${e.title}. Everyone who answered will hear.`);
 }

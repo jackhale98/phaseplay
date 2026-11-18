@@ -64,6 +64,8 @@ const GAME_TYPES = typesInCategory('games')
   .map((t) => `'${t}'`)
   .join(', ');
 const PLAYERS_SEE = `(SELECT rsvp_visibility FROM teams WHERE id = ?1) = 'all' OR ((SELECT rsvp_visibility FROM teams WHERE id = ?1) = 'games' AND event_id IN (SELECT id FROM events WHERE team_id = ?1 AND type IN (${GAME_TYPES})))`;
+/** A full sync only carries dates and answers of proposals still open (not confirmed or dropped). */
+const OPEN_PROPOSAL = `event_id IN (SELECT id FROM events WHERE team_id = ?1 AND status = 'proposed' AND deleted_at IS NULL)`;
 /** First sync only fetches recent RSVP history to keep payloads small. */
 const FULL_WINDOW_MS = 120 * 86400e3;
 
@@ -71,17 +73,17 @@ const SYNC_SQL = `SELECT
   (SELECT ${jsonObject(TEAM_COLS)} FROM teams WHERE id = ?1) AS team,
   ${arr(MEMBER_COLS, `memberships WHERE team_id = ?1 AND updated_at > ?2 AND (?3 = 1 OR status != 'pending') AND (?2 > 0 OR status != 'removed')`)} AS members,
   ${arr('id, team_id, name, starts_on, ends_on, updated_at, deleted_at', `seasons WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS seasons,
-  ${arr(EVENT_COLS, `events WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR (deleted_at IS NULL AND status != 'dropped'))`)} AS events,
+  ${arr(EVENT_COLS, `events WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR (deleted_at IS NULL AND status != 'dropped')) AND (?10 = 1 OR status != 'proposed')`)} AS events,
   ${arr(RSVP_COLS, `rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5) AND (?3 = 1 OR member_id = ?4 OR ${PLAYERS_SEE})`)} AS rsvps,
   (SELECT json_group_array(json_object('event_id', event_id, 'yes', y, 'no', n, 'maybe', m)) FROM (
      SELECT event_id, sum(status = 'yes') AS y, sum(status = 'no') AS n, sum(status = 'maybe') AS m FROM rsvps
      WHERE team_id = ?1 AND event_id IN (SELECT event_id FROM rsvps WHERE team_id = ?1 AND updated_at > max(?2, ?5))
      GROUP BY event_id)) AS counts,
-  ${arr(OPTION_COLS, `event_options WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS options,
-  ${arr(ANSWER_COLS, `proposal_answers WHERE team_id = ?1 AND updated_at > max(?2, ?5) AND (?3 = 1 OR member_id = ?4 OR ${PLAYERS_SEE})`)} AS answers,
+  ${arr(OPTION_COLS, `event_options WHERE ?10 = 1 AND team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR (deleted_at IS NULL AND ${OPEN_PROPOSAL}))`)} AS options,
+  ${arr(ANSWER_COLS, `proposal_answers WHERE ?10 = 1 AND team_id = ?1 AND updated_at > max(?2, ?5) AND (?2 > 0 OR ${OPEN_PROPOSAL}) AND (?3 = 1 OR member_id = ?4 OR ${PLAYERS_SEE})`)} AS answers,
   (SELECT json_group_array(json_object('option_id', option_id, 'in', y, 'cant', n)) FROM (
      SELECT option_id, sum(answer = 'in') AS y, sum(answer = 'cant') AS n FROM proposal_answers
-     WHERE team_id = ?1 AND event_id IN (SELECT event_id FROM proposal_answers WHERE team_id = ?1 AND updated_at > max(?2, ?5))
+     WHERE ?10 = 1 AND team_id = ?1 AND event_id IN (SELECT event_id FROM proposal_answers WHERE team_id = ?1 AND updated_at > max(?2, ?5))
      GROUP BY option_id)) AS answer_counts,
   ${arr(SHEET_COLS, `team_sheets WHERE team_id = ?1 AND updated_at > ?2 AND (?6 = 1 OR published IS NOT NULL)`)} AS sheets,
   ${arr(ROLE_COLS, `team_roles WHERE team_id = ?1 AND updated_at > ?2 AND (?2 > 0 OR deleted_at IS NULL)`)} AS roles,
@@ -137,6 +139,8 @@ export function syncRoutes(app: Hono<AppEnv>) {
         plays ? 1 : 0,
         drills ? 1 : 0,
         plans ? 1 : 0,
+        // Builds that know proposals ask for them; older ones never see a proposal as a fixture.
+        (c.req.query('caps') ?? '').split(',').includes('proposals') ? 1 : 0,
       )
       .first<Record<string, string>>();
     if (!row?.team) throw notFound();
@@ -161,7 +165,12 @@ export function syncRoutes(app: Hono<AppEnv>) {
       members: list('members').map(memberFromRow),
       roles: list('roles').map(roleFromRow),
       seasons: list('seasons').map(seasonFromRow),
-      events: list('events').map(eventFromRow),
+      // A dropped proposal is a tombstone, so every build (old ones ignore status) removes it.
+      events: list('events')
+        .map(eventFromRow)
+        .map((e) =>
+          e.status === 'dropped' && !e.deletedAt ? { ...e, deletedAt: e.updatedAt } : e,
+        ),
       // RSVP notes stay with staff by main role; a team-role grant shows replies, never notes.
       rsvps: list('rsvps').map((r) => rsvpFromRow(r, isStaff(me.role) || r.member_id === me.id)),
       rsvpCounts,

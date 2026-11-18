@@ -108,7 +108,9 @@ docs/                specs, decisions.md, runbooks
 ### Proposals ("Not confirmed yet")
 
 - Routes: `events.create`/`events.update` take `status: 'proposed'` with `options[]` (1–4; an edit sends the full list, kept ids keep their answers, removed dates lose theirs), `answerBy`, `target`, `checkPositions`. `proposals.answer` (PUT, own answers only, `rsvp.self`), `proposals.confirm` and `proposals.drop` (POST, `events.manage`). All ≤ 6 queries.
-- Confirm is a guarded `UPDATE … WHERE status = 'proposed'`; only the request that wins notifies. Its rsvp upsert only fills replies that are still empty, so a retry never overwrites a later "Can't now".
+- Sync sends proposals only to builds that ask for them (`sync?caps=proposals`), so an older installed build never shows one as a fixture; dropped proposals go out as tombstones. A full sync carries dates and answers of open proposals only.
+- A proposal changes only through its dates: `events.update` refuses start/meet/finish times, cancelling or a practice type for a non-confirmed event (400) and never sends "Changed" pushes for it. Deleting a proposal tells only those who answered; a dropped one, nobody.
+- Confirm and drop are one read plus one batch: the guarded status change (`WHERE status = 'proposed'`, recording `confirmed_option_id`), the replies and the pushes commit together, and pushes are gated on this request's write (`updated_at = t`), so a retry never double-sends. Confirm's two messages ("It's on … Still in?" and "New: …") are one `notifyStmt` with an alternative payload. Drop is held 5 s on the device with Undo. Its rsvp upsert only fills replies that are still empty, so a retry never overwrites a later "Can't now".
 - Everything that means "the schedule" filters `status = 'confirmed'` (SQL) or `isConfirmed` / `events()` (shared and web); dropped events are hidden (full syncs skip them).
 
 ### Practice plan blocks (JSON, schema in `packages/shared/practice.ts`)

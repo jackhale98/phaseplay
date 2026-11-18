@@ -16,6 +16,7 @@ import {
   RsvpPut,
   SeasonInput,
   can,
+  canPropose,
   uuidv7,
   weeklyDates,
   zonedToUtc,
@@ -34,6 +35,7 @@ import {
   eventCreated,
   eventRestored,
   proposalCreated,
+  proposalDropped,
   seriesChanged,
   seriesCreated,
   seriesRemoved,
@@ -271,6 +273,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
         endsAt: first.endsAt,
       });
     }
+    // A proposal's times come from its dates, it can't be cancelled (it's dropped instead), and it
+    // can't become a practice: those changes only apply to confirmed events.
+    const confirmedOnly =
+      (!options &&
+        (input.startsAt !== undefined ||
+          input.meetAt !== undefined ||
+          input.endsAt !== undefined ||
+          input.cancelled !== undefined)) ||
+      (input.type !== undefined && !canPropose(input.type));
     const sets: string[] = [];
     const vals: unknown[] = [];
     for (const [k, col] of Object.entries(FIELD_COLS)) {
@@ -344,9 +355,9 @@ export function eventRoutes(app: Hono<AppEnv>) {
       .prepare(
         `UPDATE events SET ${[...sets, 'version = version + 1', 'updated_at = ?'].join(', ')}
          WHERE id = ? AND team_id = ? AND deleted_at IS NULL AND (? IS NULL OR version = ?)
-           AND (? = 0 OR status = 'proposed') RETURNING ${EVENT_COLS}`,
+           AND (? = 0 OR status = 'proposed') AND (? = 0 OR status = 'confirmed') RETURNING ${EVENT_COLS}`,
       )
-      .bind(...vals, t, id, me.teamId, version, version, options ? 1 : 0)
+      .bind(...vals, t, id, me.teamId, version, version, options ? 1 : 0, confirmedOnly ? 1 : 0)
       .first();
     if (row) {
       const ev = eventFromRow(row);
@@ -373,7 +384,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
             meta: { title: ev.title },
           }),
         );
-      const msg = cur && changeMessage(me.teamId, cur, ev);
+      const msg = cur && ev.status === 'confirmed' && changeMessage(me.teamId, cur, ev);
       if (msg)
         stmts.push(notifyStmt(c.var.db, me.teamId, { team: true }, 'events', msg, me.userId));
       if (stmts.length) await c.var.db.batch(stmts);
@@ -386,7 +397,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
       )
       .bind(id, me.teamId)
       .first();
-    if (!current) throw notFound('Event not found');
+    if (!current || current.status === 'dropped') throw notFound('Event not found');
+    if (confirmedOnly && current.status !== 'confirmed')
+      throw new HttpError(
+        400,
+        'bad_request',
+        "Not confirmed yet: change its dates, or confirm it first. It can't become a practice.",
+      );
+    if (options && current.status !== 'proposed')
+      throw new HttpError(400, 'bad_request', 'Only events that are not confirmed yet have dates');
     throw new HttpError(409, 'conflict', 'Someone else changed this event', {
       latest: eventFromRow(current),
     });
@@ -398,13 +417,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const row = await c.var.db
       .prepare(
         `UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL
-         RETURNING id, title, type, opponent, starts_at, location_name, cancelled_at, ${TEAM_INFO}`,
+         RETURNING id, title, type, opponent, starts_at, location_name, cancelled_at, status, ${TEAM_INFO}`,
       )
       .bind(t, t, c.req.param('eventId'), me.teamId)
-      .first<EventInfo & { cancelled_at: number | null }>();
+      .first<EventInfo & { cancelled_at: number | null; status: string }>();
     if (!row) throw notFound('Event not found');
-    // Removing an upcoming event is a cancellation for the squad (unless it was already called off).
-    const tell = row.starts_at > t && !row.cancelled_at;
+    // Removing an upcoming event is a cancellation for the squad (unless it was already called
+    // off). A proposal is "not going ahead" for the people who answered; a dropped one, for nobody.
+    const proposal = row.status === 'proposed';
+    const tell = row.starts_at > t && !row.cancelled_at && (row.status === 'confirmed' || proposal);
     await c.var.db.batch([
       auditStmt(c.var.db, {
         teamId: me.teamId,
@@ -416,14 +437,27 @@ export function eventRoutes(app: Hono<AppEnv>) {
       }),
       ...(tell
         ? [
-            notifyStmt(
-              c.var.db,
-              me.teamId,
-              { team: true },
-              'events',
-              eventCancelled(me.teamId, row, true),
-              me.userId,
-            ),
+            proposal
+              ? notifyStmt(
+                  c.var.db,
+                  me.teamId,
+                  { team: true },
+                  'events',
+                  proposalDropped(me.teamId, row),
+                  me.userId,
+                  {
+                    sql: 'm.id IN (SELECT member_id FROM proposal_answers WHERE event_id = ?8)',
+                    params: [row.id],
+                  },
+                )
+              : notifyStmt(
+                  c.var.db,
+                  me.teamId,
+                  { team: true },
+                  'events',
+                  eventCancelled(me.teamId, row, true),
+                  me.userId,
+                ),
           ]
         : []),
     ]);

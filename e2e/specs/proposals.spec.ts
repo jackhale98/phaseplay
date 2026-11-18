@@ -3,7 +3,7 @@
  * date, the coach sees counts, front-row cover and the best date, confirms one, and everyone who
  * was in is asked "Still in?". Axe clean in light and dark on every device.
  */
-import { test, expect, openTeam, type Actor, type TeamFixture } from '../fixtures';
+import { test, expect, openTeam, uuid, type Actor, type TeamFixture } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const DAY = 86400e3;
@@ -41,7 +41,7 @@ async function answerAs(who: Actor, teamId: string, eventId: string, answers: un
   expect(r.ok(), await r.text()).toBeTruthy();
 }
 async function optionIds(team: TeamFixture, eventId: string): Promise<string[]> {
-  const s = await team.post(`/teams/${team.teamId}/sync?since=0`, undefined, 'GET');
+  const s = await team.post(`/teams/${team.teamId}/sync?since=0&caps=proposals`, undefined, 'GET');
   return (s.options as { id: string; eventId: string; startsAt: number }[])
     .filter((o) => o.eventId === eventId)
     .sort((a, b) => a.startsAt - b.startsAt)
@@ -230,3 +230,27 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   });
 }
+
+test('dropping a proposal can be undone for a few seconds', async ({ page, team }) => {
+  const id = (
+    await team.post('/teams/:teamId/events', {
+      id: uuid(),
+      type: 'social',
+      title: 'Bowling',
+      startsAt: Date.now() + 10 * DAY,
+      status: 'proposed',
+      options: [{ id: uuid(), startsAt: Date.now() + 10 * DAY }],
+    })
+  ).id as string;
+  await openTeam(page, team.teamId, `/events/${id}`);
+  await page.getByRole('button', { name: 'Drop', exact: true }).click();
+  await page.getByRole('button', { name: 'Drop it' }).click();
+  await expect(page).toHaveURL(/\/schedule/);
+  await expect(cardIn(page, /Bowling\?/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(cardIn(page, /Bowling\?/)).toBeVisible();
+  // Nothing was sent: after the undo window and a reload it's still there.
+  await page.waitForTimeout(5500);
+  await page.reload();
+  await expect(cardIn(page, /Bowling\?/)).toBeVisible();
+});

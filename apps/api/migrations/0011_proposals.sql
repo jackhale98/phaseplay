@@ -7,6 +7,8 @@ ALTER TABLE events ADD COLUMN answer_by INTEGER;
 ALTER TABLE events ADD COLUMN target INTEGER;
 -- Check front-row cover for each date (games).
 ALTER TABLE events ADD COLUMN check_positions INTEGER NOT NULL DEFAULT 1;
+-- The date a proposal was confirmed for (retries of the same confirm are no-ops).
+ALTER TABLE events ADD COLUMN confirmed_option_id TEXT;
 -- When the "answer by" reminder went out (once per proposal).
 ALTER TABLE events ADD COLUMN proposal_reminded_at INTEGER;
 -- The reminder cron looks proposals up by answer-by time.

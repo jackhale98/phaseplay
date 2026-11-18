@@ -24,7 +24,8 @@
   } from '#lib/icons';
   import ProposalCard from './ProposalCard.svelte';
   import { displayTitle, hhmm, mapLink, notesBody } from './schedule';
-  import { confirmProposal, dropProposal } from './proposals';
+  import { confirmProposal } from './proposals';
+  import { pendingDeletes } from './actions.svelte';
   import { zonedToUtc, dateInTz } from '@phaseplay/shared';
 
   type Props = { event: TeamEvent; onedit: () => void };
@@ -67,7 +68,7 @@
     );
   }
   async function drop() {
-    await dropProposal(e);
+    pendingDeletes.drop(e);
     await goto('/schedule');
   }
   async function nudge() {

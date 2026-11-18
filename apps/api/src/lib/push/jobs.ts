@@ -153,7 +153,8 @@ export async function queueProposalReminders(db: D1Database, t: number): Promise
            WHERE o.event_id = e.id AND o.deleted_at IS NULL) AS dates
        FROM events e JOIN teams t ON t.id = e.team_id AND t.deleted_at IS NULL
        WHERE e.status = 'proposed' AND e.answer_by > ?1 AND e.answer_by <= ?2
-         AND e.proposal_reminded_at IS NULL AND e.deleted_at IS NULL AND e.team_id <> ?3
+         AND e.proposal_reminded_at IS NULL AND e.deleted_at IS NULL AND e.cancelled_at IS NULL
+         AND e.team_id <> ?3
        ORDER BY e.answer_by LIMIT ${MAX_EVENTS}`,
     )
     .bind(t, t + PROPOSAL_REMIND_BEFORE_MS, DEMO_TEAM_ID)

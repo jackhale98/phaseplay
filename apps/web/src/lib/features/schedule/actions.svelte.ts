@@ -18,6 +18,7 @@ import { teamPath } from '#lib/data/actions';
 import type { Optimistic } from '#lib/data/idb';
 import { answerKey } from '#lib/data/types';
 import { optionsOf } from '#lib/data/selectors';
+import { dropProposal } from './proposals';
 import { toasts } from '#lib/stores/toast.svelte';
 
 export async function createEvent(
@@ -215,23 +216,32 @@ export async function setCancelled(e: TeamEvent, cancelled: boolean) {
 }
 
 /**
- * Deleting can't be reversed on the server, so the request is held for the 5-second undo window.
- * Meanwhile the event is hidden locally. Leaving the page commits straight away.
+ * Deleting an event, or dropping a proposal, can't be reversed on the server (and tells people),
+ * so the request is held for the 5-second undo window. Meanwhile the event is hidden locally.
+ * Leaving the page commits straight away.
  */
 class PendingDeletes {
   ids = $state<string[]>([]);
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
+  private drops = new Set<string>();
 
   hidden = (id: string) => this.ids.includes(id);
 
-  remove(e: TeamEvent) {
+  /** "Not going ahead": the proposal disappears now; the drop is sent after the undo window. */
+  drop(e: TeamEvent) {
+    this.drops.add(e.id);
+    this.remove(e, `Dropped ${e.title}. Everyone who answered will hear.`);
+  }
+
+  remove(e: TeamEvent, message = `Deleted ${e.title}`) {
     this.ids = [...this.ids, e.id];
     const commit = () => void this.commit(e.id);
     this.timers.set(e.id, setTimeout(commit, 5000));
     addEventListener('pagehide', commit, { once: true });
-    toasts.undo(`Deleted ${e.title}`, () => {
+    toasts.undo(message, () => {
       clearTimeout(this.timers.get(e.id));
       this.timers.delete(e.id);
+      this.drops.delete(e.id);
       removeEventListener('pagehide', commit);
       this.ids = this.ids.filter((x) => x !== e.id);
     });
@@ -241,6 +251,11 @@ class PendingDeletes {
     if (!this.timers.has(id)) return;
     clearTimeout(this.timers.get(id));
     this.timers.delete(id);
+    if (this.drops.delete(id)) {
+      await dropProposal(id);
+      this.ids = this.ids.filter((x) => x !== id);
+      return;
+    }
     await app.mutate({
       method: 'DELETE',
       path: teamPath(`/events/${id}`),

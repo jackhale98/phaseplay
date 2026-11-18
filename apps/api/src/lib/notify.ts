@@ -51,8 +51,13 @@ export function notifyStmt(
   topic: NotifyTopic,
   message: Omit<PushPayload, 'topic' | 'teamId'>,
   exceptUserId?: string | null,
-  /** Optional extra condition (SQL with `?` params), e.g. "only if this write won". */
+  /**
+   * Optional extra condition, e.g. "only if this write won". Its SQL may use `m` (the member) and
+   * params after `?7` (plain `?`, or numbered from `?8`).
+   */
   onlyIf?: { sql: string; params: unknown[] },
+  /** A different message for members matching `when` (SQL over `m`, same params as onlyIf). */
+  alt?: { when: string; message: Omit<PushPayload, 'topic' | 'teamId'> },
 ): D1PreparedStatement {
   if (!NOTIFY_TOPICS.includes(topic)) throw new Error(`Unknown topic ${topic}`);
   // The public demo never sends pushes (its members aren't people).
@@ -62,7 +67,8 @@ export function notifyStmt(
   return db
     .prepare(
       `INSERT INTO push_queue (id, user_id, payload, created_at, attempts, next_at)
-       SELECT lower(hex(randomblob(16))), m.user_id, ?1, ?2, 0, ?2
+       SELECT lower(hex(randomblob(16))), m.user_id,
+         ${alt ? `CASE WHEN (${alt.when}) THEN ?1 ->> '$[1]' ELSE ?1 ->> '$[0]' END` : '?1'}, ?2, 0, ?2
        FROM memberships m JOIN users u ON u.id = m.user_id
        WHERE m.team_id = ?3 AND m.status = 'active'
          AND (?4 IS NULL OR m.id IN (SELECT value FROM json_each(?4)))
@@ -72,7 +78,13 @@ export function notifyStmt(
          ${onlyIf ? `AND (${onlyIf.sql})` : ''}`,
     )
     .bind(
-      payloadJson(topic, teamId, message),
+      // With an alternative message, ?1 carries both: [usual, alt].
+      alt
+        ? JSON.stringify([
+            payloadJson(topic, teamId, message),
+            payloadJson(topic, teamId, alt.message),
+          ])
+        : payloadJson(topic, teamId, message),
       t,
       teamId,
       members,
