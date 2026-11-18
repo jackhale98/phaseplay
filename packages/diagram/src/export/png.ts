@@ -289,7 +289,10 @@ export async function renderPlayImage(o: PlayImageOptions): Promise<Blob> {
 // Drill card
 
 export type DrillCardOptions = {
-  play: Play;
+  /** The drill diagram; a photo-only drill passes `photo` instead. */
+  play?: Play | null;
+  /** Drawn (contained) where the diagram goes when there's no diagram, e.g. a setup photo. */
+  photo?: { image: CanvasImageSource; width: number; height: number } | null;
   title: string;
   setup: string;
   coachingPoints: string[];
@@ -347,16 +350,26 @@ export async function renderDrillCard(o: DrillCardOptions): Promise<Blob> {
   y += 44 * u;
 
   const diagramH = H * 0.42;
-  fillRound(ctx, m, y, W - 2 * m, diagramH, 20 * u, theme.surround);
-  drawSceneInRect(
-    ctx,
-    o.play,
-    overviewScene(o.play),
-    { x: m, y, w: W - 2 * m, h: diagramH },
-    theme,
-    o.accent ?? '#1d4ed8',
-    { padding: 16 * u },
-  );
+  if (o.play) {
+    fillRound(ctx, m, y, W - 2 * m, diagramH, 20 * u, theme.surround);
+    drawSceneInRect(
+      ctx,
+      o.play,
+      overviewScene(o.play),
+      { x: m, y, w: W - 2 * m, h: diagramH },
+      theme,
+      o.accent ?? '#1d4ed8',
+      { padding: 16 * u },
+    );
+  } else if (o.photo) {
+    fillRound(ctx, m, y, W - 2 * m, diagramH, 20 * u, '#f3f4f6');
+    const bw = W - 2 * m - 32 * u;
+    const bh = diagramH - 32 * u;
+    const f = Math.min(bw / o.photo.width, bh / o.photo.height);
+    const pw = o.photo.width * f;
+    const ph = o.photo.height * f;
+    ctx.drawImage(o.photo.image, m + (W - 2 * m - pw) / 2, y + (diagramH - ph) / 2, pw, ph);
+  }
   y += diagramH + 48 * u;
 
   const colW = (W - 2 * m - 48 * u) / 2;
@@ -392,7 +405,7 @@ export async function renderDrillCard(o: DrillCardOptions): Promise<Blob> {
     ly = heading('Setup', lx, ly);
     ly = para(o.setup, lx, ly, colW) + 16 * u;
   }
-  const steps = o.play.frames.map((f) => f.caption).filter((c): c is string => !!c);
+  const steps = (o.play?.frames ?? []).map((f) => f.caption).filter((c): c is string => !!c);
   if (steps.length && ly < bottom - 80 * u) {
     ly = heading('Steps', lx, ly);
     for (let i = 0; i < steps.length && ly < bottom - 30 * u; i++)

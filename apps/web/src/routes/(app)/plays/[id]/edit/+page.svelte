@@ -61,7 +61,8 @@
   });
 
   onMount(() => {
-    if (app.role && !app.can('plays.manage')) {
+    // Picture plays have no diagram to draw: their pages are edited from the play itself.
+    if ((app.role && !app.can('plays.manage')) || app.snap?.rows.plays[id]?.kind === 'picture') {
       void goto(`/plays/${id}`, { replace: true });
       return;
     }

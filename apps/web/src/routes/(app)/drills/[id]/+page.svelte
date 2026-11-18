@@ -1,7 +1,13 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { CONTACT_LABELS, DRILL_CATEGORY_LABELS, type DrillFull } from '@phaseplay/shared';
+  import type { Component } from 'svelte';
+  import {
+    CONTACT_LABELS,
+    DRILL_CATEGORY_LABELS,
+    type DrillFull,
+    type DrillMeta,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import Button from '#lib/components/Button.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
@@ -20,7 +26,10 @@
     IconUsers,
     IconZap,
     IconArchive,
+    IconImagePlus,
   } from '#lib/icons';
+  import Pictures from '#lib/features/media/Pictures.svelte';
+  import { imageBlob } from '#lib/features/media/upload';
   import DiagramPlayer from '#lib/features/plays/DiagramPlayer.svelte';
   import { loadDrill } from '#lib/features/plays/persist';
   import { describeFrame } from '#lib/features/plays/describe';
@@ -84,6 +93,29 @@
   const parent = $derived(d?.parentId ? all.find((x) => x.id === d.parentId) : undefined);
   const children = $derived(d ? all.filter((x) => x.parentId === d.id) : []);
 
+  const photos = $derived(d?.media ?? []);
+  let photoIndex = $state(0);
+  let photosOpen = $state(false);
+  let PhotosSheet = $state<Component<{ open: boolean; drill: DrillMeta }> | null>(null);
+  async function editPhotos() {
+    PhotosSheet ??= (await import('#lib/features/media/DrillPhotosSheet.svelte'))
+      .default as unknown as Component<{
+      open: boolean;
+      drill: DrillMeta;
+    }>;
+    photosOpen = true;
+  }
+  // A new photo-only drill arrives with ?photos=1: open the photo picker straight away.
+  let askedPhotos = false;
+  $effect(() => {
+    if (askedPhotos || !coach || !d || page.url.searchParams.get('photos') !== '1') return;
+    askedPhotos = true;
+    void editPhotos();
+    void goto(`/drills/${id}`, { replace: true });
+  });
+
+  const size = (m: { width: number; height: number }) => ({ width: m.width, height: m.height });
+
   async function variation() {
     if (!d) return;
     const nid = await duplicateDrill(d);
@@ -96,12 +128,18 @@
     await goto('/playbook?tab=drills');
   }
   async function exportCard() {
-    if (!d?.diagram || busy) return;
+    if ((!d?.diagram && !photos.length) || !d || busy) return;
     busy = true;
     try {
       const { renderDrillCard } = await import('@phaseplay/diagram/export/png');
+      // No diagram: the card shows the first photo in its place.
+      const photo =
+        !d.diagram && photos[0]
+          ? { image: await createImageBitmap(await imageBlob(photos[0])), ...size(photos[0]) }
+          : null;
       const blob = await renderDrillCard({
         play: d.diagram,
+        photo,
         title: d.title,
         setup: d.setup || d.description,
         coachingPoints: d.coachingPoints,
@@ -146,6 +184,11 @@
             >{#snippet icon()}<IconCalendarPlus />{/snippet}Add to practice</Button
           >
           <Button href="/drills/{d.id}/edit">{#snippet icon()}<IconEdit />{/snippet}Edit</Button>
+          <Button onclick={editPhotos}
+            >{#snippet icon()}<IconImagePlus />{/snippet}{photos.length
+              ? 'Photos'
+              : 'Add photos'}</Button
+          >
         </div>
       {/if}
     </header>
@@ -162,10 +205,15 @@
       <div class="main">
         {#if d.diagram}
           <DiagramPlayer play={diagram ?? d.diagram} autoplay loop />
-        {:else}
+        {:else if !photos.length}
           <div class="nodiagram card">
-            <p class="subtle">No diagram yet.{coach ? ' Add one in the editor.' : ''}</p>
+            <p class="subtle">
+              No diagram yet.{coach ? ' Draw one in the editor, or add a photo of the setup.' : ''}
+            </p>
           </div>
+        {/if}
+        {#if photos.length}
+          <Pictures media={photos} title={d.title} noun="photo" bind:index={photoIndex} />
         {/if}
         {#if d.description}<p class="desc">{d.description}</p>{/if}
       </div>
@@ -218,7 +266,7 @@
           </section>
         {/if}
         <div class="row wrap more">
-          {#if d.diagram}<Button variant="quiet" onclick={() => (printing = true)}
+          {#if d.diagram || photos.length}<Button variant="quiet" onclick={() => (printing = true)}
               >{#snippet icon()}<IconPrint />{/snippet}Drill card</Button
             >{/if}
           {#if coach}
@@ -241,7 +289,9 @@
     <Sheet
       bind:open={printing}
       title="Drill card"
-      description="A printable card with the diagram, setup, coaching points and equipment."
+      description={d.diagram
+        ? 'A printable card with the diagram, setup, coaching points and equipment.'
+        : 'A printable card with the first photo, setup, coaching points and equipment.'}
       size="sm"
     >
       <div class="stack">
@@ -258,6 +308,7 @@
         >
       </div>
     </Sheet>
+    {#if PhotosSheet && meta}<PhotosSheet bind:open={photosOpen} drill={meta} />{/if}
   {:else if status === 'loading'}
     <div class="skeleton" aria-busy="true" aria-label="Loading drill"></div>
   {:else if status === 'offline'}

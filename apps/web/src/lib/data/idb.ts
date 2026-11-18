@@ -97,4 +97,8 @@ export async function clearAll() {
   await Promise.all(
     (['kv', 'teams', 'docs', 'outbox', 'match', 'runs'] as const).map((s) => d.clear(s)),
   );
+  // Playbook images the service worker kept for offline use belong to this account too.
+  try {
+    await Promise.all(['pp-media', 'pp-media-thumbs'].map((k) => caches.delete(k)));
+  } catch {}
 }

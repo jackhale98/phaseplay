@@ -19,7 +19,8 @@
   import Chip from '#lib/components/Chip.svelte';
   import Button from '#lib/components/Button.svelte';
   import EmptyState from '#lib/components/EmptyState.svelte';
-  import { IconPlus, IconSearch, IconPlaybook, IconDrill } from '#lib/icons';
+  import type { Component } from 'svelte';
+  import { IconPlus, IconSearch, IconPlaybook, IconDrill, IconUpload } from '#lib/icons';
   import PlayCard from '#lib/features/plays/PlayCard.svelte';
   import DrillCard from '#lib/features/drills/DrillCard.svelte';
   import NewPlaySheet from '#lib/features/plays/NewPlaySheet.svelte';
@@ -45,6 +46,14 @@
   let duration = $state<DurationBand>('all');
   let newPlay = $state(false);
   let newDrill = $state(false);
+  let upload = $state(false);
+  /** The upload sheet (and its image code) loads only when a coach opens it. */
+  let UploadSheet = $state<Component<{ open: boolean }> | null>(null);
+  async function openUpload() {
+    UploadSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
+      .default as Component<{ open: boolean }>;
+    upload = true;
+  }
   /** Show the archive instead of the active list. */
   let archived = $state(false);
   function showArchive(on: boolean) {
@@ -123,9 +132,12 @@
       </p>
     </div>
     {#if tab === 'plays' && coach}
-      <Button variant="primary" onclick={() => (newPlay = true)}
-        >{#snippet icon()}<IconPlus />{/snippet}New play</Button
-      >
+      <div class="head-actions">
+        <Button onclick={openUpload}>{#snippet icon()}<IconUpload />{/snippet}Upload a play</Button>
+        <Button variant="primary" onclick={() => (newPlay = true)}
+          >{#snippet icon()}<IconPlus />{/snippet}New play</Button
+        >
+      </div>
     {:else if tab === 'drills' && drillCoach}
       <Button variant="primary" onclick={() => (newDrill = true)}
         >{#snippet icon()}<IconPlus />{/snippet}New drill</Button
@@ -188,13 +200,14 @@
       <EmptyState
         title={coach ? 'Draw your first play' : 'No plays shared yet'}
         body={coach
-          ? 'Start from a lineout or scrum preset and animate it frame by frame.'
+          ? 'Start from a lineout or scrum preset and animate it frame by frame, or upload photos of your whiteboard.'
           : "When your coaches share plays they'll show up here."}
       >
         {#snippet icon()}<IconPlaybook />{/snippet}
-        {#snippet action()}{#if coach}<Button variant="primary" onclick={() => (newPlay = true)}
-              >New play</Button
-            >{/if}{/snippet}
+        {#snippet action()}{#if coach}<div class="head-actions">
+              <Button onclick={openUpload}>Upload a play</Button>
+              <Button variant="primary" onclick={() => (newPlay = true)}>New play</Button>
+            </div>{/if}{/snippet}
       </EmptyState>
     {/if}
   {:else}
@@ -276,9 +289,16 @@
 </div>
 
 {#if coach}<NewPlaySheet bind:open={newPlay} />{/if}
+{#if coach && UploadSheet}<UploadSheet bind:open={upload} />{/if}
 {#if drillCoach}<NewDrillSheet bind:open={newDrill} />{/if}
 
 <style>
+  .head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-2);
+    justify-content: flex-end;
+  }
   .toolbar {
     display: flex;
     flex-wrap: wrap;

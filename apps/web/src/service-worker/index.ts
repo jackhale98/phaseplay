@@ -1,7 +1,9 @@
 /**
  * Precaches the app shell and static assets so Phaseplay opens instantly and works offline.
- * API responses are never cached here (the data layer owns them in IndexedDB). A new version
- * waits until the user taps "Refresh", so it never reloads mid-match.
+ * API responses are never cached here (the data layer owns them in IndexedDB), with one
+ * exception: playbook images a user has opened (immutable, versioned URLs) go in a small LRU
+ * runtime cache so a picture play opens at the field without signal. A new version waits until
+ * the user taps "Refresh", so it never reloads mid-match.
  */
 import { immutable, assets, prerendered as pre } from '$app/manifest';
 import { version } from '$app/env';
@@ -13,6 +15,10 @@ const files = assets.map((x) => x.path as string);
 const prerendered = pre.map((x) => x.path as string);
 const CACHE = `pp-${version}`;
 const SHELL = '/200';
+/** Runtime caches for uploaded images (kept across app versions; cleared on sign-out). */
+const MEDIA_CACHES = { full: 'pp-media', thumb: 'pp-media-thumbs' } as const;
+const MEDIA_MAX_ENTRIES = 150;
+const MEDIA_PATH = /^\/api\/v1\/teams\/[^/]+\/media\/[^/]+$/;
 const PRECACHE = [
   ...new Set([
     ...build,
@@ -33,7 +39,8 @@ sw.addEventListener('install', (event) => {
 sw.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
+      const keep = new Set<string>([CACHE, MEDIA_CACHES.full, MEDIA_CACHES.thumb]);
+      for (const key of await caches.keys()) if (!keep.has(key)) await caches.delete(key);
       await sw.clients.claim();
     })(),
   );
@@ -48,6 +55,10 @@ sw.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== sw.location.origin) return;
+  if (MEDIA_PATH.test(url.pathname)) {
+    event.respondWith(mediaFetch(req, url));
+    return;
+  }
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/cal/')) return;
 
   event.respondWith(
@@ -74,6 +85,29 @@ sw.addEventListener('fetch', (event) => {
     })(),
   );
 });
+
+/**
+ * Cache-first for images (their URLs never change content). A hit is re-put so it moves to the
+ * end of the cache's key order, which makes trimming the oldest keys an LRU.
+ */
+async function mediaFetch(req: Request, url: URL): Promise<Response> {
+  const cache = await caches.open(
+    url.searchParams.get('s') === 'thumb' ? MEDIA_CACHES.thumb : MEDIA_CACHES.full,
+  );
+  const hit = await cache.match(req);
+  if (hit) {
+    void cache.delete(req).then(() => cache.put(req, hit.clone()));
+    return hit;
+  }
+  const res = await fetch(req);
+  if (res.ok && res.type === 'basic') {
+    await cache.put(req, res.clone());
+    const keys = await cache.keys();
+    for (const k of keys.slice(0, Math.max(0, keys.length - MEDIA_MAX_ENTRIES)))
+      await cache.delete(k);
+  }
+  return res;
+}
 
 // Web Push (docs/architecture.md §Push).
 type Push = Partial<PushPayload>;

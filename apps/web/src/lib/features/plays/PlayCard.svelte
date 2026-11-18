@@ -1,6 +1,7 @@
 <script lang="ts">
   import { PLAY_CATEGORY_LABELS, type Play, type PlayMeta } from '@phaseplay/shared';
-  import { IconLock, IconEye } from '#lib/icons';
+  import { IconLock, IconEye, IconImage } from '#lib/icons';
+  import { mediaSrc } from '#lib/features/media/upload';
   import PlayThumb from './PlayThumb.svelte';
   import { enqueue, loadPlay, seenBy } from './persist';
   import { onVisible } from './visible';
@@ -11,8 +12,17 @@
   let hover = $state(false);
   let focus = $state(false);
 
+  const picture = $derived(meta.kind === 'picture');
+  const first = $derived(meta.media?.[0]);
+  const pages = $derived(meta.media?.length ?? 0);
+  let shown = $state(false);
+
   function load() {
-    void enqueue(() => loadPlay(meta.id, meta.version)).then((r) => (data = r.value?.data ?? null));
+    shown = true;
+    if (!picture)
+      void enqueue(() => loadPlay(meta.id, meta.version)).then(
+        (r) => (data = r.value?.data ?? null),
+      );
     if (coach && meta.visibility === 'team')
       void enqueue(() => seenBy(meta.id)).then((s) => (seen = s ? s.seen.length : null));
   }
@@ -28,13 +38,29 @@
   onfocus={() => (focus = true)}
   onblur={() => (focus = false)}
 >
-  <div class="thumb"><PlayThumb play={data} active={hover || focus} /></div>
+  <div class="thumb">
+    {#if picture}
+      <div class="pic">
+        {#if first && shown}<img
+            src={mediaSrc(first, true)}
+            alt=""
+            loading="lazy"
+            decoding="async"
+          />{/if}
+        <span class="marker"><IconImage /> Picture</span>
+      </div>
+    {:else}
+      <PlayThumb play={data} active={hover || focus} />
+    {/if}
+  </div>
   <div class="body">
     <strong class="title">{meta.title}</strong>
     <span class="meta subtle">
-      {PLAY_CATEGORY_LABELS[meta.category]} · {meta.frameCount} frame{meta.frameCount === 1
-        ? ''
-        : 's'}{meta.format !== 'any' ? ` · ${meta.format}` : ''}
+      {PLAY_CATEGORY_LABELS[meta.category]} · {#if picture}{pages} page{pages === 1
+          ? ''
+          : 's'}{:else}{meta.frameCount} frame{meta.frameCount === 1
+          ? ''
+          : 's'}{/if}{meta.format !== 'any' ? ` · ${meta.format}` : ''}
     </span>
     {#if meta.tags.length}
       <span class="tags"
@@ -74,6 +100,36 @@
   }
   .thumb {
     border-bottom: 1px solid var(--border);
+  }
+  .pic {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .pic img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .marker {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    background: rgb(0 0 0 / 0.72);
+    color: #fff;
+    font-size: var(--t-12);
+    font-weight: 700;
+  }
+  .marker :global(svg) {
+    width: 14px;
+    height: 14px;
   }
   .body {
     display: flex;

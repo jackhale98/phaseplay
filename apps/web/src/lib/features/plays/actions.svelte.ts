@@ -15,6 +15,7 @@ import {
   type DrillUpdate,
   type Visibility,
 } from '@phaseplay/shared';
+import { api } from '#lib/api';
 import { app } from '#lib/data/app.svelte';
 import { teamPath } from '#lib/data/actions';
 import { toasts } from '#lib/stores/toast.svelte';
@@ -175,7 +176,15 @@ export const deleteDrill = (d: Pick<DrillMeta, 'id' | 'title'>) =>
 
 export type DrillFields = Omit<DrillCreate, 'id'>;
 
-export async function createDrill(input: DrillFields, id = uuidv7()): Promise<string> {
+/**
+ * Create a drill through the outbox (works offline). `direct` sends it now instead and waits, for
+ * a photo-only drill whose photos are uploaded straight after (those need the drill to exist).
+ */
+export async function createDrill(
+  input: DrillFields,
+  id = uuidv7(),
+  direct = false,
+): Promise<string> {
   const diagram = input.diagram ? { ...input.diagram, id, title: input.title } : null;
   const body: DrillCreate = { ...input, id, diagram };
   const meta: DrillMeta = {
@@ -205,6 +214,11 @@ export async function createDrill(input: DrillFields, id = uuidv7()): Promise<st
   };
   rememberDrill({ ...meta, diagram } satisfies DrillFull);
   if (diagram) await docPut(drillDraftKey(id), { diagram, updatedAt: Date.now() });
+  if (direct) {
+    await api(teamPath('/drills'), { method: 'POST', body });
+    await app.putRow(app.teamId!, 'drills', id, { ...meta, media: [] });
+    return id;
+  }
   await app.mutate({
     method: 'POST',
     path: teamPath('/drills'),

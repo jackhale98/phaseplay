@@ -1,7 +1,13 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { PLAY_CATEGORY_LABELS, type PlayFull } from '@phaseplay/shared';
+  import type { Component } from 'svelte';
+  import {
+    PLAY_CATEGORY_LABELS,
+    mediaLabel,
+    type PlayFull,
+    type PlayMeta,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { activeMembers } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
@@ -16,7 +22,12 @@
     IconLock,
     IconUsers,
     IconArchive,
+    IconImages,
   } from '#lib/icons';
+  import Pictures from '#lib/features/media/Pictures.svelte';
+  import { imageBlob } from '#lib/features/media/upload';
+  import { shareFiles } from '#lib/share';
+  import { toasts } from '#lib/stores/toast.svelte';
   import DiagramPlayer from '#lib/features/plays/DiagramPlayer.svelte';
   import SeenBy from '#lib/features/plays/SeenBy.svelte';
   import ExportSheet from '#lib/features/plays/ExportSheet.svelte';
@@ -77,6 +88,56 @@
     view ? view.data.frames.map((_, i) => describeFrame(view.data, i, names)) : [],
   );
 
+  const picture = $derived(view?.kind === 'picture');
+  const media = $derived(view?.media ?? []);
+  let pageIndex = $state(0);
+  let editing = $state(false);
+  let EditSheet = $state<Component<{ open: boolean; play: PlayMeta | null }> | null>(null);
+  async function editPages() {
+    EditSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
+      .default as unknown as Component<{
+      open: boolean;
+      play: PlayMeta | null;
+    }>;
+    editing = true;
+  }
+  let files: File[] | null = null;
+  let filesKey = '';
+  let sharing = $state(false);
+  /** Share the pages (phones: the share sheet with every page; laptops: download them). */
+  async function sharePages() {
+    if (!view || sharing) return;
+    const key = media.map((m) => m.id).join();
+    sharing = true;
+    try {
+      if (!files || filesKey !== key) {
+        const slug =
+          view.title
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '') || 'play';
+        files = await Promise.all(
+          media.map(
+            async (m, i) =>
+              new File(
+                [await imageBlob(m)],
+                `${slug}${media.length > 1 ? `-page-${i + 1}` : ''}.${m.type.split('/')[1]}`,
+                { type: m.type },
+              ),
+          ),
+        );
+        filesKey = key;
+      }
+      const r = await shareFiles(files, view.title);
+      if (r === 'blocked') toasts.show('Ready. Tap Share again to send it.');
+      else if (r === 'downloaded') toasts.show(files.length > 1 ? 'Pages downloaded' : 'Saved');
+    } catch {
+      toasts.error("Couldn't load the pictures. Check your connection.");
+    } finally {
+      sharing = false;
+    }
+  }
+
   async function duplicate() {
     if (!view) return;
     const nid = await duplicatePlay(view);
@@ -97,15 +158,24 @@
     <header class="page-head">
       <div class="grow">
         <p class="eyebrow">
-          {PLAY_CATEGORY_LABELS[view.category]}{view.format !== 'any' ? ` · ${view.format}` : ''} · {view
-            .data.frames.length} frames
+          {PLAY_CATEGORY_LABELS[view.category]}{view.format !== 'any' ? ` · ${view.format}` : ''} · {#if picture}{media.length}
+            page{media.length === 1 ? '' : 's'}{:else}{view.data.frames.length} frames{/if}
         </p>
         <h1>{view.title}</h1>
         {#if view.tags.length}<p class="tags">
             {#each view.tags as t (t)}<span>#{t}</span>{/each}
           </p>{/if}
       </div>
-      {#if coach}
+      {#if picture}
+        <div class="row wrap actions">
+          {#if coach}<Button variant="primary" onclick={editPages}
+              >{#snippet icon()}<IconImages />{/snippet}Edit pages</Button
+            >{/if}
+          {#if media.length}<Button loading={sharing} onclick={sharePages}
+              >{#snippet icon()}<IconShare />{/snippet}Share</Button
+            >{/if}
+        </div>
+      {:else if coach}
         <div class="row wrap actions">
           <Button variant="primary" href="/plays/{view.id}/edit"
             >{#snippet icon()}<IconEdit />{/snippet}Edit</Button
@@ -123,8 +193,21 @@
 
     <div class="layout">
       <div class="main">
-        <DiagramPlayer play={view.data} highlightMemberId={mine && highlight ? myId : undefined} />
-        {#if mine}
+        {#if picture}
+          {#if media.length}
+            <Pictures {media} title={view.title} bind:index={pageIndex} />
+          {:else}
+            <div class="nopages card">
+              <p class="subtle">No pages yet.{coach ? ' Add pictures with Edit pages.' : ''}</p>
+            </div>
+          {/if}
+        {:else}
+          <DiagramPlayer
+            play={view.data}
+            highlightMemberId={mine && highlight ? myId : undefined}
+          />
+        {/if}
+        {#if mine && !picture}
           <button class="hl" aria-pressed={highlight} onclick={() => (highlight = !highlight)}>
             <IconStar /> Highlight me
           </button>
@@ -156,17 +239,33 @@
           </section>
           <SeenBy play={view} {members} />
         {/if}
-        <section class="steps card" aria-labelledby="steps-h">
-          <h2 id="steps-h">Step by step</h2>
-          <ol>
-            {#each frames as d, i (i)}<li><strong>Frame {i + 1}.</strong> {d}</li>{/each}
-          </ol>
-        </section>
+        {#if picture}
+          {#if media.length > 1}
+            <section class="steps card" aria-labelledby="steps-h">
+              <h2 id="steps-h">Pages</h2>
+              <ol>
+                {#each media as m, i (m.id)}<li>
+                    <button type="button" class="pagelink" onclick={() => (pageIndex = i)}
+                      ><strong>Page {i + 1}.</strong>
+                      {m.caption ?? mediaLabel(view.title, m, i, media.length)}</button
+                    >
+                  </li>{/each}
+              </ol>
+            </section>
+          {/if}
+        {:else}
+          <section class="steps card" aria-labelledby="steps-h">
+            <h2 id="steps-h">Step by step</h2>
+            <ol>
+              {#each frames as d, i (i)}<li><strong>Frame {i + 1}.</strong> {d}</li>{/each}
+            </ol>
+          </section>
+        {/if}
         {#if coach}
           <div class="row wrap more">
-            <Button variant="quiet" onclick={duplicate}
-              >{#snippet icon()}<IconCopy />{/snippet}Duplicate</Button
-            >
+            {#if !picture}<Button variant="quiet" onclick={duplicate}
+                >{#snippet icon()}<IconCopy />{/snippet}Duplicate</Button
+              >{/if}
             <Button
               variant="quiet"
               onclick={() => view && setArchived('play', view.id, !meta?.archivedAt)}
@@ -181,11 +280,14 @@
         {/if}
       </aside>
     </div>
-    <ExportSheet
-      bind:open={exporting}
-      play={view.data}
-      highlightMemberId={mine && highlight ? myId : undefined}
-    />
+    {#if !picture}
+      <ExportSheet
+        bind:open={exporting}
+        play={view.data}
+        highlightMemberId={mine && highlight ? myId : undefined}
+      />
+    {/if}
+    {#if EditSheet && meta}<EditSheet bind:open={editing} play={meta} />{/if}
   {:else if status === 'loading'}
     <div class="skeleton" aria-busy="true" aria-label="Loading play"></div>
   {:else if status === 'offline'}
@@ -298,6 +400,23 @@
     gap: var(--s-2);
     font-size: var(--t-14);
     line-height: 1.5;
+  }
+  .nopages {
+    padding: var(--s-6) var(--s-4);
+    text-align: center;
+  }
+  .pagelink {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    min-height: 24px;
+    cursor: pointer;
+  }
+  .pagelink:hover {
+    text-decoration: underline;
   }
   .skeleton {
     height: 60vh;

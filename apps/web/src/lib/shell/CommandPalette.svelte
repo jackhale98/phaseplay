@@ -39,7 +39,12 @@
         href: `/events/${e.id}`,
       });
     for (const p of Object.values(s?.rows.plays ?? {}))
-      if (!p.archivedAt) list.push({ label: p.title, hint: 'Play', href: `/plays/${p.id}` });
+      if (!p.archivedAt)
+        list.push({
+          label: p.title,
+          hint: p.kind === 'picture' ? 'Picture play' : 'Play',
+          href: `/plays/${p.id}`,
+        });
     for (const d of Object.values(s?.rows.drills ?? {}))
       if (!d.archivedAt) list.push({ label: d.title, hint: 'Drill', href: `/drills/${d.id}` });
     for (const m of squad(s))

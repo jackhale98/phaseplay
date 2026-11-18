@@ -15,9 +15,11 @@
   import Field from '#lib/components/Field.svelte';
   import Button from '#lib/components/Button.svelte';
   import { createDrill } from '#lib/features/plays/actions.svelte';
+  import { ApiError } from '#lib/api';
 
   let { open = $bindable(false) }: { open: boolean } = $props();
-  type Start = DrillTemplateId | 'blank';
+  /** 'photos': no diagram, just uploaded photos (a whiteboard, a scanned drill card). */
+  type Start = DrillTemplateId | 'blank' | 'photos';
   const HINTS: Record<
     DrillTemplateId,
     { category: DrillCategory; contact: ContactLevel; players: [number, number] }
@@ -46,24 +48,38 @@
   let category = $state<DrillCategory>('handling');
   let touched = $state(false);
   let busy = $state(false);
+  let error = $state<string | null>(null);
 
   function pickStart(s: Start) {
     start = s;
-    if (!touched && s !== 'blank') category = HINTS[s].category;
+    if (!touched && s !== 'blank' && s !== 'photos') category = HINTS[s].category;
   }
 
   async function create(e: SubmitEvent) {
     e.preventDefault();
     if (busy) return;
+    error = null;
+    const photos = start === 'photos';
+    if (photos && !navigator.onLine) {
+      error = "You're offline. A photo drill needs a connection to upload its photos.";
+      return;
+    }
     busy = true;
     const id = uuidv7();
-    const hint = start === 'blank' ? null : HINTS[start];
-    const name = title.trim() || (start === 'blank' ? 'New drill' : DRILL_TEMPLATES[start].label);
-    const diagram =
-      start === 'blank'
+    const hint = start === 'blank' || start === 'photos' ? null : HINTS[start];
+    const name =
+      title.trim() ||
+      (start === 'blank'
+        ? 'New drill'
+        : photos
+          ? 'Photo drill'
+          : DRILL_TEMPLATES[start as DrillTemplateId].label);
+    const diagram = photos
+      ? null
+      : start === 'blank'
         ? newPlay({ id, title: name, mode: 'drill', format: 'any' })
-        : { ...DRILL_TEMPLATES[start].build(id), title: name };
-    const area = drillArea(diagram) ?? { w: 20, h: 20 };
+        : { ...DRILL_TEMPLATES[start as DrillTemplateId].build(id), title: name };
+    const area = (diagram && drillArea(diagram)) ?? { w: 20, h: 20 };
     try {
       await createDrill(
         {
@@ -85,9 +101,12 @@
           parentId: null,
         },
         id,
+        photos,
       );
       open = false;
-      await goto(`/drills/${id}/edit`);
+      await goto(photos ? `/drills/${id}?photos=1` : `/drills/${id}/edit`);
+    } catch (e) {
+      error = e instanceof ApiError ? e.message : "Couldn't create the drill. Try again.";
     } finally {
       busy = false;
     }
@@ -122,6 +141,15 @@
           />
           <span>Blank 20×20 m</span>
         </label>
+        <label class="opt" class:sel={start === 'photos'}>
+          <input
+            type="radio"
+            name="dstart"
+            checked={start === 'photos'}
+            onchange={() => pickStart('photos')}
+          />
+          <span>Photos only</span>
+        </label>
         {#each Object.entries(DRILL_TEMPLATES).filter( ([k]) => shownTemplate(`drill:${k}`) ) as [id, t] (id)}
           <label class="opt" class:sel={start === id}>
             <input
@@ -143,11 +171,21 @@
         </select>
       {/snippet}
     </Field>
-    <Button type="submit" variant="primary" block loading={busy}>Create and edit</Button>
+    {#if error}<p class="err" role="alert">{error}</p>{/if}
+    <Button type="submit" variant="primary" block loading={busy}
+      >{start === 'photos' ? 'Create and add photos' : 'Create and edit'}</Button
+    >
   </form>
 </Sheet>
 
 <style>
+  .err {
+    margin: 0;
+    padding: var(--s-3);
+    border-radius: var(--r-md);
+    background: var(--danger-soft);
+    font-size: var(--t-14);
+  }
   .starts {
     border: 0;
     padding: 0;

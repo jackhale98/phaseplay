@@ -61,3 +61,30 @@ export async function shareLink(
   }
   return (await copyText(url)) ? 'copied' : 'failed';
 }
+
+/**
+ * Share several files at once (picture-play pages) on phones; elsewhere download them one by one.
+ * Falls back to the first file alone where the share sheet can't take several.
+ */
+export async function shareFiles(
+  files: File[],
+  title?: string,
+): Promise<'shared' | 'downloaded' | 'cancelled' | 'blocked'> {
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  if (coarse && files.length > 1 && nav.canShare?.({ files })) {
+    try {
+      await nav.share({ files, title });
+      return 'shared';
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return 'cancelled';
+      if ((e as Error).name === 'NotAllowedError') return 'blocked';
+    }
+  }
+  if (files.length === 1 || coarse) return shareOrDownload(files[0]!, files[0]!.name, title);
+  for (const [i, f] of files.entries()) {
+    if (i) await new Promise((r) => setTimeout(r, 350));
+    await shareOrDownload(f, f.name, title);
+  }
+  return 'downloaded';
+}

@@ -5,7 +5,8 @@
     type DrillMeta,
     type Play,
   } from '@phaseplay/shared';
-  import { IconLock, IconClock, IconUsers } from '#lib/icons';
+  import { IconLock, IconClock, IconUsers, IconImage } from '#lib/icons';
+  import { mediaSrc } from '#lib/features/media/upload';
   import PlayThumb from '#lib/features/plays/PlayThumb.svelte';
   import { enqueue, loadDrill } from '#lib/features/plays/persist';
   import { onVisible } from '#lib/features/plays/visible';
@@ -16,7 +17,10 @@
   let hover = $state(false);
   let focus = $state(false);
 
+  const photo = $derived(drill.hasDiagram ? undefined : drill.media?.[0]);
+  let shown = $state(false);
   function load() {
+    shown = true;
     if (!drill.hasDiagram) return;
     void enqueue(() => loadDrill(drill.id, drill.version)).then(
       (r) => (data = r.value?.diagram ?? null),
@@ -33,7 +37,16 @@
   onfocus={() => (focus = true)}
   onblur={() => (focus = false)}
 >
-  <div class="thumb"><PlayThumb play={data} active={hover || focus} /></div>
+  <div class="thumb">
+    {#if photo}
+      <div class="pic">
+        {#if shown}<img src={mediaSrc(photo, true)} alt="" loading="lazy" decoding="async" />{/if}
+        <span class="marker"><IconImage /> Photo</span>
+      </div>
+    {:else}
+      <PlayThumb play={data} active={hover || focus} />
+    {/if}
+  </div>
   <div class="body">
     <span class="eyebrow">{DRILL_CATEGORY_LABELS[drill.category]}</span>
     <strong class="title">{drill.title}</strong>
@@ -55,6 +68,36 @@
 </a>
 
 <style>
+  .pic {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .pic img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .marker {
+    position: absolute;
+    left: 8px;
+    bottom: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    background: rgb(0 0 0 / 0.72);
+    color: #fff;
+    font-size: var(--t-12);
+    font-weight: 700;
+  }
+  .marker :global(svg) {
+    width: 14px;
+    height: 14px;
+  }
   .dcard {
     display: flex;
     flex-direction: column;
