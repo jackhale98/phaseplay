@@ -7,7 +7,7 @@
  */
 import type { DemoTables } from './demo';
 
-export const DEMO_CONTENT_VERSION = '26a1db5ca789ddb47b41a581';
+export const DEMO_CONTENT_VERSION = 'cc0c7984dabfc3694ed2d2e5';
 
 export async function demoContentHash(t: DemoTables): Promise<string> {
   const content = JSON.stringify([
@@ -22,6 +22,8 @@ export async function demoContentHash(t: DemoTables): Promise<string> {
     // Proposals ("Not confirmed yet"): who answered what for each date.
     t.event_options.length,
     t.proposal_answers.map((a) => [a.member_id, a.answer]),
+    // "Time TBD" events.
+    t.events.filter((e) => e.time_tbd).map((e) => e.title),
   ]);
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(content));
   return [...new Uint8Array(hash).slice(0, 12)]

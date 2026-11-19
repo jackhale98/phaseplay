@@ -54,14 +54,22 @@ export async function answerProposal(
 
 /**
  * Confirm one date: the event takes its times, and everyone who was in becomes a "yes" asked to
- * reconfirm (the server does the same, so this is only what the coach sees straight away).
+ * reconfirm (the server does the same, so this is only what the coach sees straight away). A
+ * "Time TBD" date stays TBD unless `startsAt` gives it a time.
  */
-export async function confirmProposal(e: TeamEvent, optionId: string, meetAt?: number | null) {
+export async function confirmProposal(
+  e: TeamEvent,
+  optionId: string,
+  meetAt?: number | null,
+  startsAt?: number,
+) {
   const s = app.snap;
   const o = optionsOf(s, e.id).find((x) => x.id === optionId);
   if (!s || !o) return;
   const t = Date.now();
-  const meet = meetAt !== undefined ? meetAt : o.meetAt;
+  const tbd = o.timeTbd === true && startsAt === undefined;
+  const start = startsAt ?? o.startsAt;
+  const meet = tbd ? null : meetAt !== undefined ? meetAt : o.meetAt;
   const ins = Object.values(s.rows.answers ?? {}).filter(
     (a) => a.optionId === optionId && a.answer === 'in',
   );
@@ -86,7 +94,11 @@ export async function confirmProposal(e: TeamEvent, optionId: string, meetAt?: n
   await app.mutate({
     method: 'POST',
     path: teamPath(`/events/${e.id}/confirm`),
-    body: { optionId, ...(meetAt !== undefined ? { meetAt } : {}) },
+    body: {
+      optionId,
+      ...(startsAt !== undefined ? { startsAt } : {}),
+      ...(meetAt !== undefined && !tbd ? { meetAt } : {}),
+    },
     label: 'Confirm date',
     optimistic: [
       {
@@ -95,9 +107,10 @@ export async function confirmProposal(e: TeamEvent, optionId: string, meetAt?: n
         key: e.id,
         value: {
           status: 'confirmed',
-          startsAt: o.startsAt,
-          meetAt: meet !== null && meet <= o.startsAt ? meet : null,
-          endsAt: o.endsAt,
+          startsAt: start,
+          meetAt: meet !== null && meet <= start ? meet : null,
+          endsAt: !tbd && o.endsAt !== null && o.endsAt >= start ? o.endsAt : null,
+          timeTbd: tbd,
           updatedAt: t,
         },
       },

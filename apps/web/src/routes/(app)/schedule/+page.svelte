@@ -9,6 +9,7 @@
     isProposal,
     type EventCategory,
     type TeamEvent,
+    sortByEventStart,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import {
@@ -91,12 +92,13 @@
 
   const visible = (list: ReturnType<typeof events>) =>
     list.filter((e) => !pendingDeletes.hidden(e.id));
-  const byStart = (a: TeamEvent, b: TeamEvent) => a.startsAt - b.startsAt;
+  // Earliest first; "Time TBD" after the timed events of its day.
+  const byStart = (list: TeamEvent[]) => sortByEventStart(list, tz);
   // Proposals ("Not confirmed yet") sit on their earliest date among what's coming up.
   const open = $derived(visible(proposals(s)));
-  const all = $derived(visible([...events(s), ...open].sort(byStart)));
+  const all = $derived(visible(byStart([...events(s), ...open])));
   const base = $derived(
-    visible(when === 'upcoming' ? [...upcoming(s), ...open].sort(byStart) : past(s)),
+    visible(when === 'upcoming' ? byStart([...upcoming(s), ...open]) : past(s)),
   );
   const ask = $derived(visible(needMyAnswer(s)));
   const tentative = $derived(
@@ -108,6 +110,7 @@
           key: o.id,
           event: e,
           startsAt: o.startsAt,
+          timeTbd: o.timeTbd,
           poll: opts.length > 1,
         }));
       }),

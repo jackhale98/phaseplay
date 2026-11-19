@@ -5,14 +5,20 @@
 -->
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { EVENT_TYPE_LABELS, isGame, type TeamEvent } from '@phaseplay/shared';
+  import {
+    EVENT_TYPE_LABELS,
+    eventTimeLabel,
+    isGame,
+    isTimeTbd,
+    type TeamEvent,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { proposalView } from '#lib/data/selectors';
   import Button from '#lib/components/Button.svelte';
   import Field from '#lib/components/Field.svelte';
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { day as dayMonth, longDay, plural, time, tzName } from '#lib/format';
+  import { day as dayMonth, longDay, plural, tzName } from '#lib/format';
   import {
     IconCheck,
     IconCopy,
@@ -41,27 +47,35 @@
   const map = $derived(mapLink(e));
   const dates = $derived(v.options.map((o) => dayMonth(o.option.startsAt, tz)));
 
-  /** The date being confirmed (one step, inline), and a meet time if the date has none. */
+  /**
+   * The date being confirmed (one step, inline), a meet time if the date has none, and for a
+   * "Time TBD" date an optional time (left blank, it stays TBD).
+   */
   let confirming = $state<string | null>(null);
   let meet = $state('');
+  let start = $state('');
   let dropping = $state(false);
   function askConfirm(optionId: string) {
     confirming = optionId;
     dropping = false;
     const o = v.options.find((x) => x.option.id === optionId)?.option;
-    meet = o && !o.meetAt && game ? hhmm(o.startsAt - 60 * 60e3, tz) : '';
+    start = '';
+    meet = o && !o.meetAt && game && !isTimeTbd(o) ? hhmm(o.startsAt - 60 * 60e3, tz) : '';
   }
   async function confirm(optionId: string) {
     const o = v.options.find((x) => x.option.id === optionId);
     if (!o) return;
-    const needMeet = game && !o.option.meetAt;
-    const meetAt =
-      needMeet && meet ? zonedToUtc(dateInTz(o.option.startsAt, tz), meet, tz) : undefined;
-    if (meetAt !== undefined && meetAt > o.option.startsAt) {
+    const date = dateInTz(o.option.startsAt, tz);
+    const tbd = isTimeTbd(o.option);
+    const startsAt = tbd && start ? zonedToUtc(date, start, tz) : undefined;
+    const kickoff = startsAt ?? o.option.startsAt;
+    const needMeet = game && !o.option.meetAt && (!tbd || startsAt !== undefined);
+    const meetAt = needMeet && meet ? zonedToUtc(date, meet, tz) : undefined;
+    if (meetAt !== undefined && meetAt > kickoff) {
       toasts.error('Meet time must be before kick-off');
       return;
     }
-    await confirmProposal(e, optionId, meetAt);
+    await confirmProposal(e, optionId, meetAt, startsAt);
     confirming = null;
     toasts.success(
       `${dayMonth(o.option.startsAt, tz)} is on. ${plural(o.counts.in, 'person', 'people')} marked Yes.`,
@@ -130,7 +144,7 @@
       <li class:best>
         <div class="row1">
           <h3 class="tnum">
-            {longDay(o.option.startsAt, tz)}<span class="t">, {time(o.option.startsAt, tz)}</span>
+            {longDay(o.option.startsAt, tz)}<span class="t">, {eventTimeLabel(o.option, tz)}</span>
           </h3>
           {#if best}<span class="bestchip"><IconStar />Best date</span>{/if}
         </div>
@@ -177,7 +191,17 @@
                 {plural(o.counts.in, 'person is', 'people are')} in. They'll be marked Yes and asked to
                 reconfirm.
               </p>
-              {#if game && !o.option.meetAt}
+              {#if isTimeTbd(o.option)}
+                <Field
+                  label="{game ? 'Kickoff' : 'Start'} time (optional)"
+                  hint="Leave blank to keep it Time TBD · {tzName(tz, o.option.startsAt)}"
+                >
+                  {#snippet children({ id, describedby })}
+                    <input {id} type="time" aria-describedby={describedby} bind:value={start} />
+                  {/snippet}
+                </Field>
+              {/if}
+              {#if game && !o.option.meetAt && (!isTimeTbd(o.option) || start)}
                 <Field label="Meet time (optional)" hint={tzName(tz, o.option.startsAt)}>
                   {#snippet children({ id, describedby })}
                     <input {id} type="time" aria-describedby={describedby} bind:value={meet} />

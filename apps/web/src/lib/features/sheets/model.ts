@@ -16,8 +16,11 @@ import {
   type Team,
   type TeamEvent,
   type TeamSheet,
+  TIME_TBD_LABEL,
+  eventTimeLabel,
+  isTimeTbd,
 } from '@phaseplay/shared';
-import { day, time, tzName } from '#lib/format';
+import { day, tzName } from '#lib/format';
 
 export type Draft = {
   format: Format;
@@ -343,7 +346,9 @@ export function exportMeta(team: Team, e: TeamEvent) {
       secondary: team.colors.secondary,
     },
     opponent: e.opponent ?? undefined,
-    kickoff: `${day(e.startsAt, tz)} · ${time(e.startsAt, tz)} ${tzName(tz, e.startsAt)}`,
+    kickoff: isTimeTbd(e)
+      ? `${day(e.startsAt, tz)} · ${TIME_TBD_LABEL}`
+      : `${day(e.startsAt, tz)} · ${eventTimeLabel(e, tz)} ${tzName(tz, e.startsAt)}`,
     venue: e.locationName ?? undefined,
   };
 }

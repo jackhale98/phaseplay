@@ -46,7 +46,7 @@
   const src = new StatsSource();
   const gameIds = $derived(
     s
-      ? heldEvents(events(s), win, now)
+      ? heldEvents(events(s), win, now, tz)
           .filter((e) => isGame(e.type))
           .map((e) => e.id)
       : [],

@@ -64,7 +64,7 @@ export function computeStats(
     canAll: boolean;
   },
 ): StatsView {
-  const held = heldEvents(events(s), o.win, o.now);
+  const held = heldEvents(events(s), o.win, o.now, s.team.timezone);
   const heldIds = new Set(held.map((e) => e.id));
   const me = s.me.id;
   const mine = (memberId: string) => o.canAll || memberId === me;

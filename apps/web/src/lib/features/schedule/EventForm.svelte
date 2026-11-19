@@ -19,6 +19,10 @@
     zonedToUtc,
     MAX_OPTIONS,
     canPropose,
+    canTimeTbd,
+    eventTimeLabel,
+    isTimeTbd,
+    tbdStartsAt,
     defaultAnswerBy,
     proposalTarget,
     uuidv7,
@@ -37,10 +41,10 @@
   import Button from '#lib/components/Button.svelte';
   import Chip from '#lib/components/Chip.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
-  import { fromLocalInput, toLocalInput, tzName, day, time, plural } from '#lib/format';
+  import { fromLocalInput, toLocalInput, tzName, day, plural } from '#lib/format';
   import { toasts } from '#lib/stores/toast.svelte';
   import { IconChevronLeft, IconChevronRight, IconPlus, IconX } from '#lib/icons';
-  import { optionsOf } from '#lib/data/selectors';
+  import { events as schedule, optionsOf } from '#lib/data/selectors';
   import { CATEGORY_ICON, CATEGORY_BLURB, TYPE_ICON } from './category';
   import {
     createEvent,
@@ -53,11 +57,13 @@
   import {
     addMinutes,
     hhmm,
+    isMove,
     minutesBetween,
     movedFrom,
     movedNote,
     nextWeekday,
     notesBody,
+    usualStart,
     type FormValues,
   } from './schedule';
   import { dateInTz } from '@phaseplay/shared';
@@ -89,7 +95,14 @@
   const inSeries = $derived(!!event?.recurrenceId);
 
   /* "Not confirmed yet": the first date is the main date and time; extra dates add a poll. */
-  type ExtraDate = { key: string; optionId: string | null; date: string; start: string };
+  type ExtraDate = {
+    key: string;
+    optionId: string | null;
+    date: string;
+    start: string;
+    /** This date's time is still to be decided. */
+    tbd: boolean;
+  };
   let proposed = $state(false);
   let firstOptionId = $state<string | null>(null);
   let extra = $state<ExtraDate[]>([]);
@@ -169,6 +182,7 @@
       opponent: '',
       format: fmt,
       date,
+      tbd: false,
       ...times,
       locationName: '',
       locationUrl: '',
@@ -191,7 +205,8 @@
       opponent: e.opponent ?? '',
       format: fmt,
       date: dateInTz(e.startsAt, tz),
-      start: hhmm(e.startsAt, tz),
+      tbd: isTimeTbd(e),
+      start: isTimeTbd(e) ? '' : hhmm(e.startsAt, tz),
       meet: e.meetAt ? hhmm(e.meetAt, tz) : '',
       finish: e.endsAt ? hhmm(e.endsAt, tz) : '',
       locationName: e.locationName ?? '',
@@ -226,6 +241,7 @@
       targetTouched = false;
       checkPositions = true;
       lossNote = null;
+      stash = null;
       if (event) {
         v = fromEvent(event);
         if (event.status === 'proposed') loadProposal(event);
@@ -245,7 +261,8 @@
     if (first) {
       firstOptionId = first.id;
       v.date = dateInTz(first.startsAt, tz);
-      v.start = hhmm(first.startsAt, tz);
+      v.tbd = isTimeTbd(first);
+      v.start = isTimeTbd(first) ? '' : hhmm(first.startsAt, tz);
       v.meet = first.meetAt ? hhmm(first.meetAt, tz) : '';
       v.finish = first.endsAt ? hhmm(first.endsAt, tz) : '';
     }
@@ -253,7 +270,8 @@
       key: o.id,
       optionId: o.id,
       date: dateInTz(o.startsAt, tz),
-      start: hhmm(o.startsAt, tz),
+      start: isTimeTbd(o) ? '' : hhmm(o.startsAt, tz),
+      tbd: isTimeTbd(o),
     }));
     if (e.answerBy) {
       answerBy = dateInTz(e.answerBy, tz);
@@ -269,20 +287,27 @@
   const cat = $derived(eventCategory(v.type));
   const game = $derived(isGame(v.type));
   const tzLabel = $derived(`${tzName(tz, Date.now())} (${tz.replace(/_/g, ' ')})`);
+  /** "Time TBD" is offered for games and events (never practices or weekly series). */
+  const tbdAllowed = $derived(
+    canTimeTbd(v.type) && !seriesMode && !inSeries && !(v.repeat && !editing),
+  );
+  const tbd = $derived(tbdAllowed && v.tbd);
+  /** When a date (and time) starts in UTC: local noon while the time is TBD. */
+  const startOf = (date: string, start: string, isTbd: boolean) =>
+    !date ? null : isTbd ? tbdStartsAt(date, tz) : start ? zonedToUtc(date, start, tz) : null;
+  const newStart = $derived(startOf(v.date, v.start, tbd));
   const moved = $derived(
     !!event &&
       !editingProposal &&
-      v.date &&
-      v.start &&
-      zonedToUtc(v.date, v.start, tz) !== event.startsAt,
+      newStart !== null &&
+      isMove(event, { startsAt: newStart, timeTbd: tbd }, tz),
   );
   const proposable = $derived(canPropose(v.type) && !seriesMode && (!editing || editingProposal));
   const asProposal = $derived(proposable && proposed);
   const teamTarget = $derived(proposalTarget(app.team?.proposalTargets, v.format, null));
   const target = $derived(targetTouched ? targetValue : teamTarget);
-  const firstStart = $derived(v.date && v.start ? zonedToUtc(v.date, v.start, tz) : null);
   const allStarts = $derived(
-    [firstStart, ...extra.map((x) => (x.date && x.start ? zonedToUtc(x.date, x.start, tz) : null))]
+    [newStart, ...extra.map((x) => startOf(x.date, x.start, x.tbd))]
       .filter((x): x is number => x !== null)
       .sort((a, b) => a - b),
   );
@@ -305,6 +330,33 @@
     if (!targetTouched) targetValue = teamTarget;
   });
 
+  /**
+   * "Time TBD" on: the time, meet and finish fields go (kept here in case it's switched back off).
+   * Off: they come back, or the team's usual start for this kind of event, else empty (required).
+   */
+  let stash: { start: string; meet: string; finish: string } | null = null;
+  const usual = () => usualStart(schedule(app.snap), v.type, tz) ?? '';
+  function setTbd(on: boolean) {
+    if (on === v.tbd) return;
+    v.tbd = on;
+    if (on) {
+      stash = { start: v.start, meet: v.meet, finish: v.finish };
+      v.start = v.meet = v.finish = '';
+      delete errors.start;
+      delete errors.meet;
+      delete errors.finish;
+    } else {
+      v.start = stash?.start || usual();
+      v.meet = stash?.meet ?? '';
+      v.finish = stash?.finish ?? '';
+    }
+  }
+  function setExtraTbd(x: ExtraDate, on: boolean) {
+    x.tbd = on;
+    x.start = on ? '' : v.start || usual();
+    lossNote = null;
+  }
+
   function addDate() {
     if (extra.length + 1 >= MAX_OPTIONS) return;
     const last = extra.at(-1)?.date || v.date;
@@ -315,6 +367,7 @@
         optionId: null,
         date: last ? addDays(last, 7) : '',
         start: extra.at(-1)?.start || v.start,
+        tbd: extra.at(-1)?.tbd ?? tbd,
       },
     ];
     queueMicrotask(() =>
@@ -332,20 +385,26 @@
     const sameDay = (id: string | null, date: string) =>
       !!id && prev.some((o) => o.id === id && dateInTz(o.startsAt, tz) === date);
     const offset = (hm: string) => (hm ? minutesBetween(v.start, hm) * 60e3 : null);
-    const meetOff = offset(v.meet);
-    const endOff = offset(v.finish);
-    const make = (id: string | null, date: string, start: string): ProposalOption => {
-      const startsAt = zonedToUtc(date, start, tz);
+    const meetOff = !tbd ? offset(v.meet) : null;
+    const endOff = !tbd ? offset(v.finish) : null;
+    const make = (
+      id: string | null,
+      date: string,
+      start: string,
+      isTbd: boolean,
+    ): ProposalOption => {
+      const startsAt = startOf(date, start, isTbd)!;
       return {
         id: sameDay(id, date) ? id! : uuidv7(),
         startsAt,
-        meetAt: meetOff !== null ? startsAt + meetOff : null,
-        endsAt: endOff !== null ? startsAt + endOff : null,
+        meetAt: !isTbd && meetOff !== null ? startsAt + meetOff : null,
+        endsAt: !isTbd && endOff !== null ? startsAt + endOff : null,
+        timeTbd: isTbd,
       };
     };
     return [
-      make(firstOptionId, v.date, v.start),
-      ...extra.map((x) => make(x.optionId, x.date, x.start)),
+      make(firstOptionId, v.date, v.start, tbd),
+      ...extra.map((x) => make(x.optionId, x.date, x.start, canTimeTbd(v.type) && x.tbd)),
     ];
   }
 
@@ -374,6 +433,7 @@
   function setType(t: EventType) {
     const prevFmt = v.format;
     v.type = t;
+    if (!canTimeTbd(t)) setTbd(false);
     if (t === 'tournament' && !editing) v.format = '7s';
     else if (t === 'match' && !editing) v.format = teamFormat;
     if (v.format !== prevFmt) setFormat(v.format);
@@ -393,20 +453,23 @@
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!v.date && !seriesMode) e.date = 'Pick a date';
-    if (!v.start) e.start = 'Pick a start time';
+    if (!v.start && !tbd) e.start = 'Pick a start time';
     if (!game && !v.title.trim() && !DEFAULT_TITLE[v.type]) e.title = 'Give it a name';
     if (v.title.length > 80) e.title = 'At most 80 characters';
     if (v.opponent.length > 80) e.opponent = 'At most 80 characters';
-    if (v.start && v.meet && minutesBetween(v.meet, v.start) < 0)
+    if (!tbd && v.start && v.meet && minutesBetween(v.meet, v.start) < 0)
       e.meet = 'Meet time must be before the start';
-    if (v.start && v.finish && minutesBetween(v.start, v.finish) <= 0)
+    if (!tbd && v.start && v.finish && minutesBetween(v.start, v.finish) <= 0)
       e.finish = 'Finish must be after the start';
     if (asProposal) {
       extra.forEach((x, i) => {
         if (!x.date) e[`extra${i}`] = 'Pick a date';
-        else if (!x.start) e[`extra${i}`] = 'Pick a time';
+        else if (!x.start && !x.tbd) e[`extra${i}`] = 'Pick a time, or Time TBD';
       });
-      const keys = [`${v.date} ${v.start}`, ...extra.map((x) => `${x.date} ${x.start}`)];
+      const keys = [
+        `${v.date} ${tbd ? 'tbd' : v.start}`,
+        ...extra.map((x) => `${x.date} ${x.tbd ? 'tbd' : x.start}`),
+      ];
       const dup = keys.findIndex((k, i) => keys.indexOf(k) !== i);
       if (dup > 0) e[`extra${dup - 1}`] = 'That date is already on the list';
       if (game && !(targetValue >= 1 && targetValue <= 99)) e.target = '1 to 99 players';
@@ -454,15 +517,17 @@
         : asProposal && v.type === 'match'
           ? 'v TBC'
           : DEFAULT_TITLE[v.type] || 'Team event');
-    const startsAt = zonedToUtc(v.date, v.start, tz);
+    // "Time TBD": local noon of the date, no meet or finish (packages/shared event-time.ts).
+    const startsAt = startOf(v.date, v.start, tbd)!;
     const fields = {
       type: v.type,
       title,
       format: game ? v.format : null,
       opponent: game ? orNull(v.opponent) : null,
       startsAt,
-      meetAt: v.meet ? zonedToUtc(v.date, v.meet, tz) : null,
-      endsAt: v.finish ? zonedToUtc(v.date, v.finish, tz) : null,
+      timeTbd: tbd,
+      meetAt: !tbd && v.meet ? zonedToUtc(v.date, v.meet, tz) : null,
+      endsAt: !tbd && v.finish ? zonedToUtc(v.date, v.finish, tz) : null,
       locationName: orNull(v.locationName),
       locationUrl: orNull(v.locationUrl),
       notes: orNull(v.notes),
@@ -512,7 +577,7 @@
       if (event && editingProposal && proposal) {
         const patch: Record<string, unknown> = {};
         for (const [k, val] of Object.entries(fields)) {
-          if (k === 'startsAt' || k === 'meetAt' || k === 'endsAt') continue;
+          if (k === 'startsAt' || k === 'meetAt' || k === 'endsAt' || k === 'timeTbd') continue;
           const cur = (event as Record<string, unknown>)[k];
           if (JSON.stringify(cur ?? null) !== JSON.stringify(val ?? null)) patch[k] = val;
         }
@@ -521,6 +586,7 @@
           startsAt: o.startsAt,
           meetAt: o.meetAt,
           endsAt: o.endsAt,
+          timeTbd: isTimeTbd(o),
         }));
         const sorted = [...proposal.options].sort((a, b) => a.startsAt - b.startsAt);
         if (JSON.stringify(prev) !== JSON.stringify(sorted)) patch.options = proposal.options;
@@ -575,12 +641,13 @@
         }
       } else if (event) {
         const prevMoved = movedFrom(event.notes);
-        if (moved && markMoved) fields.notes = movedNote(event.startsAt, tz, fields.notes);
+        if (moved && markMoved) fields.notes = movedNote(event, tz, fields.notes);
         else if (prevMoved)
           fields.notes = `Moved from ${prevMoved}.${fields.notes ? `\n${fields.notes}` : ''}`;
         const patch: Record<string, unknown> = {};
         for (const [k, val] of Object.entries(fields)) {
-          const cur = (event as Record<string, unknown>)[k];
+          // Older cached rows have no timeTbd: that's "has a time".
+          const cur = k === 'timeTbd' ? isTimeTbd(event) : (event as Record<string, unknown>)[k];
           if (JSON.stringify(cur ?? null) !== JSON.stringify(val ?? null)) patch[k] = val;
         }
         if (Object.keys(patch).length) await updateEvent(event.id, patch as EventUpdate);
@@ -779,7 +846,7 @@
         </div>
       {/if}
 
-      <div class="grid2">
+      <div class="grid2" class:has-tbd={tbdAllowed}>
         {#if !seriesMode}
           <Field label={asProposal && extra.length ? 'Date 1' : 'Date'} error={errors.date}>
             {#snippet children({ id, describedby })}
@@ -794,47 +861,69 @@
             {/snippet}
           </Field>
         {/if}
-        <Field label={game ? 'Kickoff' : 'Starts'} error={errors.start} hint={tzName(tz)}>
-          {#snippet children({ id, describedby })}
+        {#if !tbd}
+          <Field label={game ? 'Kickoff' : 'Starts'} error={errors.start} hint={tzName(tz)}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="time"
+                aria-describedby={describedby}
+                aria-invalid={!!errors.start}
+                bind:value={v.start}
+                required
+              />
+            {/snippet}
+          </Field>
+        {/if}
+        {#if tbdAllowed}
+          <!-- One control, always in the same place so focus stays on it when it's toggled. -->
+          <label class="check tbd" class:on={tbd}>
             <input
-              {id}
-              type="time"
-              aria-describedby={describedby}
-              aria-invalid={!!errors.start}
-              bind:value={v.start}
-              required
+              type="checkbox"
+              checked={tbd}
+              onchange={(ev) => setTbd(ev.currentTarget.checked)}
             />
-          {/snippet}
-        </Field>
-        <Field label="Meet (optional)" error={errors.meet} hint={tzName(tz)}>
-          {#snippet children({ id, describedby })}
-            <input
-              {id}
-              type="time"
-              aria-describedby={describedby}
-              aria-invalid={!!errors.meet}
-              bind:value={v.meet}
-            />
-          {/snippet}
-        </Field>
-        <Field label="Finish (optional)" error={errors.finish} hint={tzName(tz)}>
-          {#snippet children({ id, describedby })}
-            <input
-              {id}
-              type="time"
-              aria-describedby={describedby}
-              aria-invalid={!!errors.finish}
-              bind:value={v.finish}
-            />
-          {/snippet}
-        </Field>
+            <span
+              ><strong>Time TBD</strong>{#if tbd}<br /><small class="muted"
+                  >Set the {game ? 'kickoff' : 'time'} later</small
+                >{/if}</span
+            >
+          </label>
+        {/if}
+        {#if !tbd}
+          <Field label="Meet (optional)" error={errors.meet} hint={tzName(tz)}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="time"
+                aria-describedby={describedby}
+                aria-invalid={!!errors.meet}
+                bind:value={v.meet}
+              />
+            {/snippet}
+          </Field>
+          <Field label="Finish (optional)" error={errors.finish} hint={tzName(tz)}>
+            {#snippet children({ id, describedby })}
+              <input
+                {id}
+                type="time"
+                aria-describedby={describedby}
+                aria-invalid={!!errors.finish}
+                bind:value={v.finish}
+              />
+            {/snippet}
+          </Field>
+        {/if}
       </div>
 
       {#if moved && event && !seriesMode}
         <label class="check">
           <input type="checkbox" bind:checked={markMoved} />
           <span
-            >Show a “moved” banner (was {day(event.startsAt, tz)}, {time(event.startsAt, tz)})</span
+            >Show a “moved” banner (was {day(event.startsAt, tz)}, {eventTimeLabel(
+              event,
+              tz,
+            )})</span
           >
         </label>
       {/if}
@@ -843,7 +932,7 @@
         {#if extra.length}
           <ol class="list extra" aria-label="More dates">
             {#each extra as x, i (x.key)}
-              <li>
+              <li class:has-tbd={canTimeTbd(v.type)}>
                 <Field label="Date {i + 2}" error={errors[`extra${i}`]}>
                   {#snippet children({ id, describedby })}
                     <input
@@ -856,11 +945,23 @@
                     />
                   {/snippet}
                 </Field>
-                <Field label={game ? 'Kickoff' : 'Starts'}>
-                  {#snippet children({ id, describedby })}
-                    <input {id} type="time" aria-describedby={describedby} bind:value={x.start} />
-                  {/snippet}
-                </Field>
+                {#if !x.tbd}
+                  <Field label={game ? 'Kickoff' : 'Starts'}>
+                    {#snippet children({ id, describedby })}
+                      <input {id} type="time" aria-describedby={describedby} bind:value={x.start} />
+                    {/snippet}
+                  </Field>
+                {/if}
+                {#if canTimeTbd(v.type)}
+                  <label class="check tbd" class:on={x.tbd}>
+                    <input
+                      type="checkbox"
+                      checked={x.tbd}
+                      onchange={(ev) => setExtraTbd(x, ev.currentTarget.checked)}
+                    />
+                    <span>Time TBD<span class="sr-only">{` for date ${i + 2}`}</span></span>
+                  </label>
+                {/if}
                 <button
                   type="button"
                   class="rm"
@@ -948,7 +1049,7 @@
         {/if}
       {/if}
 
-      {#if !asProposal && ((isRepeatable(v.type) && !editing) || seriesMode)}
+      {#if !asProposal && !tbd && ((isRepeatable(v.type) && !editing) || seriesMode)}
         <div class="repeat card">
           {#if seriesMode}
             <p class="series-h"><strong>Repeats every week</strong></p>
@@ -1259,8 +1360,33 @@
   .extra li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
-    gap: var(--s-3);
+    gap: var(--s-1) var(--s-3);
     align-items: end;
+  }
+  /*
+   * "Time TBD" sits under the date and time; once it's on, it takes the time's place. Explicit
+   * placement keeps it the same element (and focus) either way.
+   */
+  .grid2.has-tbd > .tbd,
+  .extra li.has-tbd > .tbd {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    margin-top: calc(-1 * var(--s-2));
+  }
+  .grid2.has-tbd > .tbd.on,
+  .extra li.has-tbd > .tbd.on {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: end;
+    margin-top: 0;
+    padding: 11px 0 0;
+  }
+  .extra li.has-tbd > .rm {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .extra li.has-tbd > .tbd {
+    margin-top: 0;
   }
   .rm {
     display: grid;

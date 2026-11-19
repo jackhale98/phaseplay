@@ -8,6 +8,10 @@
     isGame,
     isProposal,
     playersSeeReplies,
+    TIME_TBD_LABEL,
+    eventEndsAt,
+    eventTimeLabel,
+    isTimeTbd,
   } from '@phaseplay/shared';
   import ProposalDetails from '#lib/features/schedule/ProposalDetails.svelte';
   import { app } from '#lib/data/app.svelte';
@@ -62,7 +66,8 @@
   const seeAvail = $derived(app.can('availability.view'));
   const mine = $derived(e && me ? rsvpOf(s, e.id, me.id) : undefined);
   const counts = $derived(e ? (s?.rows.counts[e.id] ?? { yes: 0, no: 0, maybe: 0 }) : null);
-  const finished = $derived(!!e && (e.endsAt ?? e.startsAt + 3 * 3600e3) <= Date.now());
+  const finished = $derived(!!e && eventEndsAt(e, tz) <= Date.now());
+  const tbd = $derived(!!e && isTimeTbd(e));
   const cat = $derived(e ? eventCategory(e.type) : 'events');
   const moved = $derived(e ? movedFrom(e.notes) : null);
   const notes = $derived(e ? notesBody(e.notes) : '');
@@ -133,7 +138,7 @@
       <div class="banner mv" role="status">
         <IconAlert />
         <div class="grow">
-          <strong>Moved to {relDay(e.startsAt, tz)}, {time(e.startsAt, tz)}</strong>
+          <strong>Moved to {relDay(e.startsAt, tz)}, {eventTimeLabel(e, tz)}</strong>
           <p>It was {moved}. Check you can still make it.</p>
         </div>
       </div>
@@ -159,10 +164,19 @@
             <div>
               <dt><IconClock /><span>{isGame(e.type) ? 'Kickoff' : 'Starts'}</span></dt>
               <dd class="tnum">
-                {time(e.startsAt, tz)}{#if e.endsAt}<span class="muted"
-                    >{` to ${time(e.endsAt, tz)}`}</span
-                  >{/if}
-                <span class="tz">{tzName(tz, e.startsAt)}</span>
+                {#if tbd}
+                  {TIME_TBD_LABEL}
+                  {#if manage && !e.cancelledAt && !finished}<button
+                      type="button"
+                      class="set-time"
+                      onclick={() => (editOpen = true)}>Set time</button
+                    >{/if}
+                {:else}
+                  {time(e.startsAt, tz)}{#if e.endsAt}<span class="muted"
+                      >{` to ${time(e.endsAt, tz)}`}</span
+                    >{/if}
+                  <span class="tz">{tzName(tz, e.startsAt)}</span>
+                {/if}
               </dd>
             </div>
             {#if e.meetAt}
@@ -559,6 +573,20 @@
   .map :global(svg) {
     width: 14px;
     height: 14px;
+  }
+  .set-time {
+    margin-left: var(--s-2);
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: var(--t-14);
+    font-weight: 650;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
   }
   .pad {
     padding: var(--s-5);

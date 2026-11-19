@@ -2,7 +2,7 @@
   import Loader from '#lib/components/Loader.svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
-  import { type Rsvp } from '@phaseplay/shared';
+  import { eventTimeLabel, type Rsvp } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { players, rsvpOf } from '#lib/data/selectors';
   import { teamPath } from '#lib/data/actions';
@@ -11,7 +11,7 @@
   import Button from '#lib/components/Button.svelte';
   import Segmented from '#lib/components/Segmented.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { relDay, time } from '#lib/format';
+  import { relDay } from '#lib/format';
   import { buzz } from '#lib/haptics';
   import { IconBack, IconCheck, IconClipboardCheck } from '#lib/icons';
   import { displayTitle } from '#lib/features/schedule/schedule';
@@ -126,7 +126,7 @@
         <h1>Who turned up?</h1>
         <p class="muted">
           {displayTitle(e, s.team.shortName)} · {relDay(e.startsAt, tz)}
-          {time(e.startsAt, tz)}
+          {eventTimeLabel(e, tz)}
         </p>
       </div>
     </header>

@@ -18,7 +18,7 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import { copyText } from '#lib/share';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { relDay, time, plural } from '#lib/format';
+  import { relWhen, plural } from '#lib/format';
   import { IconCopy, IconWarn, IconCheck, IconX, IconHelp } from '#lib/icons';
   import { displayTitle } from './schedule';
 
@@ -51,7 +51,7 @@
   }
   async function nudge() {
     const names = a.none.map((m) => m.displayName.split(' ')[0]).join(', ');
-    const text = `${displayTitle(e, s?.team.shortName)}, ${relDay(e.startsAt, tz)} ${time(e.startsAt, tz)}. Still need a reply from ${names}. Tap in on Phaseplay: ${location.origin}/events/${e.id}`;
+    const text = `${displayTitle(e, s?.team.shortName)}, ${relWhen(e, tz)}. Still need a reply from ${names}. Tap in on Phaseplay: ${location.origin}/events/${e.id}`;
     toasts.show(
       (await copyText(text)) ? 'Nudge copied. Paste it in the group chat' : "Couldn't copy",
     );

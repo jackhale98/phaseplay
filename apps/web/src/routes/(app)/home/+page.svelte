@@ -24,7 +24,7 @@
   import { copyText } from '#lib/share';
   import KitHome from '#lib/features/kit/KitHome.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
-  import { relDay, time, ago } from '#lib/format';
+  import { relDay, relWhen, ago } from '#lib/format';
   import {
     IconCalendarPlus,
     IconShirt,
@@ -86,12 +86,8 @@
       prevIds = ids;
     });
   });
-  const waiting = $derived(
-    next
-      .slice(1)
-      .filter((e) => awaiting.includes(e) || held[e.id])
-      .sort((a, b) => a.startsAt - b.startsAt),
-  );
+  // Already in schedule order ("Time TBD" after the day's timed events).
+  const waiting = $derived(next.slice(1).filter((e) => awaiting.includes(e) || held[e.id]));
 
   /**
    * "Would you play?": one proposal at a time. Once every date has an answer its card folds to one
@@ -121,11 +117,7 @@
       : undefined) ?? (asks[0] as (typeof asks)[number] | undefined),
   );
   /** Offseason: nothing confirmed coming up, but tentative games/socials are. Lead with those. */
-  const tentative = $derived(
-    proposals(s)
-      .filter((e) => !pendingDeletes.hidden(e.id))
-      .sort((a, b) => a.startsAt - b.startsAt),
-  );
+  const tentative = $derived(proposals(s).filter((e) => !pendingDeletes.hidden(e.id)));
   const askMore = $derived(asks.filter((e) => e.id !== askNow?.id).length);
   const stillIn = $derived(toReconfirm(s));
 
@@ -152,7 +144,7 @@
   async function nudge() {
     if (!hero || !avail) return;
     const names = avail.none.map((m) => m.displayName.split(' ')[0]).join(', ');
-    const text = `${hero.type === 'match' && hero.opponent ? `${s?.team.shortName} v ${hero.opponent}` : hero.title}, ${relDay(hero.startsAt, tz)} ${time(hero.startsAt, tz)}. Still need a reply from ${names}. Tap in on Phaseplay: https://phaseplay.app/events/${hero.id}`;
+    const text = `${hero.type === 'match' && hero.opponent ? `${s?.team.shortName} v ${hero.opponent}` : hero.title}, ${relWhen(hero, tz)}. Still need a reply from ${names}. Tap in on Phaseplay: https://phaseplay.app/events/${hero.id}`;
     toasts.show(
       (await copyText(text)) ? 'Nudge copied. Paste it in the group chat' : "Couldn't copy",
     );

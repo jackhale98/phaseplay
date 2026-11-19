@@ -44,6 +44,7 @@ export async function createEvent(
     recurrenceId: null,
     cancelledAt: null,
     settings: input.settings ?? null,
+    timeTbd: input.timeTbd === true,
     status: options.length ? 'proposed' : 'confirmed',
     answerBy: options.length
       ? (input.answerBy ?? defaultAnswerBy(Date.now(), options[0]!.startsAt))
@@ -58,6 +59,7 @@ export async function createEvent(
     value.startsAt = options[0].startsAt;
     value.meetAt = options[0].meetAt ?? null;
     value.endsAt = options[0].endsAt ?? null;
+    value.timeTbd = options[0].timeTbd === true;
   }
   await app.mutate({
     method: 'POST',
@@ -89,6 +91,7 @@ function optionOps(eventId: string, next: ProposalOption[], prev: EventOption[])
         startsAt: o.startsAt,
         meetAt: o.meetAt ?? null,
         endsAt: o.endsAt ?? null,
+        timeTbd: o.timeTbd === true,
         updatedAt: t,
         deletedAt: null,
       } satisfies EventOption,
@@ -189,6 +192,7 @@ export async function updateEvent(
       startsAt: first.startsAt,
       meetAt: first.meetAt ?? null,
       endsAt: first.endsAt ?? null,
+      timeTbd: first.timeTbd === true,
     });
     extra.push(...optionOps(id, patch.options, optionsOf(app.snap, id)));
   }

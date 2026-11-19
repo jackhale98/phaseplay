@@ -1,11 +1,18 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import type { Member, SyncResponse, TeamEvent } from '@phaseplay/shared';
+import {
+  tbdStartsAt,
+  zonedToUtc,
+  type Member,
+  type SyncResponse,
+  type TeamEvent,
+} from '@phaseplay/shared';
 import { mergeSync } from './app.svelte';
 import {
   events,
   kitAtRisk,
   needMyAnswer,
+  past,
   proposalView,
   proposals,
   toReconfirm,
@@ -32,6 +39,7 @@ const ev = (id: string, extra: Partial<TeamEvent> = {}): TeamEvent => ({
   recurrenceId: null,
   cancelledAt: null,
   settings: null,
+  timeTbd: false,
   status: 'confirmed',
   answerBy: null,
   target: 3,
@@ -164,5 +172,24 @@ describe('proposals on the device', () => {
     expect(player.options[0]!.cover).toBeNull();
     // "Names for games": players see names for proposed games too.
     expect(proposalView(snap('games'), s.rows.events.p1!, false).names).toBe(true);
+  });
+});
+
+describe('time TBD on the device', () => {
+  const tz = 'Europe/London';
+  const date = '2026-11-21';
+  it('stays upcoming all day, then past; sorts after the timed events of its day', () => {
+    const s = snap();
+    const add = (e: TeamEvent) => (s.rows.events[e.id] = e);
+    add(ev('tbd', { type: 'social', startsAt: tbdStartsAt(date, tz), timeTbd: true }));
+    add(ev('eve', { type: 'social', startsAt: zonedToUtc(date, '19:30', tz) }));
+    add(ev('am', { startsAt: zonedToUtc(date, '10:00', tz) }));
+    const at = (t: string, d = date) => zonedToUtc(d, t, tz);
+    const ids = (list: TeamEvent[]) => list.map((e) => e.id).filter((x) => x !== 'c1');
+    expect(ids(upcoming(s, at('09:00')))).toEqual(['am', 'eve', 'tbd']);
+    // Long after noon, the TBD social is still on today.
+    expect(ids(upcoming(s, at('23:30')))).toEqual(['tbd']);
+    expect(ids(past(s, at('23:30')))).toEqual(['eve', 'am']);
+    expect(ids(past(s, at('00:00', '2026-11-22')))).toEqual(['tbd', 'eve', 'am']);
   });
 });

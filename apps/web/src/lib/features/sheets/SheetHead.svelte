@@ -1,8 +1,8 @@
 <!-- Page header for the sheet route: back to the match, title, kickoff and venue. -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import type { Format, TeamEvent } from '@phaseplay/shared';
-  import { longDay, time, tzName } from '#lib/format';
+  import { eventTimeLabel, isTimeTbd, type Format, type TeamEvent } from '@phaseplay/shared';
+  import { longDay, tzName } from '#lib/format';
   import { IconBack, IconClock, IconMapPin } from '#lib/icons';
   import { eventLabel } from './model';
 
@@ -24,8 +24,8 @@
       <h1>{e.opponent ? `${teamShort} v ${e.opponent}` : eventLabel(e)}</h1>
       <p class="meta muted">
         <span
-          ><IconClock />{longDay(e.startsAt, tz)}, {time(e.startsAt, tz)}
-          {tzName(tz, e.startsAt)}</span
+          ><IconClock />{longDay(e.startsAt, tz)}, {eventTimeLabel(e, tz)}
+          {isTimeTbd(e) ? '' : tzName(tz, e.startsAt)}</span
         >
         {#if e.locationName}<span><IconMapPin />{e.locationName}</span>{/if}
       </p>

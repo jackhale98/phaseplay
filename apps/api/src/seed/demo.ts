@@ -5,6 +5,7 @@
  */
 import {
   zonedToUtc,
+  tbdStartsAt,
   defaultAnswerBy,
   addDays,
   INVENTORY_HANDOFF_TTL_MS,
@@ -336,9 +337,10 @@ export function buildDemo(now: number = Date.now()): DemoTables {
       updated_at: now,
     });
   }
+  // A null time is "Time TBD": the date is set, the time isn't yet (stored at local noon).
   const extras: [
     number,
-    string,
+    string | null,
     'social' | 'fundraiser' | 'meeting',
     string,
     number,
@@ -347,7 +349,7 @@ export function buildDemo(now: number = Date.now()): DemoTables {
   ][] = [
     [
       12,
-      '19:30',
+      null,
       'social',
       'Quiz night',
       3,
@@ -383,7 +385,8 @@ export function buildDemo(now: number = Date.now()): DemoTables {
     ],
   ];
   for (const [day, at, type, title, hours, place, notes] of extras) {
-    const startsAt = zonedToUtc(addDays(monday, day), at, TZ);
+    const date = addDays(monday, day);
+    const startsAt = at ? zonedToUtc(date, at, TZ) : tbdStartsAt(date, TZ);
     insert('events', {
       id: id('e'),
       team_id: TEAM,
@@ -391,7 +394,8 @@ export function buildDemo(now: number = Date.now()): DemoTables {
       type,
       title,
       starts_at: startsAt,
-      ends_at: startsAt + hours * 3600e3,
+      ends_at: at ? startsAt + hours * 3600e3 : null,
+      time_tbd: at ? 0 : 1,
       location_name: place,
       notes,
       version: 1,
@@ -1355,7 +1359,9 @@ export function buildDemo(now: number = Date.now()): DemoTables {
   for (const e of tables.events) {
     e.status ??= 'confirmed';
     e.check_positions ??= 1;
+    e.time_tbd ??= 0;
   }
+  for (const o of tables.event_options) o.time_tbd ??= 0;
 
   if (owner.userId !== DEMO_USER_ID) throw new Error('demo owner id drifted');
   return tables;

@@ -7,10 +7,15 @@
 <script lang="ts">
   import { cubicInOut } from 'svelte/easing';
   import { fade, slide } from 'svelte/transition';
-  import type { ProposalAnswer, TeamEvent } from '@phaseplay/shared';
+  import {
+    eventTimeLabel,
+    type EventOption,
+    type ProposalAnswer,
+    type TeamEvent,
+  } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { proposalView } from '#lib/data/selectors';
-  import { day as dayMonth, longDay, time } from '#lib/format';
+  import { day as dayMonth, longDay } from '#lib/format';
   import { IconCheck, IconX, IconMapPin } from '#lib/icons';
   import { displayTitle } from './schedule';
   import { answerProposal } from './proposals';
@@ -37,7 +42,8 @@
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const d = reduce ? 0 : 320;
 
-  const when = (ms: number) => `${dayMonth(ms, tz)}, ${time(ms, tz)}`;
+  /** "Sat 22 Nov, 2:30 PM" or "Sat 22 Nov, Time TBD". */
+  const when = (o: EventOption) => `${dayMonth(o.startsAt, tz)}, ${eventTimeLabel(o, tz)}`;
   const summary = $derived.by(() => {
     const works = v.options
       .filter((o) => o.mine === 'in')
@@ -107,7 +113,7 @@
       {#if !poll && v.options[0]}
         {@const o = v.options[0]}
         <p class="when tnum">
-          <strong>{when(o.option.startsAt)}</strong>
+          <strong>{when(o.option)}</strong>
           <span class="n">{o.counts.in} in</span>
         </p>
         <div
@@ -134,9 +140,9 @@
             <li class:new={!o.mine && v.newDate}>
               <span class="d tnum"
                 ><strong>{dayMonth(o.option.startsAt, tz)}</strong>
-                {time(o.option.startsAt, tz)}<span class="n">{o.counts.in} in</span></span
+                {eventTimeLabel(o.option, tz)}<span class="n">{o.counts.in} in</span></span
               >
-              <div class="two" role="group" aria-label={when(o.option.startsAt)}>
+              <div class="two" role="group" aria-label={when(o.option)}>
                 <button
                   type="button"
                   class="in"

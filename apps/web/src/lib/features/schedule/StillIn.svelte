@@ -3,10 +3,10 @@
   so I'm down as a yes until I reconfirm (or say I can't now).
 -->
 <script lang="ts">
-  import type { TeamEvent } from '@phaseplay/shared';
+  import { eventTimeLabel, type TeamEvent } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
   import { setRsvp } from '#lib/data/actions';
-  import { day as dayMonth, time } from '#lib/format';
+  import { day as dayMonth } from '#lib/format';
   import { IconCheck, IconX } from '#lib/icons';
   import { displayTitle } from './schedule';
 
@@ -20,7 +20,7 @@
   <p class="eyebrow">It's on</p>
   <h3 id="still-{e.id}"><a href="/events/{e.id}">{title}</a></h3>
   <p class="when tnum">
-    {dayMonth(e.startsAt, tz)}, {time(e.startsAt, tz)}{e.locationName
+    {dayMonth(e.startsAt, tz)}, {eventTimeLabel(e, tz)}{e.locationName
       ? ` · ${e.locationName}`
       : ''}. You said you were in. <strong>Still in?</strong>
   </p>

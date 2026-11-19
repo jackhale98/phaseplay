@@ -2,11 +2,13 @@
   import {
     EVENT_TYPE_LABELS,
     eventCategory,
+    eventTimeLabel,
+    isTimeTbd,
     type TeamEvent,
     type RsvpCounts,
     type RsvpStatus,
   } from '@phaseplay/shared';
-  import { relDay, time, tzName } from '#lib/format';
+  import { relDay, relWhen, time, tzName } from '#lib/format';
   import RsvpButtons from './RsvpButtons.svelte';
   import { IconClock, IconMapPin, IconChevronRight } from '#lib/icons';
 
@@ -30,20 +32,20 @@
   }: Props = $props();
   const title = $derived(e.type === 'match' && e.opponent ? `v ${e.opponent}` : e.title);
   const total = $derived(counts ? counts.yes + counts.maybe + counts.no : 0);
+  /** The start time, or "Time TBD" while it isn't set. */
+  const tbd = $derived(isTimeTbd(e));
+  const at = $derived(eventTimeLabel(e, tz));
 </script>
 
 <article class="ev {variant} {e.type} {eventCategory(e.type)}" class:cancelled={!!e.cancelledAt}>
   <a
     class="hit"
     href="/events/{e.id}"
-    aria-label="{EVENT_TYPE_LABELS[e.type]}: {title}, {relDay(e.startsAt, tz)} {time(
-      e.startsAt,
-      tz,
-    )}"
+    aria-label="{EVENT_TYPE_LABELS[e.type]}: {title}, {relWhen(e, tz)}"
   ></a>
   <div class="when">
     <span class="day">{relDay(e.startsAt, tz)}</span>
-    <span class="t tnum">{time(e.startsAt, tz)}</span>
+    <span class="t tnum" class:tbd>{at}</span>
   </div>
   <div class="main">
     <div class="kind">
@@ -54,7 +56,7 @@
     <div class="meta">
       {#if e.meetAt}<span><IconClock />Meet {time(e.meetAt, tz)}</span>{/if}
       {#if e.locationName}<span class="truncate"><IconMapPin />{e.locationName}</span>{/if}
-      {#if variant === 'hero'}<span class="tz">{tzName(tz, e.startsAt)}</span>{/if}
+      {#if variant === 'hero' && !tbd}<span class="tz">{tzName(tz, e.startsAt)}</span>{/if}
     </div>
     {#if counts && total > 0}
       <div class="counts" aria-label="{counts.yes} in, {counts.maybe} maybe, {counts.no} out">
@@ -128,6 +130,13 @@
     font-weight: 800;
     font-size: var(--t-16);
     white-space: nowrap;
+  }
+  /* "Time TBD" reads as a status, not a time, and fits the narrow column. */
+  .t.tbd {
+    font-size: var(--t-14);
+    font-weight: 700;
+    color: var(--text-2);
+    white-space: normal;
   }
   .main {
     min-width: 0;

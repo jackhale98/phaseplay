@@ -4,6 +4,9 @@ import {
   atRiskKit,
   bestOption,
   byStart,
+  eventEndsAt,
+  sortByEventStart,
+  stillToCome,
   frontRowCover,
   isConfirmed,
   isGame,
@@ -54,12 +57,18 @@ export function byName(a: Member, b: Member) {
 export const memberName = (s: TeamSnapshot | null, id: string | null | undefined) =>
   (id && s?.rows.members[id]?.displayName) || 'Former member';
 
-/** Every event on the schedule, proposals included (dropped ones are gone for good). */
+const tzOf = (s: TeamSnapshot | null) => s?.team.timezone ?? 'UTC';
+
+/**
+ * Every event on the schedule, proposals included (dropped ones are gone for good). Earliest first;
+ * a "Time TBD" event comes after the timed events of its day.
+ */
 export function allEvents(s: TeamSnapshot | null): TeamEvent[] {
   return s
-    ? Object.values(s.rows.events)
-        .filter((e) => !e.deletedAt && e.status !== 'dropped')
-        .sort((a, b) => a.startsAt - b.startsAt)
+    ? sortByEventStart(
+        Object.values(s.rows.events).filter((e) => !e.deletedAt && e.status !== 'dropped'),
+        tzOf(s),
+      )
     : [];
 }
 
@@ -72,14 +81,16 @@ export function events(s: TeamSnapshot | null): TeamEvent[] {
   return allEvents(s).filter(isConfirmed);
 }
 
-/** Events that haven't finished yet (ends_at, or start + 3 h). */
+/** Events that haven't finished yet (`eventEndsAt`: ends_at, start + 3 h, or a TBD day's end). */
 export function upcoming(s: TeamSnapshot | null, now = Date.now()): TeamEvent[] {
-  return events(s).filter((e) => (e.endsAt ?? e.startsAt + 3 * 3600e3) > now);
+  const tz = tzOf(s);
+  return events(s).filter((e) => eventEndsAt(e, tz) > now);
 }
 
 export function past(s: TeamSnapshot | null, now = Date.now()): TeamEvent[] {
+  const tz = tzOf(s);
   return events(s)
-    .filter((e) => (e.endsAt ?? e.startsAt + 3 * 3600e3) <= now)
+    .filter((e) => eventEndsAt(e, tz) <= now)
     .reverse();
 }
 
@@ -184,7 +195,7 @@ export const heldBy = (s: TeamSnapshot | null, memberId: string | undefined) =>
 
 /** Kit held by people who are out of, or haven't replied to, an event in the next 7 days. */
 export const kitAtRisk = (s: TeamSnapshot | null, now = Date.now()): KitRisk[] =>
-  s ? atRiskKit(kitItems(s), events(s), Object.values(s.rows.rsvps), now) : [];
+  s ? atRiskKit(kitItems(s), events(s), Object.values(s.rows.rsvps), now, undefined, tzOf(s)) : [];
 
 /** Kit tagged for game days that's still in service. */
 export const matchDayKit = (s: TeamSnapshot | null) =>
@@ -203,8 +214,7 @@ export const optionsOf = (s: TeamSnapshot | null, eventId: string): EventOption[
 /** Proposals ("Not confirmed yet") with at least one date still to come, earliest first. */
 export function proposals(s: TeamSnapshot | null, now = Date.now()): TeamEvent[] {
   return allEvents(s).filter(
-    (e) =>
-      isProposal(e) && optionsOf(s, e.id).some((o) => (o.endsAt ?? o.startsAt + 3 * 3600e3) > now),
+    (e) => isProposal(e) && optionsOf(s, e.id).some((o) => eventEndsAt(o, tzOf(s)) > now),
   );
 }
 
@@ -296,7 +306,7 @@ export function proposalView(s: TeamSnapshot | null, e: TeamEvent, staff: boolea
 /** Proposals still waiting for my answer (a date I haven't answered). */
 export const needMyAnswer = (s: TeamSnapshot | null, now = Date.now()) =>
   proposals(s, now).filter((e) =>
-    optionsOf(s, e.id).some((o) => o.startsAt > now && !myAnswer(s, o.id)),
+    optionsOf(s, e.id).some((o) => stillToCome(o, tzOf(s), now) && !myAnswer(s, o.id)),
   );
 
 /** Confirmed events I was put down for from a proposal, waiting for my "Still in?". */

@@ -36,6 +36,7 @@ const event = (id: string, type: TeamEvent['type'], startsAt: number): TeamEvent
   recurrenceId: null,
   cancelledAt: null,
   settings: null,
+  timeTbd: false,
   status: 'confirmed',
   answerBy: null,
   target: null,

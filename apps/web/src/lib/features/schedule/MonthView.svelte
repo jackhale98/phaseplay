@@ -3,14 +3,27 @@
   Proposals ("Not confirmed yet") show as dashed "?" pills: one on each candidate date of a poll.
 -->
 <script lang="ts">
-  import { EVENT_TYPE_LABELS, eventCategory, dateInTz, type TeamEvent } from '@phaseplay/shared';
-  import { monthYear, time, longDay } from '#lib/format';
+  import {
+    EVENT_TYPE_LABELS,
+    eventCategory,
+    eventTimeLabel,
+    isTimeTbd,
+    dateInTz,
+    type TeamEvent,
+  } from '@phaseplay/shared';
+  import { monthYear, longDay } from '#lib/format';
   import Button from '#lib/components/Button.svelte';
   import { IconChevronLeft, IconChevronRight } from '#lib/icons';
   import { TYPE_ICON } from './category';
   import { byDay, displayTitle, monthGrid, monthOf, shiftMonth } from './schedule';
 
-  type Tentative = { key: string; event: TeamEvent; startsAt: number; poll: boolean };
+  type Tentative = {
+    key: string;
+    event: TeamEvent;
+    startsAt: number;
+    timeTbd?: boolean;
+    poll: boolean;
+  };
   type Props = {
     events: TeamEvent[];
     tentative?: Tentative[];
@@ -91,7 +104,9 @@
                       >
                         <span class="sh" aria-hidden="true"><Icon /></span>
                         <span class="sr-only">{EVENT_TYPE_LABELS[e.type]}:</span>
-                        <span class="tm tnum">{time(e.startsAt, tz)}</span>
+                        <span class="tm tnum" class:tbd={isTimeTbd(e)}
+                          >{eventTimeLabel(e, tz, { short: true })}</span
+                        >
                         <span class="tt">{displayTitle(e)}</span>
                         {#if e.cancelledAt}<span class="sr-only">(cancelled)</span>{/if}
                       </a>
@@ -114,7 +129,9 @@
                         <span class="sr-only"
                           >{t.poll ? 'Date poll, possible date' : 'Not confirmed yet'}:</span
                         >
-                        <span class="tm tnum">{time(t.startsAt, tz)}</span>
+                        <span class="tm tnum" class:tbd={isTimeTbd(t)}
+                          >{eventTimeLabel(t, tz, { short: true })}</span
+                        >
                         <span class="tt">{displayTitle(t.event)}</span>
                       </a>
                     </li>
@@ -231,6 +248,10 @@
     font-weight: 700;
     color: var(--text-2);
     flex: none;
+  }
+  .tm.tbd {
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
   .tt {
     overflow: hidden;

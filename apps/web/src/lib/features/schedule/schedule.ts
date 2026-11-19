@@ -7,10 +7,13 @@ import {
   dateInTz,
   weekdayOf,
   zonedToUtc,
+  eventTimeLabel,
+  isTimeTbd,
   type EventCategory,
+  type EventTime,
   type TeamEvent,
 } from '@phaseplay/shared';
-import { weekLabel, ymd, time, day } from '#lib/format';
+import { weekLabel, ymd, day } from '#lib/format';
 
 export type Show = 'all' | EventCategory;
 export const SHOWS: Show[] = ['all', ...EVENT_CATEGORIES];
@@ -132,6 +135,8 @@ export type FormValues = {
   opponent: string;
   format: '15s' | '7s';
   date: string;
+  /** "Time TBD": the date is set, the time isn't (start, meet and finish are then empty). */
+  tbd: boolean;
   start: string;
   meet: string;
   finish: string;
@@ -149,9 +154,36 @@ export type FormValues = {
 
 /** "Moved from Sat 6 Sep, 3:00 pm." first line in notes drives the rescheduled banner. */
 export const MOVED_RE = /^Moved from ([^\n]+?)\.(?:\n|$)/;
-export function movedNote(prevStart: number, tz: string, notes: string | null): string {
+export function movedNote(prev: EventTime, tz: string, notes: string | null): string {
   const rest = (notes ?? '').replace(MOVED_RE, '').trimStart();
-  return `Moved from ${day(prevStart, tz)}, ${time(prevStart, tz)}.${rest ? `\n${rest}` : ''}`;
+  return `Moved from ${day(prev.startsAt, tz)}, ${eventTimeLabel(prev, tz)}.${rest ? `\n${rest}` : ''}`;
+}
+
+/**
+ * Moved to another day or time? A "Time TBD" event (before or after) has only a date, so setting
+ * its time on the same day isn't a move.
+ */
+export function isMove(prev: EventTime, next: EventTime, tz: string): boolean {
+  if (isTimeTbd(prev) || isTimeTbd(next))
+    return dateInTz(prev.startsAt, tz) !== dateInTz(next.startsAt, tz);
+  return prev.startsAt !== next.startsAt;
+}
+
+/**
+ * The team's usual start time for this kind of event ("HH:MM", the most common among its timed
+ * games, practices or events; the latest wins a tie), or null when there's none yet.
+ */
+export function usualStart(list: TeamEvent[], type: TeamEvent['type'], tz: string): string | null {
+  const cat = eventCategory(type);
+  const n = new Map<string, number>();
+  for (const e of list)
+    if (eventCategory(e.type) === cat && !isTimeTbd(e) && !e.cancelledAt && !e.deletedAt) {
+      const k = hhmm(e.startsAt, tz);
+      n.set(k, (n.get(k) ?? 0) + 1);
+    }
+  let best: string | null = null;
+  for (const [k, c] of n) if (best === null || c >= n.get(best)!) best = k;
+  return best;
 }
 export const movedFrom = (notes: string | null) => notes?.match(MOVED_RE)?.[1] ?? null;
 export const notesBody = (notes: string | null) => (notes ?? '').replace(MOVED_RE, '').trim();
