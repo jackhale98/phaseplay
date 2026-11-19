@@ -11,7 +11,7 @@ import {
   type SyncResponse,
 } from '@phaseplay/shared';
 import { call, fixtureTeam, type Actor } from './helpers';
-import { queueReminders } from '../src/lib/push/jobs';
+import { queueKitAtRisk, queueReminders } from '../src/lib/push/jobs';
 import { dateText } from '../src/lib/notify';
 
 const TZ = 'Europe/London';
@@ -309,5 +309,126 @@ describe('time TBD', () => {
       body: { optionId: opt.id, startsAt: at, meetAt: at - 3600e3 },
     });
     expect(c2.body.event).toMatchObject({ timeTbd: false, startsAt: at, meetAt: at - 3600e3 });
+  });
+});
+
+describe('time TBD: review follow-ups', () => {
+  const reminded = async (id: string) =>
+    (
+      await env.DB.prepare('SELECT reminded_at FROM events WHERE id = ?')
+        .bind(id)
+        .first<{ reminded_at: number | null }>()
+    )?.reminded_at ?? null;
+
+  it('setting the time the same day keeps the sent reminder; a new date clears it', async () => {
+    const a = await fixtureTeam('Tbd Keep RFC');
+    const { id, date } = await tbdSocial(a);
+    await env.DB.prepare('UPDATE events SET reminded_at = 1 WHERE id = ?').bind(id).run();
+    const patch = (body: unknown) =>
+      call('PATCH', `${events(a)}/${id}`, { cookie: a.coach.cookie, body });
+    expect((await patch({ startsAt: zonedToUtc(date, '19:00', TZ), timeTbd: false })).status).toBe(
+      200,
+    );
+    expect(await reminded(id)).toBe(1);
+    expect((await patch({ timeTbd: true })).status).toBe(200);
+    expect(await reminded(id)).toBe(1);
+    expect((await patch({ startsAt: tbdStartsAt(addDays(date, 1), TZ) })).status).toBe(200);
+    expect(await reminded(id)).toBeNull();
+  });
+
+  it('an older build sets the time with only a start (and a meet time); "Time set" goes out', async () => {
+    const a = await fixtureTeam('Tbd Old RFC');
+    await subscribe(a.player);
+    const { id, date } = await tbdSocial(a);
+    await env.DB.prepare('DELETE FROM push_queue').run();
+    const at = zonedToUtc(date, '18:00', TZ);
+    const r = await call('PATCH', `${events(a)}/${id}`, {
+      cookie: a.coach.cookie,
+      body: { startsAt: at, meetAt: at - 1800e3 },
+    });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    budget(r);
+    expect(r.body.event).toMatchObject({ timeTbd: false, startsAt: at, meetAt: at - 1800e3 });
+    expect((await pushesTo(a.player)).map((x) => x.body)).toEqual([
+      `Time set: 18:00 · ${dateText(at, TZ)} · Clubhouse.`,
+    ]);
+    // A start at local noon from an old build (its form shows 12:00) keeps it TBD, e.g. a new date.
+    const { id: id2, date: d2 } = await tbdSocial(a, dateAhead(8));
+    const moved = await call('PATCH', `${events(a)}/${id2}`, {
+      cookie: a.coach.cookie,
+      body: { startsAt: tbdStartsAt(addDays(d2, 1), TZ) },
+    });
+    expect(moved.body.event.timeTbd).toBe(true);
+  });
+
+  it('TBD is always stored at local noon', async () => {
+    const a = await fixtureTeam('Tbd Noon RFC');
+    const date = dateAhead(6);
+    const id = uuidv7();
+    // A timed game made TBD with a patch, and a create with an off-noon start.
+    await call('POST', events(a), {
+      cookie: a.coach.cookie,
+      body: { id, type: 'match', title: 'v X', startsAt: zonedToUtc(date, '15:00', TZ) },
+    });
+    const r = await call('PATCH', `${events(a)}/${id}`, {
+      cookie: a.coach.cookie,
+      body: { timeTbd: true },
+    });
+    expect(r.body.event).toMatchObject({ timeTbd: true, startsAt: tbdStartsAt(date, TZ) });
+  });
+
+  it('kit at risk: a TBD event is still to come all afternoon, not after its day', async () => {
+    const a = await fixtureTeam('Tbd Kit RFC');
+    await subscribe(a.player);
+    const { id, date } = await tbdSocial(a, dateAhead(3));
+    await env.DB.prepare(
+      `INSERT INTO inventory_items (id, team_id, kind, name, status, holder_member_id, created_at, updated_at)
+       VALUES (?, ?, 'balls', 'Match balls', 'with_someone', ?, 0, 0)`,
+    )
+      .bind(uuidv7(), a.teamId, a.player.memberId)
+      .run();
+    await call('PUT', `${events(a)}/${id}/rsvps/${a.player.memberId}`, {
+      cookie: a.player.cookie,
+      body: { status: 'no' },
+    });
+    const tick = 5 * 60e3;
+    const at = async (t: number) => {
+      await env.DB.prepare('DELETE FROM push_queue').run();
+      await env.DB.prepare('UPDATE rsvps SET updated_at = ? WHERE event_id = ?')
+        .bind(t - 1000, id)
+        .run();
+      return queueKitAtRisk(env.DB, t, tick);
+    };
+    expect(await at(zonedToUtc(date, '16:00', TZ))).toBe(1);
+    expect(await at(zonedToUtc(addDays(date, 1), '00:30', TZ))).toBe(0);
+  });
+
+  it('a team timezone change keeps TBD events (and proposal dates) on their date', async () => {
+    const a = await fixtureTeam('Tbd Zone RFC');
+    const { id, date } = await tbdSocial(a);
+    const pid = uuidv7();
+    const oid = uuidv7();
+    await call('POST', events(a), {
+      cookie: a.coach.cookie,
+      body: {
+        id: pid,
+        type: 'social',
+        title: 'BBQ',
+        startsAt: tbdStartsAt(date, TZ),
+        status: 'proposed',
+        options: [{ id: oid, startsAt: tbdStartsAt(date, TZ), timeTbd: true }],
+      },
+    });
+    const NZ = 'Pacific/Auckland';
+    const r = await call('PATCH', `/api/v1/teams/${a.teamId}`, {
+      cookie: a.owner.cookie,
+      body: { timezone: NZ },
+    });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    budget(r);
+    const s = await sync(a.coach, a);
+    expect(s.events.find((e) => e.id === id)!.startsAt).toBe(tbdStartsAt(date, NZ));
+    expect(s.options!.find((o) => o.id === oid)!.startsAt).toBe(tbdStartsAt(date, NZ));
+    expect(dateInTz(tbdStartsAt(date, NZ), NZ)).toBe(date);
   });
 });

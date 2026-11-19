@@ -336,6 +336,11 @@
    */
   let stash: { start: string; meet: string; finish: string } | null = null;
   const usual = () => usualStart(schedule(app.snap), v.type, tz) ?? '';
+  /** A proposal never repeats weekly (and so can always be Time TBD). */
+  function setProposed(on: boolean) {
+    proposed = on;
+    if (on) v.repeat = false;
+  }
   function setTbd(on: boolean) {
     if (on === v.tbd) return;
     v.tbd = on;
@@ -831,7 +836,7 @@
           <Segmented
             label="Is it on?"
             bind:value={
-              () => (proposed ? 'proposed' : 'confirmed'), (x) => (proposed = x === 'proposed')
+              () => (proposed ? 'proposed' : 'confirmed'), (x) => setProposed(x === 'proposed')
             }
             options={[
               { value: 'confirmed', label: 'Confirmed' },

@@ -5,7 +5,7 @@
  */
 import { DEMO_TEAM_ID, DEMO_USER_ID } from '../../seed/demo';
 import { payloadJson, wantsTopicSql, whenText } from '../notify';
-import { PROPOSAL_REMIND_BEFORE_MS } from '@phaseplay/shared';
+import { PROPOSAL_REMIND_BEFORE_MS, stillToCome } from '@phaseplay/shared';
 import { datesText, eventLabel } from './messages';
 
 const H = 3600e3;
@@ -88,6 +88,9 @@ const listOf = (names: string[]) =>
     ? (names[0] ?? 'kit')
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
+/** A "Time TBD" event is stored at local noon but runs to the end of its day (≤ 13 h later). */
+const TBD_LATE = 13 * H;
+
 /**
  * Kit at risk: someone who replied "no" to an event in the next 24 h still holds team kit.
  * Each (event, member) is caught once, by the tick in which either the event crossed the 24 h mark
@@ -98,8 +101,8 @@ export async function queueKitAtRisk(db: D1Database, t: number, tick: number): P
   const day = 24 * H;
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.team_id, e.title, e.type, e.opponent, t.short_name, m.user_id,
-         json_group_array(i.name) AS items
+      `SELECT e.id, e.team_id, e.title, e.type, e.opponent, e.starts_at, e.time_tbd, t.short_name,
+         t.timezone, m.user_id, json_group_array(i.name) AS items
        FROM teams t CROSS JOIN events e
        JOIN rsvps r ON r.event_id = e.id AND r.status = 'no'
        JOIN inventory_items i ON i.holder_member_id = r.member_id AND i.team_id = e.team_id
@@ -107,7 +110,8 @@ export async function queueKitAtRisk(db: D1Database, t: number, tick: number): P
        ${recipientsSql('?5')}
          AND m.id = r.member_id
          AND e.team_id = t.id AND t.deleted_at IS NULL AND t.id <> ?1
-         AND e.starts_at >= ?2 AND e.starts_at < ?3 AND e.deleted_at IS NULL AND e.cancelled_at IS NULL
+         AND e.starts_at >= ?2 - ${TBD_LATE} AND e.starts_at < ?3 AND (e.starts_at >= ?2 OR e.time_tbd = 1)
+         AND e.deleted_at IS NULL AND e.cancelled_at IS NULL
          AND e.status = 'confirmed'
          AND ((e.starts_at >= ?3 - ?4 AND r.updated_at < ?2 - ?4) OR (r.updated_at >= ?2 - ?4 AND r.updated_at < ?2))
        GROUP BY e.id, m.id
@@ -120,12 +124,19 @@ export async function queueKitAtRisk(db: D1Database, t: number, tick: number): P
       title: string;
       type: string;
       opponent: string | null;
+      starts_at: number;
+      time_tbd: number;
       short_name: string;
+      timezone: string;
       user_id: string;
       items: string;
     }>();
-  if (!results.length) return 0;
-  const rows = results.map((r) => ({
+  // A "Time TBD" event (stored at local noon) is still to come until its day is over.
+  const due = results.filter((r) =>
+    stillToCome({ startsAt: r.starts_at, timeTbd: !!r.time_tbd }, r.timezone, t),
+  );
+  if (!due.length) return 0;
+  const rows = due.map((r) => ({
     u: r.user_id,
     p: payloadJson('kit', r.team_id, {
       title: 'Kit check',

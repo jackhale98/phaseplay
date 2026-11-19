@@ -10,6 +10,8 @@ import {
   OWNER_CLAIM_AFTER_MS,
   MAX_TEAM_ROLES,
   type AuditEntry,
+  dateInTz,
+  tbdStartsAt,
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
@@ -142,6 +144,48 @@ export function teamRoutes(app: Hono<AppEnv>) {
         .prepare(`UPDATE teams SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`)
         .bind(...vals, t, teamId),
     ];
+    // "Time TBD" events and proposal dates sit at local noon: on a timezone change, move them to
+    // noon of the same date in the new zone (noon alone only survives moves of up to ±12 h).
+    if (input.timezone) {
+      const db = c.var.db;
+      const cur = await db
+        .prepare(
+          `SELECT timezone,
+             (SELECT json_group_array(json_array(id, starts_at)) FROM events
+               WHERE team_id = ?1 AND time_tbd = 1 AND deleted_at IS NULL) AS evs,
+             (SELECT json_group_array(json_array(id, starts_at)) FROM event_options
+               WHERE team_id = ?1 AND time_tbd = 1 AND deleted_at IS NULL) AS opts
+           FROM teams WHERE id = ?1`,
+        )
+        .bind(teamId)
+        .first<{ timezone: string; evs: string; opts: string }>();
+      const from = cur?.timezone;
+      const to = input.timezone;
+      if (cur && from && from !== to) {
+        const moved = (json: string) =>
+          (JSON.parse(json) as [string, number][])
+            .map(([id, s]) => ({ id, s: tbdStartsAt(dateInTz(s, from), to), was: s }))
+            .filter((x) => x.s !== x.was);
+        const evs = JSON.stringify(moved(cur.evs));
+        const opts = JSON.stringify(moved(cur.opts));
+        stmts.push(
+          db
+            .prepare(
+              `UPDATE events SET starts_at = (SELECT j.value->>'s' FROM json_each(?1) j WHERE j.value->>'id' = events.id),
+                 version = version + 1, updated_at = ?2
+               WHERE team_id = ?3 AND time_tbd = 1 AND id IN (SELECT value->>'id' FROM json_each(?1))`,
+            )
+            .bind(evs, t, teamId),
+          db
+            .prepare(
+              `UPDATE event_options SET starts_at = (SELECT j.value->>'s' FROM json_each(?1) j WHERE j.value->>'id' = event_options.id),
+                 updated_at = ?2
+               WHERE team_id = ?3 AND time_tbd = 1 AND id IN (SELECT value->>'id' FROM json_each(?1))`,
+            )
+            .bind(opts, t, teamId),
+        );
+      }
+    }
     // Who can see whose replies changed: bump memberships so every device does a full sync
     // (newly visible replies arrive; hidden ones are dropped).
     if (input.rsvpVisibility)

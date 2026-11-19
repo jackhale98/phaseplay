@@ -193,7 +193,11 @@ export function proposalRoutes(app: Hono<AppEnv>) {
         latest: eventFromRow(cur),
       });
     const won = `EXISTS (SELECT 1 FROM events e WHERE e.id = ?8 AND e.status = 'dropped' AND e.updated_at = ?9)`;
-    const tell = Number(cur.starts_at) > t;
+    const tell = stillToCome(
+      { startsAt: Number(cur.starts_at), timeTbd: !!cur.time_tbd },
+      String(cur.timezone),
+      t,
+    );
     const stmts = [
       db
         .prepare(

@@ -27,9 +27,18 @@ export const isTimeTbd = (e: { timeTbd?: boolean | null }) => e.timeTbd === true
 /** `starts_at` of a date whose time is still to be decided: local noon on that date in `tz`. */
 export const tbdStartsAt = (date: string, tz: string) => zonedToUtc(date, '12:00', tz);
 
-/** The first instant of the next local day in `tz` (the end of the day `at` falls on). */
-export const endOfLocalDay = (at: number, tz: string) =>
-  zonedToUtc(addDays(dateInTz(at, tz), 1), '00:00', tz);
+/**
+ * The first instant of the next local day in `tz` (the end of the day `at` falls on). Where DST
+ * skips midnight (e.g. Asia/Beirut), 00:00 doesn't exist: step on to the next day's first minute.
+ */
+export function endOfLocalDay(at: number, tz: string): number {
+  const next = addDays(dateInTz(at, tz), 1);
+  let t = zonedToUtc(next, '00:00', tz);
+  for (let i = 0; i < 16 && dateInTz(t, tz) < next; i++) t += 15 * 60e3;
+  // Land on the first minute of the day (steps of 15 min can overshoot a 30-min shift).
+  while (dateInTz(t - 60e3, tz) === next) t -= 60e3;
+  return t;
+}
 
 /** How long an event with no finish time is taken to run (it stays "upcoming" until then). */
 export const DEFAULT_EVENT_MS = 3 * 3600e3;

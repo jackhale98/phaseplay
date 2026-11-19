@@ -19,6 +19,7 @@ import {
   canPropose,
   canTimeTbd,
   stillToCome,
+  tbdStartsAt,
   timeChangeText,
   type EventType,
   uuidv7,
@@ -151,6 +152,12 @@ const FIELD_COLS: Record<string, string> = {
   notes: 'notes',
   rsvpDeadline: 'rsvp_deadline',
 };
+
+/**
+ * SQL: how long a "Time TBD" event (stored at local noon) runs after its start, i.e. to about the
+ * end of its day (`eventEndsAt`; ±1 h on a DST day). 0 for timed events.
+ */
+const TBD_DAY_LEFT_SQL = `CASE WHEN e.time_tbd = 1 THEN ${12 * 3600e3} ELSE 0 END`;
 
 /** RETURNING / SELECT columns: the team's timezone and short name, for notification text. */
 const TEAM_INFO = `(SELECT timezone FROM teams WHERE id = events.team_id) AS timezone,
@@ -303,49 +310,6 @@ export function eventRoutes(app: Hono<AppEnv>) {
           input.timeTbd !== undefined ||
           input.cancelled !== undefined)) ||
       (input.type !== undefined && !canPropose(input.type));
-    const sets: string[] = [];
-    const vals: unknown[] = [];
-    for (const [k, col] of Object.entries(FIELD_COLS)) {
-      const val = (input as Record<string, unknown>)[k];
-      if (val !== undefined) {
-        sets.push(`${col} = ?`);
-        vals.push(val);
-      }
-    }
-    if (input.timeTbd !== undefined) {
-      sets.push('time_tbd = ?');
-      vals.push(input.timeTbd ? 1 : 0);
-    }
-    if (input.settings !== undefined) {
-      sets.push('settings = ?');
-      vals.push(input.settings ? JSON.stringify(input.settings) : null);
-    }
-    // Moved to a new time: the reminder for the new date hasn't gone out yet.
-    if (input.startsAt !== undefined) {
-      sets.push('reminded_at = CASE WHEN starts_at = ? THEN reminded_at ELSE NULL END');
-      vals.push(input.startsAt);
-    }
-    if (input.cancelled !== undefined) {
-      sets.push('cancelled_at = ?');
-      vals.push(input.cancelled ? now() : null);
-    }
-    if (input.answerBy !== undefined) {
-      // A new deadline gets its own reminder, unless it's already within the reminder window.
-      sets.push(
-        'proposal_reminded_at = CASE WHEN answer_by IS ? THEN proposal_reminded_at WHEN ? THEN ? ELSE NULL END',
-        'answer_by = ?',
-      );
-      const soon = input.answerBy !== null && input.answerBy - PROPOSAL_REMIND_BEFORE_MS <= t;
-      vals.push(input.answerBy, soon ? 1 : 0, t, input.answerBy);
-    }
-    if (input.target !== undefined) {
-      sets.push('target = ?');
-      vals.push(input.target);
-    }
-    if (input.checkPositions !== undefined) {
-      sets.push('check_positions = ?');
-      vals.push(input.checkPositions ? 1 : 0);
-    }
     const version = ifMatch(c);
     // The current row: to check times, and to tell the team what changed (time, place, cancelled).
     let cur: CurrentEvent | null = null;
@@ -369,10 +333,21 @@ export function eventRoutes(app: Hono<AppEnv>) {
         .bind(id, me.teamId)
         .first<CurrentEvent>();
       if (cur) {
-        const start = input.startsAt ?? cur.starts_at;
+        const tz = cur.timezone;
+        let start = input.startsAt ?? cur.starts_at;
+        const noonOf = (ms: number) => tbdStartsAt(dateInTz(ms, tz), tz);
+        // A build from before "Time TBD" sets a time by sending only a start that isn't local noon.
+        const timeSetByOldBuild =
+          input.timeTbd === undefined &&
+          !!cur.time_tbd &&
+          input.startsAt !== undefined &&
+          input.startsAt !== noonOf(input.startsAt);
+        const tbd = timeSetByOldBuild ? false : (input.timeTbd ?? !!cur.time_tbd);
+        if (timeSetByOldBuild || input.timeTbd !== undefined) input.timeTbd = tbd;
+        // TBD is always stored at local noon of its date.
+        if (tbd && start !== noonOf(start)) start = input.startsAt = noonOf(start);
         const end = input.endsAt === undefined ? cur.ends_at : input.endsAt;
         const meet = input.meetAt === undefined ? cur.meet_at : input.meetAt;
-        const tbd = input.timeTbd ?? !!cur.time_tbd;
         if (end !== null && end < start)
           throw new HttpError(400, 'bad_request', 'Finish must be after the start');
         if (meet !== null && meet > start)
@@ -382,6 +357,55 @@ export function eventRoutes(app: Hono<AppEnv>) {
         if (tbd && !canTimeTbd((input.type ?? cur.type) as EventType))
           throw new HttpError(400, 'bad_request', 'Practices need a time');
       }
+    }
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    for (const [k, col] of Object.entries(FIELD_COLS)) {
+      const val = (input as Record<string, unknown>)[k];
+      if (val !== undefined) {
+        sets.push(`${col} = ?`);
+        vals.push(val);
+      }
+    }
+    if (input.timeTbd !== undefined) {
+      sets.push('time_tbd = ?');
+      vals.push(input.timeTbd ? 1 : 0);
+    }
+    if (input.settings !== undefined) {
+      sets.push('settings = ?');
+      vals.push(input.settings ? JSON.stringify(input.settings) : null);
+    }
+    // Moved to another day: the reminder for the new date hasn't gone out yet. Setting the time
+    // (or making it TBD) on the same day keeps it, so nobody is asked twice.
+    if (input.startsAt !== undefined) {
+      if (cur) {
+        if (dateInTz(input.startsAt, cur.timezone) !== dateInTz(cur.starts_at, cur.timezone))
+          sets.push('reminded_at = NULL');
+      } else {
+        sets.push('reminded_at = CASE WHEN starts_at = ? THEN reminded_at ELSE NULL END');
+        vals.push(input.startsAt);
+      }
+    }
+    if (input.cancelled !== undefined) {
+      sets.push('cancelled_at = ?');
+      vals.push(input.cancelled ? now() : null);
+    }
+    if (input.answerBy !== undefined) {
+      // A new deadline gets its own reminder, unless it's already within the reminder window.
+      sets.push(
+        'proposal_reminded_at = CASE WHEN answer_by IS ? THEN proposal_reminded_at WHEN ? THEN ? ELSE NULL END',
+        'answer_by = ?',
+      );
+      const soon = input.answerBy !== null && input.answerBy - PROPOSAL_REMIND_BEFORE_MS <= t;
+      vals.push(input.answerBy, soon ? 1 : 0, t, input.answerBy);
+    }
+    if (input.target !== undefined) {
+      sets.push('target = ?');
+      vals.push(input.target);
+    }
+    if (input.checkPositions !== undefined) {
+      sets.push('check_positions = ?');
+      vals.push(input.checkPositions ? 1 : 0);
     }
     const row = await c.var.db
       .prepare(
@@ -770,7 +794,8 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const row = await c.var.db
       .prepare(
         `INSERT INTO rsvps (event_id, member_id, team_id, status, note, note_expires_at, updated_at, reconfirm)
-         SELECT e.id, m.id, e.team_id, ?, ?, CASE WHEN ? IS NULL THEN NULL ELSE coalesce(e.ends_at, e.starts_at) + ? END, ?, 0
+         SELECT e.id, m.id, e.team_id, ?, ?, CASE WHEN ? IS NULL THEN NULL
+           ELSE coalesce(e.ends_at, e.starts_at + ${TBD_DAY_LEFT_SQL}) + ? END, ?, 0
          FROM events e JOIN memberships m ON m.team_id = e.team_id AND m.id = ? AND m.status != 'removed'
          WHERE e.id = ? AND e.team_id = ? AND e.deleted_at IS NULL AND e.status = 'confirmed'
          ON CONFLICT(event_id, member_id) DO UPDATE SET status = excluded.status, note = excluded.note,

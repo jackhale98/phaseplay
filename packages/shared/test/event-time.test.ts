@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as v from 'valibot';
 import {
+  addDays,
   EventCreate,
   EventUpdate,
   ProposalOption,
@@ -58,6 +59,18 @@ describe('eventEndsAt', () => {
   it('end of day matches endOfLocalDay', () => {
     const at = zonedToUtc('2026-03-29', '23:30', LON);
     expect(endOfLocalDay(at, LON)).toBe(zonedToUtc('2026-03-30', '00:00', LON));
+  });
+
+  it("where DST skips midnight, the day ends at the next day's first minute", () => {
+    // Lebanon: clocks jump from 00:00 to 01:00 on Sunday 29 March 2026.
+    const tz = 'Asia/Beirut';
+    for (const d of ['2026-03-28', '2026-03-27', '2026-10-24', '2026-11-21']) {
+      const end = endOfLocalDay(tbdStartsAt(d, tz), tz);
+      expect(dateInTz(end, tz)).toBe(addDays(d, 1));
+      expect(dateInTz(end - 60e3, tz)).toBe(d);
+    }
+    const tbd = { startsAt: tbdStartsAt('2026-03-28', tz), timeTbd: true };
+    expect(eventEndsAt(tbd, tz)).toBe(Date.UTC(2026, 2, 28, 22));
   });
 });
 
