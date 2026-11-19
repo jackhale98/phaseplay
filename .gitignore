@@ -12,3 +12,4 @@ coverage
 .lighthouseci
 .DS_Store
 .claude/worktrees
+*.tsbuildinfo

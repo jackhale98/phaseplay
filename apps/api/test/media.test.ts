@@ -7,7 +7,9 @@ import { describe, expect, it } from 'vitest';
 import {
   MEDIA_MAX_BYTES,
   MEDIA_PER_PLAY,
-  MEDIA_TEAM_QUOTA,
+  MEDIA_GLOBAL_BYTES,
+  MEDIA_TEAM_LIMIT,
+  MEDIA_UPLOADS_PER_HOUR,
   sniffImage,
   uuidv7,
 } from '@phaseplay/shared';
@@ -183,6 +185,31 @@ describe('image sniffing and metadata stripping', () => {
     expect(sniffImage(w)).toEqual({ type: 'image/webp', width: 100, height: 80 });
   });
 
+  it('keeps only the primary JPEG: no MPF, no data after its EOI, ICC kept', () => {
+    const icc = bytes('ICC_PROFILE\0', [1, 1], 'fake-profile');
+    const mpf = bytes('MPF\0', 'II*\0second-image-index');
+    const base = jpegWithExif();
+    const crafted = bytes(
+      base.subarray(0, 2),
+      [0xff, 0xe2, ...be16(icc.length + 2)],
+      icc,
+      [0xff, 0xe2, ...be16(mpf.length + 2)],
+      mpf,
+      base.subarray(2),
+      // A second (MPF) image and an HTML/script polyglot tail.
+      [0xff, 0xd8, 0xff, 0xe1, ...be16(14)],
+      'Exif\0\0GPS!!!',
+      [0xff, 0xd9],
+      '<script>alert(1)</script>',
+    );
+    const out = stripJpeg(crafted)!;
+    const s = new TextDecoder('latin1').decode(out);
+    expect(s).toContain('ICC_PROFILE');
+    expect(s).not.toMatch(/MPF|Exif|GPS|script|secret/);
+    expect([...out.slice(-5)]).toEqual([0x12, 0x34, 0x56, 0xff, 0xd9]);
+    expect(sniffImage(out)).toEqual(sniffImage(base));
+  });
+
   it('rejects truncated files', () => {
     expect(stripJpeg(jpegWithExif().slice(0, 30))).toBeNull();
     expect(stripPng(png().slice(0, 40))).toBeNull();
@@ -215,10 +242,10 @@ describe('uploads', () => {
     expect(two.status).toBe(201);
     expect(two.body.list.map((m: { id: string }) => m.id)).toEqual([one.id, two.id]);
 
-    // Reorder, caption and remove in one call.
+    // Reorder and caption in one call.
     const set = await call('PUT', base, {
       cookie: a.coach.cookie,
-      body: { pages: [{ id: two.id, caption: 'Call sheet' }, { id: one.id }] },
+      body: { order: [two.id, one.id], captions: { [two.id]: 'Call sheet', [one.id]: null } },
     });
     expect(set.status).toBe(200);
     expect(set.queries).toBeLessThanOrEqual(6);
@@ -243,7 +270,7 @@ describe('uploads', () => {
     expect(img.headers.get('content-type')).toBe('image/jpeg');
     expect(img.headers.get('x-content-type-options')).toBe('nosniff');
     expect(img.headers.get('content-disposition')).toBe('inline');
-    expect(img.headers.get('cache-control')).toBe('private, max-age=31536000, immutable');
+    expect(img.headers.get('cache-control')).toBe('private, max-age=86400');
     // Stored without EXIF even though the client sent it.
     expect(new TextDecoder('latin1').decode(img.bytes)).not.toContain('GPS');
 
@@ -353,16 +380,16 @@ describe('uploads', () => {
     expect(new TextDecoder('latin1').decode(img.bytes)).not.toContain('GPSDATA');
   });
 
-  it('enforces the per-play cap and the team quota with a friendly 409', async () => {
+  it('enforces the per-play cap and the team limit with a friendly 409', async () => {
     const a = await fixtureTeam();
     const playId = await picturePlay(a, 'team');
     const fill = (n: number, ownerId: string, ownerType = 'play') =>
       env.DB.batch(
         Array.from({ length: n }, (_, i) =>
           env.DB.prepare(
-            `INSERT INTO media (id, team_id, owner_type, owner_id, position, type, bytes, width, height, size, created_by, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, 'image/png', ?, 1, 1, 1, 'x', 1, 1)`,
-          ).bind(uuidv7(), a.teamId, ownerType, ownerId, i, png()),
+            `INSERT INTO media (id, team_id, owner_type, owner_id, position, type, width, height, size, created_by, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, 'image/png', 1, 1, 1, 'x', 1, 1)`,
+          ).bind(uuidv7(), a.teamId, ownerType, ownerId, i),
         ),
       );
     await fill(MEDIA_PER_PLAY, playId);
@@ -376,7 +403,7 @@ describe('uploads', () => {
     expect(full.queries).toBeLessThanOrEqual(6);
 
     const other = await picturePlay(a, 'team');
-    await fill(MEDIA_TEAM_QUOTA - MEDIA_PER_PLAY, a.drillId, 'drill');
+    await fill(MEDIA_TEAM_LIMIT - MEDIA_PER_PLAY, a.drillId, 'drill');
     const over = await upload(
       a.coach.cookie,
       `/api/v1/teams/${a.teamId}/plays/${other}/media`,
@@ -384,15 +411,121 @@ describe('uploads', () => {
     );
     expect(over.status).toBe(409);
     expect(over.body.error.message).toMatch(/library is full/);
+    // Refused uploads don't touch the owner row.
+    const row = await env.DB.prepare('SELECT media FROM plays WHERE id = ?')
+      .bind(other)
+      .first<{ media: string }>();
+    expect(row?.media).toBe('[]');
   });
 
-  it('deleting a play or a page soft-deletes its images; the nightly job purges them', async () => {
+  it('limits uploads per person per hour', async () => {
+    const a = await fixtureTeam();
+    const playId = await picturePlay(a, 'team');
+    const t = Date.now();
+    await env.DB.batch(
+      Array.from({ length: MEDIA_UPLOADS_PER_HOUR }, () =>
+        env.DB.prepare(
+          `INSERT INTO media (id, team_id, owner_type, owner_id, position, type, width, height, size, created_by, created_at, updated_at, deleted_at)
+           VALUES (?, ?, 'drill', ?, 0, 'image/png', 1, 1, 1, ?, ?, ?, ?)`,
+        ).bind(uuidv7(), a.teamId, a.drillId, a.coach.userId, t - 60e3, t, t - 30e3),
+      ),
+    );
+    const r = await upload(
+      a.coach.cookie,
+      `/api/v1/teams/${a.teamId}/plays/${playId}/media`,
+      png(),
+    );
+    expect(r.status).toBe(429);
+    expect(r.body.error.code).toBe('rate_limited');
+    // Someone else in the team can still upload.
+    const ok = await upload(
+      a.owner.cookie,
+      `/api/v1/teams/${a.teamId}/plays/${playId}/media`,
+      png(),
+    );
+    expect(ok.status).toBe(201);
+  });
+
+  it('refuses uploads past the global byte budget, and keeps the total in step', async () => {
+    const a = await fixtureTeam();
+    const playId = await picturePlay(a, 'team');
+    const base = `/api/v1/teams/${a.teamId}/plays/${playId}/media`;
+    const total = async () =>
+      Number(
+        (
+          await env.DB.prepare("SELECT value FROM app_meta WHERE key = 'media_bytes'").first<{
+            value: string;
+          }>()
+        )?.value,
+      );
+    const before = await total();
+    const one = await upload(a.coach.cookie, base, png(), { thumb: png(10, 10) });
+    expect(one.status).toBe(201);
+    const stored = await env.DB.prepare('SELECT size + thumb_size AS n FROM media WHERE id = ?')
+      .bind(one.id)
+      .first<{ n: number }>();
+    expect(await total()).toBe(before + stored!.n);
+    // Removing it gives the bytes back at once (the blob rows go too).
+    await call('PUT', base, { cookie: a.coach.cookie, body: { remove: [one.id] } });
+    expect(await total()).toBe(before);
+    const blobs = await env.DB.prepare('SELECT count(*) AS n FROM media_blobs WHERE media_id = ?')
+      .bind(one.id)
+      .first<{ n: number }>();
+    expect(blobs?.n).toBe(0);
+
+    await env.DB.prepare("UPDATE app_meta SET value = ? WHERE key = 'media_bytes'")
+      .bind(String(MEDIA_GLOBAL_BYTES - 10))
+      .run();
+    try {
+      const full = await upload(a.coach.cookie, base, png());
+      expect(full.status).toBe(507);
+      expect(full.body.error.message).toMatch(/Picture storage is full/);
+      expect(full.queries).toBeLessThanOrEqual(6);
+    } finally {
+      // The nightly job recomputes the real total.
+      await nightly(env as never);
+    }
+    expect(await total()).toBeLessThan(MEDIA_GLOBAL_BYTES / 2);
+  });
+
+  it("two coaches editing at once don't lose each other's pages", async () => {
     const a = await fixtureTeam();
     const playId = await picturePlay(a, 'team');
     const base = `/api/v1/teams/${a.teamId}/plays/${playId}/media`;
     const p1 = await upload(a.coach.cookie, base, png());
     const p2 = await upload(a.coach.cookie, base, png());
-    await call('PUT', base, { cookie: a.coach.cookie, body: { pages: [{ id: p1.id }] } });
+    // Coach A has [p1, p2] open; meanwhile the owner adds p3.
+    const p3 = await upload(a.owner.cookie, base, png());
+    // A swaps p1/p2 and captions p1, knowing nothing about p3.
+    const set = await call('PUT', base, {
+      cookie: a.coach.cookie,
+      body: { order: [p2.id, p1.id], captions: { [p1.id]: 'Second' } },
+    });
+    expect(set.status).toBe(200);
+    expect(set.body.list.map((m: { id: string }) => m.id)).toEqual([p2.id, p1.id, p3.id]);
+    expect(set.body.list[1].caption).toBe('Second');
+    // A removal only removes what was named.
+    const rm = await call('PUT', base, { cookie: a.owner.cookie, body: { remove: [p2.id] } });
+    expect(rm.body.list.map((m: { id: string }) => m.id)).toEqual([p1.id, p3.id]);
+    // Another team can't touch these through its own team id.
+    const b = await fixtureTeam('Team B');
+    const cross = await call('PUT', `/api/v1/teams/${b.teamId}/plays/${playId}/media`, {
+      cookie: b.owner.cookie,
+      body: { remove: [p1.id] },
+    });
+    expect(cross.status).toBe(404);
+    expect((await get(a.coach.cookie, `/api/v1/teams/${a.teamId}/media/${p1.id}`)).status).toBe(
+      200,
+    );
+  });
+
+  it('deleting a play or a page removes its bytes at once; the nightly job purges tombstones', async () => {
+    const a = await fixtureTeam();
+    const playId = await picturePlay(a, 'team');
+    const base = `/api/v1/teams/${a.teamId}/plays/${playId}/media`;
+    const p1 = await upload(a.coach.cookie, base, png());
+    const p2 = await upload(a.coach.cookie, base, png());
+    await call('PUT', base, { cookie: a.coach.cookie, body: { remove: [p2.id] } });
     expect((await get(a.coach.cookie, `/api/v1/teams/${a.teamId}/media/${p2.id}`)).status).toBe(
       404,
     );
@@ -410,6 +543,13 @@ describe('uploads', () => {
       .bind(playId)
       .first<{ n: number }>();
     expect(live?.n).toBe(0);
+    // The bytes went at once; only small tombstones are left for sync.
+    const blobs = await env.DB.prepare(
+      'SELECT count(*) AS n FROM media_blobs WHERE media_id IN (?, ?)',
+    )
+      .bind(p1.id, p2.id)
+      .first<{ n: number }>();
+    expect(blobs?.n).toBe(0);
     await env.DB.prepare('UPDATE media SET deleted_at = ? WHERE owner_id = ?')
       .bind(Date.now() - 31 * 86400e3, playId)
       .run();

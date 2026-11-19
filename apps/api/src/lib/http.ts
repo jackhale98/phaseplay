@@ -5,7 +5,7 @@ import type { AppEnv } from '../env';
 
 export class HttpError extends Error {
   constructor(
-    public status: 400 | 401 | 403 | 404 | 409 | 410 | 413 | 415 | 429 | 500,
+    public status: 400 | 401 | 403 | 404 | 409 | 410 | 413 | 415 | 429 | 500 | 507,
     public code: ApiErrorCode,
     message: string,
     public extra?: Record<string, unknown>,

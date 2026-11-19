@@ -20,8 +20,16 @@ export const MEDIA_MAX_PX = 1600;
 /** Card thumbnails: longest side and size cap (stored next to the image). */
 export const MEDIA_THUMB_PX = 480;
 export const MEDIA_THUMB_MAX_BYTES = 40 * 1024;
-/** Images per team, counting live ones only (deleted ones are purged after 30 days). */
-export const MEDIA_TEAM_QUOTA = 300;
+/** Images per team (live ones; a deleted image's bytes are removed at once). The owner may change it. */
+export const MEDIA_TEAM_LIMIT = 150;
+/**
+ * All teams' image bytes together (images + thumbnails). D1 Free caps a database at 500 MB, so
+ * pictures may use at most half of it; past this uploads are refused until it's raised or images
+ * move to R2 (docs/runbook.md §Picture storage).
+ */
+export const MEDIA_GLOBAL_BYTES = 250 * 1024 * 1024;
+/** Uploads per person per hour (counted from `media` rows, deleted ones included). */
+export const MEDIA_UPLOADS_PER_HOUR = 60;
 /** Pages per picture play and photos per drill. */
 export const MEDIA_PER_PLAY = 20;
 export const MEDIA_PER_DRILL = 6;
@@ -47,12 +55,20 @@ export type MediaRef = {
 export const PLAY_KINDS = ['diagram', 'picture'] as const;
 export type PlayKind = (typeof PLAY_KINDS)[number];
 
-/** Set the order and captions of an owner's images; any image left out is deleted. */
+/**
+ * Change an owner's images with explicit operations, so two coaches editing at once never lose each
+ * other's pages: `order` lists ids first-to-last (live images not listed keep their order after
+ * them), `remove` deletes, `captions` sets captions by id (null clears).
+ */
 export const MediaSet = v.object({
-  pages: v.pipe(
-    v.array(v.object({ id: Id, caption: v.optional(v.nullable(text(MEDIA_CAPTION_MAX)), null) })),
-    v.maxLength(MEDIA_PER_PLAY),
-    v.check((p) => new Set(p.map((x) => x.id)).size === p.length, 'Pages must be unique'),
+  order: v.optional(v.pipe(v.array(Id), v.maxLength(MEDIA_PER_PLAY)), []),
+  remove: v.optional(v.pipe(v.array(Id), v.maxLength(MEDIA_PER_PLAY)), []),
+  captions: v.optional(
+    v.pipe(
+      v.record(Id, v.nullable(text(MEDIA_CAPTION_MAX))),
+      v.check((r) => Object.keys(r).length <= MEDIA_PER_PLAY, 'Too many captions'),
+    ),
+    {},
   ),
 });
 export type MediaSet = v.InferOutput<typeof MediaSet>;

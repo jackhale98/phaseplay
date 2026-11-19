@@ -1,5 +1,6 @@
 import type { Env } from './env';
 import { ensureDemo } from './seed/load-demo';
+import { mediaHousekeepingStmts } from './routes/media';
 import { drainOptions } from './lib/notify';
 import { drainQueue, MAX_DEVICE_FAILURES } from './lib/push/queue';
 import { queueKitAtRisk, queueProposalReminders, queueReminders } from './lib/push/jobs';
@@ -52,8 +53,9 @@ export async function nightly(env: Env) {
     env.DB.prepare(
       'DELETE FROM practice_plans WHERE deleted_at IS NOT NULL AND deleted_at < ?',
     ).bind(month),
-    // Uploaded images: removed pages/photos, and those of deleted plays and drills.
-    env.DB.prepare('DELETE FROM media WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(month),
+    // Uploaded images: tombstones of removed pictures (their bytes went at once), leftovers,
+    // and the global byte total recomputed so it can't drift.
+    ...mediaHousekeepingStmts(env.DB, month),
     env.DB.prepare('DELETE FROM seasons WHERE deleted_at IS NOT NULL AND deleted_at < ?').bind(
       month,
     ),
