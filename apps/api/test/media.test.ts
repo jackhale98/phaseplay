@@ -413,7 +413,7 @@ describe('uploads', () => {
     await env.DB.prepare('UPDATE media SET deleted_at = ? WHERE owner_id = ?')
       .bind(Date.now() - 31 * 86400e3, playId)
       .run();
-    await nightly(env);
+    await nightly(env as never);
     const left = await env.DB.prepare('SELECT count(*) AS n FROM media WHERE owner_id = ?')
       .bind(playId)
       .first<{ n: number }>();

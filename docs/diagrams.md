@@ -135,6 +135,7 @@ type Frame = {
 - **Highlight me:** if a token is linked to the viewer's `memberId`, it gets a ring and the trail emphasises her path.
 - Opening a play records one view per player per play per day (`POST /v1/plays/:id/view`, idempotent).
 - Coaches see a **Seen by** panel listing who has and hasn't viewed it, with "copy a nudge".
+- **Picture plays** (`kind = 'picture'`, uploaded pages; docs/architecture.md §Uploaded images) use the pictures viewer instead of the player: no designer, animation, PNG/video export or duplicate. Views and Seen by work the same.
 
 ## Drill mode
 
@@ -168,7 +169,8 @@ Drills use the same model, renderer, editor and exports, with these additions. T
 - **Details panel** (stored on the drill row, not in the diagram): category, contact level, intensity, player range, default duration, description, coaching points, setup, and progressions or variations. Each variation can have its own diagram, made by duplicating the parent and linking back to it.
 - **Practice integration:**
   - the practice runner shows the drill diagram looping full-screen with the coaching points beside it
-  - the PNG export includes a **drill card** layout (diagram + setup + coaching points + equipment) that prints well on A4/Letter
+  - the PNG export includes a **drill card** layout (diagram + setup + coaching points + equipment) that prints well on A4/Letter; a photo-only drill's card shows its first photo where the diagram goes
+  - drills can carry up to 6 photos (setup photo, scanned diagram) beside the diagram, or instead of it
 
 ## Exports (`packages/diagram/export`, which also powers team-sheet PNGs)
 

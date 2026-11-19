@@ -94,12 +94,16 @@
   let editing = $state(false);
   let EditSheet = $state<Component<{ open: boolean; play: PlayMeta | null }> | null>(null);
   async function editPages() {
-    EditSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
-      .default as unknown as Component<{
-      open: boolean;
-      play: PlayMeta | null;
-    }>;
-    editing = true;
+    try {
+      EditSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
+        .default as unknown as Component<{
+        open: boolean;
+        play: PlayMeta | null;
+      }>;
+      editing = true;
+    } catch {
+      toasts.error("You're offline. Editing pages needs a connection.");
+    }
   }
   let files: File[] | null = null;
   let filesKey = '';
@@ -158,8 +162,9 @@
     <header class="page-head">
       <div class="grow">
         <p class="eyebrow">
-          {PLAY_CATEGORY_LABELS[view.category]}{view.format !== 'any' ? ` · ${view.format}` : ''} · {#if picture}{media.length}
-            page{media.length === 1 ? '' : 's'}{:else}{view.data.frames.length} frames{/if}
+          {PLAY_CATEGORY_LABELS[view.category]}{view.format !== 'any' ? ` · ${view.format}` : ''} · {picture
+            ? `${media.length} page${media.length === 1 ? '' : 's'}`
+            : `${view.data.frames.length} frames`}
         </p>
         <h1>{view.title}</h1>
         {#if view.tags.length}<p class="tags">

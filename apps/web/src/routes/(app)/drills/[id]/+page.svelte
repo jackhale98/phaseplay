@@ -98,12 +98,16 @@
   let photosOpen = $state(false);
   let PhotosSheet = $state<Component<{ open: boolean; drill: DrillMeta }> | null>(null);
   async function editPhotos() {
-    PhotosSheet ??= (await import('#lib/features/media/DrillPhotosSheet.svelte'))
-      .default as unknown as Component<{
-      open: boolean;
-      drill: DrillMeta;
-    }>;
-    photosOpen = true;
+    try {
+      PhotosSheet ??= (await import('#lib/features/media/DrillPhotosSheet.svelte'))
+        .default as unknown as Component<{
+        open: boolean;
+        drill: DrillMeta;
+      }>;
+      photosOpen = true;
+    } catch {
+      toasts.error("You're offline. Adding photos needs a connection.");
+    }
   }
   // A new photo-only drill arrives with ?photos=1: open the photo picker straight away.
   let askedPhotos = false;

@@ -26,6 +26,7 @@
   import NewPlaySheet from '#lib/features/plays/NewPlaySheet.svelte';
   import NewDrillSheet from '#lib/features/drills/NewDrillSheet.svelte';
   import { hidden } from '#lib/features/plays/actions.svelte';
+  import { toasts } from '#lib/stores/toast.svelte';
   import {
     DURATION_BANDS,
     matchDrill,
@@ -50,9 +51,13 @@
   /** The upload sheet (and its image code) loads only when a coach opens it. */
   let UploadSheet = $state<Component<{ open: boolean }> | null>(null);
   async function openUpload() {
-    UploadSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
-      .default as Component<{ open: boolean }>;
-    upload = true;
+    try {
+      UploadSheet ??= (await import('#lib/features/media/PicturePlaySheet.svelte'))
+        .default as Component<{ open: boolean }>;
+      upload = true;
+    } catch {
+      toasts.error("You're offline. Uploading needs a connection.");
+    }
   }
   /** Show the archive instead of the active list. */
   let archived = $state(false);

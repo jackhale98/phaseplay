@@ -33,9 +33,12 @@
   );
 
   async function openFull() {
-    if (!Viewer)
-      Viewer = (await import('./ImageViewer.svelte')).default as unknown as ViewerComponent;
-    full = true;
+    try {
+      Viewer ??= (await import('./ImageViewer.svelte')).default as unknown as ViewerComponent;
+      full = true;
+    } catch {
+      /* the viewer's code couldn't load (offline before it was cached): the picture stays inline */
+    }
   }
   function key(e: KeyboardEvent) {
     if (e.key === 'ArrowRight' && i < n - 1) index = i + 1;

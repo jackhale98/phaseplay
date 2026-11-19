@@ -293,6 +293,18 @@ Float a friendly or a social before it's fixed, and pick the date most people ca
 - **UI:** dashed outline, lighter fill and a "Tentative"/"Date poll" chip everywhere; month view "?" pills on each candidate date; agenda "N need your answer" bar; Home "Would you play?" one card at a time; a proposal page with progress, cover, the best date, confirm, nudge and drop.
 - **Tests:** shared unit tests, API tests (answers, visibility, confirm/drop idempotency, notification counts, exclusions, query budget), web selector tests, `e2e/specs/proposals.spec.ts` on all three projects in light and dark.
 
+### M11 — Uploaded images for the playbook and drill library ✅ done
+
+Coaches who already have plays on a whiteboard, in a scanned booklet or as screenshots can share them without redrawing.
+
+- **Picture plays:** "Upload a play" next to "New play": one or more images become one play whose content is ordered pages (reorder, remove, optional caption each), with the usual title, category, tags, visibility and notes. Works with archive, search, the command palette and Seen by. Players view it full screen (pinch-zoom on phones; zoom buttons and ← → + − Esc on laptops). Share sends the images. The designer, animation and exports are hidden for picture plays.
+- **Drill photos:** up to 6 photos on any drill (setup photo, scanned diagram), or a photo-only drill ("Photos only" in New drill). The drill card shows the first photo when there's no diagram.
+- **Contracts:** `packages/shared/media.ts` (types, caps, `MediaSet`, `sniffImage`, `mediaUrl`, `mediaLabel`), `PlayCreate.kind`, `picturePlaceholder`; migration `0012_media.sql` (additive: `media` table, `plays.kind`/`plays.media`, `drills.media`); route ids `plays.media.add|set`, `drills.media.add|set`, `media.get`.
+- **Limits:** ≤ 1600 px, ≤ 400 KB (browser re-encodes to WebP, JPEG fallback; server checks magic bytes and strips metadata), 20 pages per play, 6 photos per drill, 300 images per team. Bytes in D1; see docs/architecture.md §Uploaded images for D1 limits and the path to R2.
+- **Offline:** images a user has opened stay in a 150-entry service-worker cache; uploads need a connection and say so.
+- **Not in scope (later):** PDF/PowerPoint import, tracing a picture into a diagram, demo-team images (the demo reseed stays small).
+- **Tests:** API (`apps/api/test/media.test.ts`: magic bytes incl. SVG/HTML/GIF, caps, quota, EXIF stripping, permissions, visibility, tenancy, query budget, soft delete + purge), compression unit tests, `e2e/specs/media.spec.ts` on all three projects in light and dark.
+
 ## 5. Definition of Done (every PR)
 
 - [ ] `pnpm check`, `pnpm test` and the e2e tests for touched features pass on desktop-chromium, mobile-chromium and mobile-webkit.

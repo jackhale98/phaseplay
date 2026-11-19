@@ -346,8 +346,9 @@
     cursor: zoom-in;
   }
   .stage img {
-    max-width: 100%;
-    max-height: 100%;
+    /* Fill the screen (small scans scale up too); the picture keeps its shape. */
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     user-select: none;
     -webkit-user-select: none;

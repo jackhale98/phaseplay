@@ -9,7 +9,7 @@
 | E2E | Playwright | User journeys on `desktop-chromium`, `mobile-chromium` (Pixel 7) and `mobile-webkit` (iPhone 15), against the production build served by `wrangler dev --env test` (same origin, seeded local D1) |
 | Visual | Playwright screenshots | Diagram renders, team-sheet and storyboard exports, key screens in light and dark |
 | Accessibility | `@axe-core/playwright` | Every key screen, with zero violations |
-| Offline | Playwright `context.setOffline` | RSVP queueing, match mode, outbox replay exactly once |
+| Offline | Playwright `context.setOffline` | RSVP queueing, match mode, outbox replay exactly once, a viewed picture play reopening from the service worker's image cache (Chromium; Playwright's WebKit offline mode bypasses service workers) |
 | Performance | Lighthouse CI + size-limit | The budgets in `docs/design.md` |
 
 ### Must-have suites

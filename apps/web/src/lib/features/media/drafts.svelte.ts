@@ -203,8 +203,11 @@ export class Drafts {
             { signal: ac.signal, onProgress: (f) => (d.progress = f) },
           );
         } catch (e) {
-          d.state = (e as Error).name === 'AbortError' ? 'ready' : 'error';
-          if (e instanceof ApiError) d.error = e.message;
+          // A file the server refuses (wrong type, too big) stays marked; a dropped connection,
+          // a full library or a server hiccup leaves the page ready to retry.
+          const refused = e instanceof ApiError && [400, 413, 415].includes(e.status);
+          d.state = refused ? 'error' : 'ready';
+          if (refused) d.error = (e as ApiError).message;
           throw e;
         }
         d.state = 'done';

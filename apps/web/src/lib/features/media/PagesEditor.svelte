@@ -35,6 +35,7 @@
   <div
     class="drop"
     class:over
+    class:compact={drafts.items.length > 0}
     role="group"
     aria-label="Add {noun}s"
     ondragover={(e) => {
@@ -169,6 +170,16 @@
     background: var(--surface-2);
     text-align: center;
   }
+  .drop.compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: var(--s-3);
+    gap: var(--s-2);
+  }
+  .drop.compact > :global(svg) {
+    display: none;
+  }
   .drop.over {
     border-color: var(--accent);
     background: var(--accent-soft);
@@ -223,6 +234,7 @@
   .pg {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr) auto;
+    grid-template-areas: 'th mid btns';
     gap: var(--s-3);
     align-items: center;
     padding: var(--s-2);
@@ -234,6 +246,7 @@
     border-color: var(--danger, #b42318);
   }
   .th {
+    grid-area: th;
     position: relative;
     width: 72px;
     height: 72px;
@@ -268,6 +281,7 @@
     text-align: center;
   }
   .mid {
+    grid-area: mid;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -308,6 +322,7 @@
     margin-top: 2px;
   }
   .btns {
+    grid-area: btns;
     display: flex;
     gap: 2px;
   }
@@ -334,14 +349,17 @@
   @media (max-width: 420px) {
     .pg {
       grid-template-columns: 64px minmax(0, 1fr);
+      grid-template-areas: 'th mid' 'th btns';
+      row-gap: 0;
+      align-items: start;
     }
     .th {
       width: 64px;
       height: 64px;
     }
     .btns {
-      grid-column: 1 / -1;
       justify-content: flex-end;
+      margin-right: -6px;
     }
   }
 </style>

@@ -96,7 +96,11 @@ async function mediaFetch(req: Request, url: URL): Promise<Response> {
   );
   const hit = await cache.match(req);
   if (hit) {
-    void cache.delete(req).then(() => cache.put(req, hit.clone()));
+    const copy = hit.clone();
+    void cache
+      .delete(req)
+      .then(() => cache.put(req, copy))
+      .catch(() => {});
     return hit;
   }
   const res = await fetch(req);

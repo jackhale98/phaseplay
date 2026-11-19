@@ -56,11 +56,11 @@
   <div class="body">
     <strong class="title">{meta.title}</strong>
     <span class="meta subtle">
-      {PLAY_CATEGORY_LABELS[meta.category]} · {#if picture}{pages} page{pages === 1
-          ? ''
-          : 's'}{:else}{meta.frameCount} frame{meta.frameCount === 1
-          ? ''
-          : 's'}{/if}{meta.format !== 'any' ? ` · ${meta.format}` : ''}
+      {PLAY_CATEGORY_LABELS[meta.category]} · {picture
+        ? `${pages} page${pages === 1 ? '' : 's'}`
+        : `${meta.frameCount} frame${meta.frameCount === 1 ? '' : 's'}`}{meta.format !== 'any'
+        ? ` · ${meta.format}`
+        : ''}
     </span>
     {#if meta.tags.length}
       <span class="tags"

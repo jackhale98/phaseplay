@@ -23,7 +23,8 @@
     </li>
     <li>
       <strong>Team information</strong> your coaches enter: the schedule, team sheets, plays, drills,
-      practice plans and match logs.
+      practice plans and match logs, including pictures coaches upload for plays and drills. Your device
+      shrinks and re-saves each picture before it's sent, which removes its location and camera details.
     </li>
     <li>
       <strong>Your replies</strong>: RSVPs and attendance. An optional note on an RSVP is visible
