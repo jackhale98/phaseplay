@@ -1,4 +1,7 @@
 /** Minimal RFC 5545 writer for subscription feeds. */
+import { addDays } from '@phaseplay/shared';
+
+const ymd = (date: string) => date.replace(/-/g, '');
 const esc = (s: string) =>
   s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 const stamp = (ms: number) =>
@@ -24,6 +27,8 @@ export type IcsEvent = {
   uid: string;
   start: number;
   end: number;
+  /** An all-day event on this date (YYYY-MM-DD, e.g. "Time TBD"): `start`/`end` are ignored. */
+  date?: string | null;
   summary: string;
   location?: string | null;
   description?: string | null;
@@ -51,8 +56,9 @@ export function buildIcs(name: string, events: IcsEvent[]): string {
       `DTSTAMP:${stamp(e.updated)}`,
       `LAST-MODIFIED:${stamp(e.updated)}`,
       `SEQUENCE:${e.sequence}`,
-      `DTSTART:${stamp(e.start)}`,
-      `DTEND:${stamp(e.end)}`,
+      ...(e.date
+        ? [`DTSTART;VALUE=DATE:${ymd(e.date)}`, `DTEND;VALUE=DATE:${ymd(addDays(e.date, 1))}`]
+        : [`DTSTART:${stamp(e.start)}`, `DTEND:${stamp(e.end)}`]),
       `SUMMARY:${esc((e.cancelled ? 'Cancelled: ' : '') + e.summary)}`,
     );
     if (e.location) lines.push(`LOCATION:${esc(e.location)}`);

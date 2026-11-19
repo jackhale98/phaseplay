@@ -5,7 +5,7 @@
 import * as v from 'valibot';
 import { Id, OptionalText, text } from './common';
 import { isConfirmed, type EventStatus } from './proposals';
-import { eventEndsAt, eventSortKey, isTimeTbd } from './event-time';
+import { eventSortKey, stillToCome } from './event-time';
 
 export const ITEM_KINDS = [
   'balls',
@@ -235,8 +235,7 @@ export function atRiskKit(
         !e.deletedAt &&
         !e.cancelledAt &&
         isConfirmed(e) &&
-        // Not started yet; a "Time TBD" event is still to come until its day is over.
-        (isTimeTbd(e) ? eventEndsAt(e, tz) > now : e.startsAt > now) &&
+        stillToCome(e, tz, now) &&
         e.startsAt <= now + windowMs,
     )
     .sort((a, b) => eventSortKey(a, tz) - eventSortKey(b, tz));

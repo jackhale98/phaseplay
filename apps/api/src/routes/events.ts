@@ -17,6 +17,10 @@ import {
   SeasonInput,
   can,
   canPropose,
+  canTimeTbd,
+  stillToCome,
+  timeChangeText,
+  type EventType,
   uuidv7,
   weeklyDates,
   zonedToUtc,
@@ -28,7 +32,7 @@ import { route } from '../lib/router';
 import { HttpError, body, forbidden, ifMatch, notFound, now, parseJson } from '../lib/http';
 import { EVENT_COLS, eventFromRow } from '../db/rows';
 import { auditStmt } from '../lib/audit';
-import { flushNotifications, notifyStmt } from '../lib/notify';
+import { flushNotifications, localeOf, notifyStmt } from '../lib/notify';
 import {
   eventCancelled,
   eventChanged,
@@ -60,8 +64,8 @@ export function insertEventStmt(
     .prepare(
       `INSERT INTO events (id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name,
         location_url, opponent, notes, rsvp_deadline, recurrence_id, settings, version, created_by, updated_at,
-        status, answer_by, target, check_positions, proposal_reminded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING ${returning}`,
+        status, answer_by, target, check_positions, proposal_reminded_at, time_tbd)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING ${returning}`,
     )
     .bind(
       e.id,
@@ -87,6 +91,7 @@ export function insertEventStmt(
       proposal ? (e.target ?? null) : null,
       e.checkPositions === false ? 0 : 1,
       proposal?.remindedAt ?? null,
+      e.timeTbd ? 1 : 0,
     );
 }
 
@@ -103,24 +108,34 @@ export function putOptionsStmt(
 ) {
   return db
     .prepare(
-      `INSERT INTO event_options (id, team_id, event_id, starts_at, meet_at, ends_at, updated_at, deleted_at)
-       SELECT j.value->>'id', e.team_id, e.id, j.value->>'startsAt', j.value->>'meetAt', j.value->>'endsAt', ?1, NULL
+      `INSERT INTO event_options (id, team_id, event_id, starts_at, meet_at, ends_at, time_tbd, updated_at, deleted_at)
+       SELECT j.value->>'id', e.team_id, e.id, j.value->>'startsAt', j.value->>'meetAt', j.value->>'endsAt',
+           CASE WHEN j.value->>'timeTbd' THEN 1 ELSE 0 END, ?1, NULL
          FROM json_each(?2) j JOIN events e ON e.id = ?3 AND e.team_id = ?4
        UNION ALL
-       SELECT o.id, o.team_id, o.event_id, o.starts_at, o.meet_at, o.ends_at, ?1, ?1 FROM event_options o
+       SELECT o.id, o.team_id, o.event_id, o.starts_at, o.meet_at, o.ends_at, o.time_tbd, ?1, ?1 FROM event_options o
          WHERE o.event_id = ?3 AND o.team_id = ?4 AND o.deleted_at IS NULL
            AND o.id NOT IN (SELECT value->>'id' FROM json_each(?2))
        ON CONFLICT(id) DO UPDATE SET starts_at = excluded.starts_at, meet_at = excluded.meet_at,
-         ends_at = excluded.ends_at, deleted_at = excluded.deleted_at, updated_at = excluded.updated_at
+         ends_at = excluded.ends_at, time_tbd = excluded.time_tbd, deleted_at = excluded.deleted_at,
+         updated_at = excluded.updated_at
        WHERE event_options.team_id = excluded.team_id AND event_options.event_id = excluded.event_id
          AND (event_options.starts_at IS NOT excluded.starts_at OR event_options.meet_at IS NOT excluded.meet_at
-           OR event_options.ends_at IS NOT excluded.ends_at OR event_options.deleted_at IS NOT excluded.deleted_at)`,
+           OR event_options.ends_at IS NOT excluded.ends_at OR event_options.time_tbd IS NOT excluded.time_tbd
+           OR event_options.deleted_at IS NOT excluded.deleted_at)`,
     )
     .bind(t, JSON.stringify(options), eventId, teamId);
 }
 
 /** The event row mirrors a proposal's earliest date, so it sorts and syncs like any event. */
 const firstOption = (options: ProposalOption[]) => [...options].sort(byStart)[0]!;
+/** An event's times from one of its proposal dates. */
+const optionTimes = (o: ProposalOption) => ({
+  startsAt: o.startsAt,
+  meetAt: o.meetAt,
+  endsAt: o.endsAt,
+  timeTbd: o.timeTbd,
+});
 
 const FIELD_COLS: Record<string, string> = {
   seasonId: 'season_id',
@@ -143,6 +158,7 @@ const TEAM_INFO = `(SELECT timezone FROM teams WHERE id = events.team_id) AS tim
 
 const eventSnake = (e: EventFields) => ({
   starts_at: e.startsAt,
+  time_tbd: e.timeTbd ? 1 : 0,
   location_name: e.locationName ?? null,
   opponent: e.opponent ?? null,
 });
@@ -151,6 +167,7 @@ type CurrentEvent = EventInfo & {
   ends_at: number | null;
   meet_at: number | null;
   cancelled_at: number | null;
+  time_tbd: number;
 };
 
 /** What the squad hears about an edit: cancelled, back on, or a new time or place. */
@@ -161,18 +178,27 @@ function changeMessage(teamId: string, cur: CurrentEvent, ev: TeamEvent) {
     type: ev.type,
     opponent: ev.opponent,
     starts_at: ev.startsAt,
+    time_tbd: ev.timeTbd ? 1 : 0,
     location_name: ev.locationName,
   };
-  if (Math.max(cur.starts_at, ev.startsAt) <= now()) return null;
+  const was = { startsAt: cur.starts_at, timeTbd: !!cur.time_tbd };
+  const t = now();
+  if (!stillToCome(was, cur.timezone, t) && !stillToCome(ev, cur.timezone, t)) return null;
   if (!cur.cancelled_at && ev.cancelledAt) return eventCancelled(teamId, next);
   if (cur.cancelled_at && !ev.cancelledAt) return eventRestored(teamId, next);
   if (ev.cancelledAt) return null;
   if (
     cur.starts_at !== ev.startsAt ||
+    !!cur.time_tbd !== ev.timeTbd ||
     cur.meet_at !== ev.meetAt ||
     (cur.location_name ?? null) !== (ev.locationName ?? null)
   )
-    return eventChanged(teamId, next);
+    // "Time set: 2:30 PM" / "Time now TBD" when the time was decided or taken back.
+    return eventChanged(
+      teamId,
+      next,
+      timeChangeText(was, ev, cur.timezone, localeOf(cur.timezone)),
+    );
   return null;
 }
 
@@ -200,9 +226,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const t = now();
     const options = input.status === 'proposed' ? (input.options ?? []) : [];
     const first = options.length ? firstOption(options) : null;
-    const fields: EventFields = first
-      ? { ...input, startsAt: first.startsAt, meetAt: first.meetAt, endsAt: first.endsAt }
-      : input;
+    const fields: EventFields = first ? { ...input, ...optionTimes(first) } : input;
     let proposal: ProposalCols | null = null;
     if (first) {
       const answerBy = input.answerBy ?? defaultAnswerBy(t, first.startsAt);
@@ -229,7 +253,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
       ]);
       team = (ins?.results[0] as TeamInfo | undefined) ?? null;
     } else team = await insert.first<TeamInfo>();
-    if (team && fields.startsAt > t) {
+    if (team && stillToCome(fields, team.timezone, t)) {
       const info: EventInfo = { ...fields, ...team, ...eventSnake(fields) };
       await notifyStmt(
         c.var.db,
@@ -267,11 +291,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const options = input.options;
     if (options) {
       const first = firstOption(options);
-      Object.assign(input, {
-        startsAt: first.startsAt,
-        meetAt: first.meetAt,
-        endsAt: first.endsAt,
-      });
+      Object.assign(input, optionTimes(first));
     }
     // A proposal's times come from its dates, it can't be cancelled (it's dropped instead), and it
     // can't become a practice: those changes only apply to confirmed events.
@@ -280,6 +300,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
         (input.startsAt !== undefined ||
           input.meetAt !== undefined ||
           input.endsAt !== undefined ||
+          input.timeTbd !== undefined ||
           input.cancelled !== undefined)) ||
       (input.type !== undefined && !canPropose(input.type));
     const sets: string[] = [];
@@ -290,6 +311,10 @@ export function eventRoutes(app: Hono<AppEnv>) {
         sets.push(`${col} = ?`);
         vals.push(val);
       }
+    }
+    if (input.timeTbd !== undefined) {
+      sets.push('time_tbd = ?');
+      vals.push(input.timeTbd ? 1 : 0);
     }
     if (input.settings !== undefined) {
       sets.push('settings = ?');
@@ -330,13 +355,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
       (input.startsAt !== undefined ||
         input.endsAt !== undefined ||
         input.meetAt !== undefined ||
+        input.timeTbd !== undefined ||
+        input.type !== undefined ||
         input.locationName !== undefined ||
         input.cancelled !== undefined)
     ) {
       cur = await c.var.db
         .prepare(
           `SELECT e.id, e.title, e.type, e.opponent, e.starts_at, e.ends_at, e.meet_at, e.location_name, e.cancelled_at,
-             t.timezone, t.short_name
+             e.time_tbd, t.timezone, t.short_name
            FROM events e JOIN teams t ON t.id = e.team_id WHERE e.id = ? AND e.team_id = ?`,
         )
         .bind(id, me.teamId)
@@ -345,10 +372,15 @@ export function eventRoutes(app: Hono<AppEnv>) {
         const start = input.startsAt ?? cur.starts_at;
         const end = input.endsAt === undefined ? cur.ends_at : input.endsAt;
         const meet = input.meetAt === undefined ? cur.meet_at : input.meetAt;
+        const tbd = input.timeTbd ?? !!cur.time_tbd;
         if (end !== null && end < start)
           throw new HttpError(400, 'bad_request', 'Finish must be after the start');
         if (meet !== null && meet > start)
           throw new HttpError(400, 'bad_request', 'Meet time must be before the start');
+        if (tbd && (end !== null || meet !== null))
+          throw new HttpError(400, 'bad_request', 'No meet or finish time while the time is TBD');
+        if (tbd && !canTimeTbd((input.type ?? cur.type) as EventType))
+          throw new HttpError(400, 'bad_request', 'Practices need a time');
       }
     }
     const row = await c.var.db
@@ -417,7 +449,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
     const row = await c.var.db
       .prepare(
         `UPDATE events SET deleted_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND team_id = ? AND deleted_at IS NULL
-         RETURNING id, title, type, opponent, starts_at, location_name, cancelled_at, status, ${TEAM_INFO}`,
+         RETURNING id, title, type, opponent, starts_at, time_tbd, location_name, cancelled_at, status, ${TEAM_INFO}`,
       )
       .bind(t, t, c.req.param('eventId'), me.teamId)
       .first<EventInfo & { cancelled_at: number | null; status: string }>();
@@ -425,7 +457,10 @@ export function eventRoutes(app: Hono<AppEnv>) {
     // Removing an upcoming event is a cancellation for the squad (unless it was already called
     // off). A proposal is "not going ahead" for the people who answered; a dropped one, for nobody.
     const proposal = row.status === 'proposed';
-    const tell = row.starts_at > t && !row.cancelled_at && (row.status === 'confirmed' || proposal);
+    const tell =
+      stillToCome({ startsAt: row.starts_at, timeTbd: !!row.time_tbd }, row.timezone, t) &&
+      !row.cancelled_at &&
+      (row.status === 'confirmed' || proposal);
     await c.var.db.batch([
       auditStmt(c.var.db, {
         teamId: me.teamId,
@@ -656,6 +691,7 @@ export function eventRoutes(app: Hono<AppEnv>) {
              starts_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.starts_at ELSE events.starts_at END,
              meet_at = CASE WHEN excluded.deleted_at IS NULL THEN excluded.meet_at ELSE events.meet_at END,
              ends_at = coalesce(excluded.ends_at, events.ends_at),
+             time_tbd = CASE WHEN excluded.deleted_at IS NULL THEN 0 ELSE events.time_tbd END,
              reminded_at = CASE WHEN excluded.deleted_at IS NULL AND excluded.starts_at != events.starts_at
                THEN NULL ELSE events.reminded_at END,
              type = CASE WHEN excluded.deleted_at IS NULL THEN excluded.type ELSE events.type END,

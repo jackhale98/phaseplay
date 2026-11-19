@@ -133,19 +133,30 @@ export function flushNotifications(c: Context<AppEnv>): void {
   );
 }
 
-/** "Sat 22 Nov, 14:30" in the team's timezone (US zones get US style). */
-export function whenText(ms: number, tz: string) {
-  const locale = tz.startsWith('America/') ? 'en-US' : 'en-GB';
+/** Notification and calendar text style for a team's timezone: US zones get US style. */
+export const localeOf = (tz: string) => (tz.startsWith('America/') ? 'en-US' : 'en-GB');
+
+function when(ms: number, tz: string, withTime: boolean) {
   try {
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(localeOf(tz), {
       timeZone: tz,
       weekday: 'short',
       day: 'numeric',
       month: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
+      ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}),
     }).format(ms);
   } catch {
-    return new Date(ms).toUTCString().slice(0, 22);
+    return new Date(ms).toUTCString().slice(0, withTime ? 22 : 11);
   }
+}
+
+/** "Sat 22 Nov" in the team's timezone. */
+export const dateText = (ms: number, tz: string) => when(ms, tz, false);
+
+/**
+ * "Sat 22 Nov, 14:30" in the team's timezone (US zones get US style); "Sat 22 Nov, time TBD" for
+ * an event whose time isn't set yet (`tbd`, from `events.time_tbd`).
+ */
+export function whenText(ms: number, tz: string, tbd?: unknown) {
+  return tbd ? `${dateText(ms, tz)}, time TBD` : when(ms, tz, true);
 }

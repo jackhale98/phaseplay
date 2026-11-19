@@ -80,7 +80,7 @@ export const seasonFromRow = (r: Row): Season => ({
 });
 
 export const EVENT_COLS =
-  'id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id, cancelled_at, settings, status, answer_by, target, check_positions, version, updated_at, deleted_at';
+  'id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id, cancelled_at, settings, time_tbd, status, answer_by, target, check_positions, version, updated_at, deleted_at';
 export const eventFromRow = (r: Row): TeamEvent => ({
   id: s(r.id),
   teamId: s(r.team_id),
@@ -99,6 +99,7 @@ export const eventFromRow = (r: Row): TeamEvent => ({
   recurrenceId: ns(r.recurrence_id),
   cancelledAt: nn(r.cancelled_at),
   settings: parseJson(ns(r.settings), null),
+  timeTbd: bool(r.time_tbd),
   status: ((r.status as string) ?? 'confirmed') as TeamEvent['status'],
   answerBy: nn(r.answer_by),
   target: nn(r.target),
@@ -124,7 +125,7 @@ export const RSVP_COLS =
   'event_id, member_id, team_id, status, note, attended, reconfirm, updated_at';
 
 export const OPTION_COLS =
-  'id, event_id, team_id, starts_at, meet_at, ends_at, updated_at, deleted_at';
+  'id, event_id, team_id, starts_at, meet_at, ends_at, time_tbd, updated_at, deleted_at';
 export const optionFromRow = (r: Row): EventOption => ({
   id: s(r.id),
   eventId: s(r.event_id),
@@ -132,6 +133,7 @@ export const optionFromRow = (r: Row): EventOption => ({
   startsAt: n(r.starts_at),
   meetAt: nn(r.meet_at),
   endsAt: nn(r.ends_at),
+  timeTbd: bool(r.time_tbd),
   updatedAt: n(r.updated_at),
   deletedAt: nn(r.deleted_at),
 });

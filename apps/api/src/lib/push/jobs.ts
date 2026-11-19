@@ -9,7 +9,10 @@ import { PROPOSAL_REMIND_BEFORE_MS } from '@phaseplay/shared';
 import { datesText, eventLabel } from './messages';
 
 const H = 3600e3;
-/** Reminders go out for events starting 18–30 h from now, once each (`events.reminded_at`). */
+/**
+ * Reminders go out for events starting 18–30 h from now, once each (`events.reminded_at`). A "Time
+ * TBD" event is stored at local noon, so its reminder still goes out the day before.
+ */
 export const REMIND_FROM = 18 * H;
 export const REMIND_TO = 30 * H;
 const MAX_EVENTS = 40;
@@ -21,6 +24,7 @@ type EventRow = {
   type: string;
   opponent: string | null;
   starts_at: number;
+  time_tbd: number;
   location_name: string | null;
   timezone: string;
   short_name: string;
@@ -36,7 +40,7 @@ const recipientsSql = (topicParam: string) => `
 export async function queueReminders(db: D1Database, t: number): Promise<number> {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.team_id, e.title, e.type, e.opponent, e.starts_at, e.location_name, t.timezone, t.short_name
+      `SELECT e.id, e.team_id, e.title, e.type, e.opponent, e.starts_at, e.time_tbd, e.location_name, t.timezone, t.short_name
        FROM teams t CROSS JOIN events e
        WHERE e.team_id = t.id AND t.deleted_at IS NULL AND t.id <> ?
          AND e.starts_at >= ? AND e.starts_at < ? AND e.reminded_at IS NULL
@@ -52,7 +56,7 @@ export async function queueReminders(db: D1Database, t: number): Promise<number>
       id: e.id,
       p: payloadJson('reminders', e.team_id, {
         title: `Are you in? ${eventLabel(e)}`,
-        body: `${whenText(e.starts_at, e.timezone)}${e.location_name ? ` · ${e.location_name}` : ''}. Tap to reply.`,
+        body: `${whenText(e.starts_at, e.timezone, e.time_tbd)}${e.location_name ? ` · ${e.location_name}` : ''}. Tap to reply.`,
         url: `/events/${e.id}?team=${e.team_id}`,
         tag: `rsvp-${e.id}`,
       }),

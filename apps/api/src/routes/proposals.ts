@@ -4,7 +4,7 @@
  * events.create / events.update.
  */
 import type { Hono } from 'hono';
-import { ProposalAnswerPut, ProposalConfirm, uuidv7 } from '@phaseplay/shared';
+import { ProposalAnswerPut, ProposalConfirm, stillToCome, uuidv7 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { HttpError, body, notFound, now } from '../lib/http';
@@ -77,7 +77,7 @@ export function proposalRoutes(app: Hono<AppEnv>) {
     const cur = await db
       .prepare(
         `SELECT ${EVENT_COLS_E}, events.confirmed_option_id, ${TEAM_INFO},
-           o.starts_at AS o_start, o.meet_at AS o_meet, o.ends_at AS o_end
+           o.starts_at AS o_start, o.meet_at AS o_meet, o.ends_at AS o_end, o.time_tbd AS o_tbd
          FROM events LEFT JOIN event_options o ON o.id = ? AND o.event_id = events.id
            AND o.team_id = events.team_id AND o.deleted_at IS NULL
          WHERE events.id = ? AND events.team_id = ? AND events.deleted_at IS NULL`,
@@ -109,14 +109,17 @@ export function proposalRoutes(app: Hono<AppEnv>) {
     }
     if (cur.o_start === null || cur.o_start === undefined)
       throw notFound('That date is no longer an option');
+    // A "Time TBD" date stays TBD (no meet or finish) unless the confirm sets its time.
+    const tbd = !!cur.o_tbd && input.startsAt === undefined;
     const start = input.startsAt ?? Number(cur.o_start);
     const meet = input.meetAt !== undefined ? input.meetAt : (cur.o_meet as number | null);
     const end = cur.o_end as number | null;
     const row = {
       ...cur,
       starts_at: start,
-      meet_at: meet !== null && meet <= start ? meet : null,
-      ends_at: end !== null && end >= start ? end : null,
+      meet_at: !tbd && meet !== null && meet <= start ? meet : null,
+      ends_at: !tbd && end !== null && end >= start ? end : null,
+      time_tbd: tbd ? 1 : 0,
     };
     const won = {
       sql: `EXISTS (SELECT 1 FROM events e WHERE e.id = ?8 AND e.status = 'confirmed'
@@ -127,14 +130,23 @@ export function proposalRoutes(app: Hono<AppEnv>) {
       db
         .prepare(
           `UPDATE events SET status = 'confirmed', confirmed_option_id = ?1, starts_at = ?2, meet_at = ?3,
-             ends_at = ?4, reminded_at = NULL, version = version + 1, updated_at = ?5
+             ends_at = ?4, time_tbd = ?8, reminded_at = NULL, version = version + 1, updated_at = ?5
            WHERE id = ?6 AND team_id = ?7 AND status = 'proposed' AND deleted_at IS NULL
            RETURNING ${EVENT_COLS}`,
         )
-        .bind(input.optionId, row.starts_at, row.meet_at, row.ends_at, t, eventId, me.teamId),
+        .bind(
+          input.optionId,
+          row.starts_at,
+          row.meet_at,
+          row.ends_at,
+          t,
+          eventId,
+          me.teamId,
+          row.time_tbd,
+        ),
       rsvps,
     ];
-    const tell = start > t;
+    const tell = stillToCome({ startsAt: start, timeTbd: tbd }, String(cur.timezone), t);
     if (tell)
       // One push each: "It's on … Still in?" for those who were in, "New: …" for everyone else.
       stmts.push(

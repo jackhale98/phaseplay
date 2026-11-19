@@ -93,3 +93,7 @@ export function timeChangeText(
   if (!was && now) return 'Time now TBD';
   return null;
 }
+
+/** Hasn't started yet: a "Time TBD" event is still to come until its day is over. */
+export const stillToCome = (e: EventTime, tz: string, now: number) =>
+  isTimeTbd(e) ? endOfLocalDay(e.startsAt, tz) > now : e.startsAt > now;

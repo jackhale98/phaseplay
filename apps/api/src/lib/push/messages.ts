@@ -3,7 +3,7 @@
  * notes or anything about health (docs/architecture.md §Push).
  */
 import type { PushPayload, RecurrenceRule } from '@phaseplay/shared';
-import { whenText } from '../notify';
+import { dateText, whenText } from '../notify';
 
 export type Message = Omit<PushPayload, 'topic' | 'teamId'>;
 
@@ -14,10 +14,13 @@ export type EventInfo = {
   type: string;
   opponent: string | null;
   starts_at: number;
+  /** 1 when the date is set but the time isn't ("Time TBD"). */
+  time_tbd?: number | boolean | null;
   location_name: string | null;
   timezone: string;
   short_name: string;
 };
+const when = (e: EventInfo) => whenText(e.starts_at, e.timezone, e.time_tbd);
 
 /** "PRFC v Rivals" for games with an opponent, else the event title. */
 export const eventLabel = (e: {
@@ -36,16 +39,19 @@ const eventUrl = (teamId: string, id: string) => `/events/${id}?team=${teamId}`;
 export function eventCreated(teamId: string, e: EventInfo): Message {
   return {
     title: `New: ${eventLabel(e)}`,
-    body: `${whenText(e.starts_at, e.timezone)}${where(e.location_name)}. Can you make it?`,
+    body: `${when(e)}${where(e.location_name)}. Can you make it?`,
     url: eventUrl(teamId, e.id),
     tag: `event-${e.id}`,
   };
 }
 
-export function eventChanged(teamId: string, e: EventInfo): Message {
+/** `timeNote`: "Time set: 2:30 PM" or "Time now TBD" when that's what changed (event-time.ts). */
+export function eventChanged(teamId: string, e: EventInfo, timeNote?: string | null): Message {
   return {
     title: `Changed: ${eventLabel(e)}`,
-    body: `Now ${whenText(e.starts_at, e.timezone)}${where(e.location_name)}.`,
+    body: timeNote
+      ? `${timeNote} · ${dateText(e.starts_at, e.timezone)}${where(e.location_name)}.`
+      : `Now ${when(e)}${where(e.location_name)}.`,
     url: eventUrl(teamId, e.id),
     tag: `event-${e.id}`,
   };
@@ -54,7 +60,7 @@ export function eventChanged(teamId: string, e: EventInfo): Message {
 export function eventCancelled(teamId: string, e: EventInfo, removed = false): Message {
   return {
     title: `Cancelled: ${eventLabel(e)}`,
-    body: `${whenText(e.starts_at, e.timezone)} is ${removed ? 'off the schedule' : 'cancelled'}.`,
+    body: `${when(e)} is ${removed ? 'off the schedule' : 'cancelled'}.`,
     url: removed ? `/schedule?team=${teamId}` : eventUrl(teamId, e.id),
     tag: `event-${e.id}`,
   };
@@ -63,7 +69,7 @@ export function eventCancelled(teamId: string, e: EventInfo, removed = false): M
 export function eventRestored(teamId: string, e: EventInfo): Message {
   return {
     title: `Back on: ${eventLabel(e)}`,
-    body: `${whenText(e.starts_at, e.timezone)}${where(e.location_name)} is going ahead after all.`,
+    body: `${when(e)}${where(e.location_name)} is going ahead after all.`,
     url: eventUrl(teamId, e.id),
     tag: `event-${e.id}`,
   };
@@ -154,8 +160,9 @@ export function dayText(ms: number, tz: string) {
   }
 }
 
-/** "Sat 12, 2:30 PM" (US zones) or "Sat 12, 14:30". */
-export function dayTimeText(ms: number, tz: string) {
+/** "Sat 12, 2:30 PM" (US zones) or "Sat 12, 14:30"; "Sat 12, time TBD" with `tbd`. */
+export function dayTimeText(ms: number, tz: string, tbd?: unknown) {
+  if (tbd) return `${dayText(ms, tz)}, time TBD`;
   try {
     const clock = new Intl.DateTimeFormat(tz.startsWith('America/') ? 'en-US' : 'en-GB', {
       timeZone: tz,
@@ -188,7 +195,7 @@ export function proposalCreated(teamId: string, e: EventInfo, dates: number[]): 
 export function proposalConfirmed(teamId: string, e: EventInfo): Message {
   return {
     title: `It's on: ${eventLabel(e)}`,
-    body: `${dayTimeText(e.starts_at, e.timezone)}${where(e.location_name)}. Still in?`,
+    body: `${dayTimeText(e.starts_at, e.timezone, e.time_tbd)}${where(e.location_name)}. Still in?`,
     url: eventUrl(teamId, e.id),
     tag: `event-${e.id}`,
   };

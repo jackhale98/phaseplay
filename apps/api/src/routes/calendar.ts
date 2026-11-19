@@ -1,6 +1,9 @@
 import type { Hono } from 'hono';
 import {
   EVENT_TYPE_LABELS,
+  TIME_TBD_LABEL,
+  clockText,
+  dateInTz,
   randomToken,
   sha256Base64Url,
   type TeamCalendar,
@@ -9,40 +12,40 @@ import type { AppEnv } from '../env';
 import { route } from '../lib/router';
 import { buildIcs } from '../lib/ics';
 import { auditStmt } from '../lib/audit';
+import { localeOf } from '../lib/notify';
 
 /** Events from this long ago stay in the feed, so last week's games don't vanish. */
 const PAST_MS = 90 * 86400e3;
 
-const EVENT_SQL = `SELECT e.id, e.type, e.title, e.starts_at, e.meet_at, e.ends_at, e.location_name, e.location_url,
+const EVENT_SQL = `SELECT e.id, e.type, e.title, e.starts_at, e.meet_at, e.ends_at, e.time_tbd, e.location_name, e.location_url,
     e.opponent, e.notes, e.cancelled_at, e.version, e.updated_at, t.short_name, t.name AS team_name, t.timezone
   FROM teams t JOIN events e ON e.team_id = t.id AND e.deleted_at IS NULL AND e.status = 'confirmed' AND e.starts_at > ?`;
 
 type EventRow = Record<string, string | number | null>;
 
 /** "6:45 PM" in the team's timezone. */
-function clock(ms: number, tz: string) {
-  try {
-    return new Intl.DateTimeFormat(tz.startsWith('America/') ? 'en-US' : 'en-GB', {
-      timeZone: tz,
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(ms);
-  } catch {
-    return `${new Date(ms).toISOString().slice(11, 16)} UTC`;
-  }
-}
+const clock = (ms: number, tz: string) => clockText(ms, tz, localeOf(tz));
 
 function ics(name: string, rows: EventRow[]) {
   return buildIcs(
     name,
     rows.map((e) => {
       const start = Number(e.starts_at);
+      const tz = String(e.timezone);
       const label = e.type === 'match' && e.opponent ? `v ${e.opponent}` : String(e.title);
-      const meet = e.meet_at ? `Meet ${clock(Number(e.meet_at), String(e.timezone))}. ` : '';
+      // "Time TBD": an all-day event on its date, until the time is set (the version bump on that
+      // edit changes SEQUENCE and LAST-MODIFIED, so calendars pick up the new time).
+      const tbd = !!e.time_tbd;
+      const meet = tbd
+        ? `${TIME_TBD_LABEL}. `
+        : e.meet_at
+          ? `Meet ${clock(Number(e.meet_at), tz)}. `
+          : '';
       return {
         uid: String(e.id),
         start: e.meet_at ? Number(e.meet_at) : start,
         end: e.ends_at ? Number(e.ends_at) : start + (e.type === 'tournament' ? 8 : 2) * 3600e3,
+        date: tbd ? dateInTz(start, tz) : null,
         summary:
           `${e.short_name} ${EVENT_TYPE_LABELS[e.type as keyof typeof EVENT_TYPE_LABELS] ?? ''}: ${label}`.replace(
             /\s+/g,
