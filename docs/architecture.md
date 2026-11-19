@@ -85,8 +85,8 @@ docs/                specs, decisions.md, runbooks
 | `team_crests` | team_id PK, type (png/webp/jpeg), data BLOB (≤ 200 KB, magic bytes checked), updated_at; `teams.crest_version` is the cache key | |
 | `invites` | id, team_id, token_hash UNIQUE, kind (`join`/`relink`), role, target_user_id?, created_by, expires_at, max_uses, uses, revoked_at | team_id |
 | `seasons` | id, team_id, name, starts_on, ends_on | team_id |
-| `events` | id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id?, cancelled_at, status (`confirmed`/`proposed`/`dropped`), answer_by?, target?, check_positions, proposal_reminded_at?, version, updated_at, deleted_at | (team_id,starts_at), (team_id,updated_at), answer_by where proposed |
-| `event_options` | a proposal's candidate dates: id, team_id, event_id, starts_at, meet_at, ends_at, updated_at, deleted_at (the event row mirrors the earliest) | (team_id,updated_at), event_id |
+| `events` | id, team_id, season_id, type, format, title, starts_at, meet_at, ends_at, time_tbd (see §Time TBD), location_name, location_url, opponent, notes, rsvp_deadline, recurrence_id?, cancelled_at, status (`confirmed`/`proposed`/`dropped`), answer_by?, target?, check_positions, proposal_reminded_at?, version, updated_at, deleted_at | (team_id,starts_at), (team_id,updated_at), answer_by where proposed |
+| `event_options` | a proposal's candidate dates: id, team_id, event_id, starts_at, meet_at, ends_at, time_tbd, updated_at, deleted_at (the event row mirrors the earliest) | (team_id,updated_at), event_id |
 | `proposal_answers` | option_id, member_id, event_id, team_id, answer (`in`/`cant`), updated_at; deleted with their date | PK(option_id,member_id), (team_id,updated_at), event_id, member_id |
 | `recurrences` | id, team_id, rule JSON (weekly days, time, until), exceptions JSON | team_id |
 | `rsvps` | event_id, member_id, team_id, status, note, note_expires_at, attended, reconfirm (yes from a confirmed proposal, awaiting "Still in?"), updated_at | PK(event_id,member_id), (team_id,updated_at), member_id, note_expires_at |
@@ -114,6 +114,14 @@ docs/                specs, decisions.md, runbooks
 - A proposal changes only through its dates: `events.update` refuses start/meet/finish times, cancelling or a practice type for a non-confirmed event (400) and never sends "Changed" pushes for it. Deleting a proposal tells only those who answered; a dropped one, nobody.
 - Confirm and drop are one read plus one batch: the guarded status change (`WHERE status = 'proposed'`, recording `confirmed_option_id`), the replies and the pushes commit together, and pushes are gated on this request's write (`updated_at = t`), so a retry never double-sends. Confirm's two messages ("It's on … Still in?" and "New: …") are one `notifyStmt` with an alternative payload. Drop is held 5 s on the device with Undo. Its rsvp upsert only fills replies that are still empty, so a retry never overwrites a later "Can't now".
 - Everything that means "the schedule" filters `status = 'confirmed'` (SQL) or `isConfirmed` / `events()` (shared and web); dropped events are hidden (full syncs skip them).
+
+### Time TBD
+
+- A game or event (never a practice, never a weekly series) can have its date set and its time still to decide: `events.time_tbd = 1` (migration 0013, additive). `starts_at` is then **local noon of that date in the team's timezone** (`tbdStartsAt`), so the date never shifts across zones or DST; `meet_at` and `ends_at` are null. `events.create`/`events.update` refuse (400) a TBD practice or a TBD event with a meet or finish time, checking a patch against the stored row. Clients send noon; the server treats the date in team time as the event's day.
+- One helper set in `packages/shared/event-time.ts`, used by API and web: `eventEndsAt` (a TBD event runs until the **end of its local day**, so it stays upcoming all day; otherwise `ends_at` or start + 3 h), `stillToCome`, `sortByEventStart` (TBD after the day's timed events), `eventTimeLabel` ("Time TBD"/"TBD"), `timeChangeText`. `upcoming()/past()`, sorting, stats (`heldEvents`), kit at risk (`atRiskKit`) and the API's "is it still ahead?" checks for pushes use them.
+- Proposals: each `event_options` row has its own `time_tbd`; the event mirrors its earliest date, TBD included. Confirming a TBD date keeps it TBD unless the confirm sends `startsAt` (then a meet time may follow).
+- Pushes say "Sat 22 Nov, time TBD"; setting the time sends the usual "Changed" push as "Time set: 14:30 · Sat 22 Nov", taking it back "Time now TBD · …". Day-before reminders still go out (noon is 18–30 h ahead the day before).
+- Calendar feed: a TBD event is all-day (`DTSTART;VALUE=DATE` / `DTEND;VALUE=DATE` the next day) with "Time TBD." in the description; setting the time bumps `version`, so `SEQUENCE` and `LAST-MODIFIED` change and calendars update.
 
 ### Practice plan blocks (JSON, schema in `packages/shared/practice.ts`)
 
@@ -159,7 +167,7 @@ type Block = {
 - **Writes:** `POST`, `PATCH` and `DELETE` on resource routes.
   - Clients generate IDs, and the server inserts with `ON CONFLICT DO NOTHING`, so outbox retries are idempotent.
   - Versioned resources (events, sheets, plays) take `If-Match: <version>`. A stale version gets `409` with the latest copy.
-- **Calendar:** one team calendar per team (`teams.calendar_token`, made on first `teams.calendar.get`, shown to every member, reset by staff with `events.manage`). `GET /cal/:token.ics` is public with that token; older per-user tokens (`calendar_tokens`) still resolve. Feeds send `max-age=300` and `REFRESH-INTERVAL`/`X-PUBLISHED-TTL` of 30 minutes (Google Calendar ignores these and polls on its own schedule). Meet times are written in the team's timezone.
+- **Calendar:** one team calendar per team (`teams.calendar_token`, made on first `teams.calendar.get`, shown to every member, reset by staff with `events.manage`). `GET /cal/:token.ics` is public with that token; older per-user tokens (`calendar_tokens`) still resolve. Feeds send `max-age=300` and `REFRESH-INTERVAL`/`X-PUBLISHED-TTL` of 30 minutes (Google Calendar ignores these and polls on its own schedule). Meet times are written in the team's timezone. "Time TBD" events are all-day entries (see §Time TBD).
 - **Bulk writes** (recurring series, attendance, match/run logs, imports) use one `INSERT ... SELECT FROM json_each(?)` statement; imports are sent in chunks of 40 rows.
 - **Query budget:** at most 6 D1 queries per request (the free cap is 50). Use `db.batch()`, and avoid N+1 queries.
 

@@ -78,6 +78,8 @@ The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py
 
 **Proposals ("Not confirmed yet")** look provisional everywhere: a dashed outline (`--tent-line`), a lighter fill (`--tent-fill`) and a "Tentative" or "Date poll" chip; the month view shows a dashed "?" pill on each candidate date. One card (`ProposalCard`) serves Home, the agenda and the event page: open with the answer buttons until every date has an answer, then folded to one line with Change (the Home replies' slide, instant with reduced motion). The form keeps one new control (Confirmed | Not confirmed yet) and one defaults line with Change for the rest.
 
+**Time TBD** (games and events, never practices or weekly series): one "Time TBD" checkbox under the kickoff/start time. On, it takes the time's place in the grid and the time, meet and finish fields go (and are cleared); off, they come back with what was there, or the team's usual start for that kind of event, else empty and required. The checkbox stays the same element either way, so focus stays on it. Each date row of a proposal has the same checkbox. Wherever a time shows, a TBD event says "Time TBD" ("TBD" in month-view pills; ", time TBD" in labels and copied nudges), with no timezone; the event page offers "Set time" to staff. Helpers: `eventTimeLabel`/`isTimeTbd` (packages/shared `event-time.ts`), `relWhen` (web `format.ts`).
+
 ## Interaction details
 
 - **Optimistic writes** come with an undo toast. Sync status is a small dot (synced, pending or offline) with an `aria-live` announcement on change.
