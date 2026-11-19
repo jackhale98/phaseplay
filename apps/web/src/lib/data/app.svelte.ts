@@ -18,6 +18,7 @@ import {
   db,
   kv,
   clearAll,
+  clearMediaCaches,
   saveSnapshot,
   loadSnapshot,
   type OutboxEntry,
@@ -313,6 +314,7 @@ class AppState {
       this.me?.memberships.find((m) => m.team.id === teamId)?.team.name ??
       'the team';
     await (await db()).delete('teams', teamId).catch(() => {});
+    await clearMediaCaches();
     toasts.show(`You've been removed from ${name}`, { tone: 'warn', timeout: 8000 });
     await this.refreshMe();
   }

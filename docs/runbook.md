@@ -38,6 +38,15 @@ Anyone can try Phaseplay without an account: **Explore the demo** on the landing
 - Backups: D1 Time Travel (`wrangler d1 time-travel restore phaseplay --env production --timestamp <iso>`), 7 days on the free plan, 30 on Workers Paid.
 - Free plan: fine for a handful of teams. Move to Workers Paid ($5/month) when D1 reads pass about half the 5M/day cap (roughly 5–8 active teams) or before a big tournament weekend; free limits are hard daily caps.
 
+## Picture storage
+
+Playbook images (picture plays, drill photos) live in D1 (`media`, `media_blobs`). Uploads are refused with "Picture storage is full — tell the Phaseplay admin" (HTTP 507) once all teams' stored image bytes would pass `MEDIA_GLOBAL_BYTES` (250 MB, `packages/shared/src/media.ts`), half of D1 Free's 500 MB database cap. Each team also has `MEDIA_TEAM_LIMIT` (150 images) and each person `MEDIA_UPLOADS_PER_HOUR` (60).
+
+- **See usage:** `wrangler d1 execute phaseplay --remote --command "SELECT value FROM app_meta WHERE key = 'media_bytes'"` (bytes), and per team: `SELECT team_id, count(*), sum(size + thumb_size) FROM media WHERE deleted_at IS NULL GROUP BY team_id ORDER BY 3 DESC`. The total is kept by triggers and recomputed nightly.
+- **Raise it:** only with headroom in the database (check the D1 dashboard's database size; Workers Paid allows 10 GB). Change `MEDIA_GLOBAL_BYTES` (and, if wanted, `MEDIA_TEAM_LIMIT`) in `packages/shared/src/media.ts`, note it in `docs/decisions.md`, deploy. Nothing else stores the value.
+- **Move to R2** when pictures need more than a few hundred MB: add an R2 bucket binding, write `full`/`thumb` objects keyed by media id in the upload route instead of `media_blobs` rows, serve them from `media.get` after the same visibility check, copy existing blobs across with a one-off script, then drop the byte budget to a cost guard. Routes, checks, sync and the web app don't change.
+- **Free space now:** a team can delete pictures (bytes go at once). An abusive account: remove its memberships; its images go with the plays/drills a coach deletes.
+
 ## Secrets
 
 - `PUSH_KEY_SECRET` (optional, recommended): encrypts the stored push-notification signing key, so a copy of the database alone can't send notifications. Make a long random value (e.g. `openssl rand -base64 48`), then in the Cloudflare dashboard: Workers & Pages → phaseplay → Settings → Variables and Secrets → Add → type **Secret**, name `PUSH_KEY_SECRET` (or `pnpm --filter @phaseplay/api exec wrangler secret put PUSH_KEY_SECRET --env production`). The existing key is encrypted on the next notification send; nothing else changes.

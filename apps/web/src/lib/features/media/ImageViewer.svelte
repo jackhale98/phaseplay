@@ -1,7 +1,7 @@
 <!--
   Full-screen pages viewer. Phones: pinch to zoom, drag to pan, double-tap to zoom, swipe between
-  pages. Laptops: zoom buttons, Ctrl/⌘ + wheel or trackpad pinch, ← → between pages, + / − / 0 to
-  zoom, Esc to close. A modal <dialog>, so focus stays inside and the page behind is inert.
+  pages. Laptops: zoom buttons, Ctrl/⌘ + wheel or trackpad pinch, ← → (or PgUp/PgDn) between
+  pages, + / − / 0 to zoom, arrows to move around when zoomed in, Esc to close. A modal <dialog>, so focus stays inside and the page behind is inert.
 -->
 <script lang="ts" module>
   export type ViewerItem = { src: string; alt: string; caption: string | null };
@@ -85,9 +85,22 @@
     index = (index + d + n) % n;
   }
 
+  const PAN = 80;
+  const ARROWS: Record<string, [number, number]> = {
+    ArrowLeft: [PAN, 0],
+    ArrowRight: [-PAN, 0],
+    ArrowUp: [0, PAN],
+    ArrowDown: [0, -PAN],
+  };
   function key(e: KeyboardEvent) {
-    if (e.key === 'ArrowRight') go(1);
-    else if (e.key === 'ArrowLeft') go(-1);
+    const pan = ARROWS[e.key];
+    if (pan && scale > 1) {
+      // Zoomed in: arrows move around the picture (PageUp/PageDown still change page).
+      tx += pan[0];
+      ty += pan[1];
+      clamp();
+    } else if (e.key === 'ArrowRight' || e.key === 'PageDown') go(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(-1);
     else if (e.key === '+' || e.key === '=') zoomBy(1.5);
     else if (e.key === '-' || e.key === '_') zoomBy(1 / 1.5);
     else if (e.key === '0') reset();
@@ -259,7 +272,9 @@
         ><IconChevronRight /></button
       >
     {/if}
-    <p class="keys" aria-hidden="true">← → pages · + − zoom · Esc close</p>
+    <p class="keys" aria-hidden="true">
+      {scale > 1 ? 'Arrows move · PgUp PgDn pages' : '← → or PgUp PgDn pages'} · + − 0 zoom · Esc close
+    </p>
   {/if}
 </dialog>
 

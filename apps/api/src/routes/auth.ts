@@ -177,6 +177,8 @@ export function authRoutes(app: Hono<AppEnv>) {
       c.var.db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(Date.now(), u.id),
     ]);
     clearSessionCookie(c);
+    // Drop this browser's HTTP cache (team pictures included) along with the session.
+    c.header('Clear-Site-Data', '"cache"');
     return c.json({ ok: true });
   });
 }

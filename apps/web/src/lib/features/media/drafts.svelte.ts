@@ -57,9 +57,16 @@ export class Drafts {
     return this.items.some((d) => !d.remote) || this.dirtyRemote;
   }
   private initial = '';
+  /** Server images (id → caption) as last loaded or saved, to send only real changes. */
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  private known = new Map<string, string | null>();
   /** Remember the server state so "changed" knows whether order/captions/removals moved. */
   snapshot() {
     this.initial = this.key();
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    this.known = new Map(
+      this.items.filter((d) => d.remote).map((d) => [d.id, d.caption.trim() || null]),
+    );
   }
   private key() {
     return JSON.stringify(
@@ -217,15 +224,20 @@ export class Drafts {
         uploaded++;
         this.status = `Uploaded ${uploaded}.`;
       }
-      const wanted = this.items
-        .filter((d) => d.remote)
-        .map((d) => ({ id: d.id, caption: d.caption.trim() || null }));
-      const same =
-        list &&
-        list.length === wanted.length &&
-        list.every((m, i) => m.id === wanted[i]!.id && (m.caption ?? null) === wanted[i]!.caption);
-      if (!same && (list || this.dirtyRemote))
-        list = (await setImages(owner, ownerId, wanted)).list;
+      // Explicit changes only (order as shown, removals, edited captions), so pages another coach
+      // added meanwhile are kept, after these.
+      const shown = this.items.filter((d) => d.remote);
+      const order = shown.map((d) => d.id);
+      const remove = [...this.known.keys()].filter((id) => !order.includes(id));
+      const captions: Record<string, string | null> = {};
+      for (const d of shown) {
+        const cap = d.caption.trim() || null;
+        if (this.known.has(d.id) && this.known.get(d.id) !== cap) captions[d.id] = cap;
+      }
+      const ordered =
+        list && order.every((id, i) => list![i]?.id === id) && list.length === order.length;
+      if (remove.length || Object.keys(captions).length || (!ordered && (list || this.dirtyRemote)))
+        list = (await setImages(owner, ownerId, { order, remove, captions })).list;
       this.snapshot();
       return list;
     } finally {

@@ -159,6 +159,8 @@
       if ((err as Error).name === 'AbortError') error = 'Upload cancelled.';
       else if (err instanceof ApiError) error = err.message;
       else error = (err as Error).message || 'Something went wrong. Try again.';
+      // Nothing uploaded: don't leave an empty play behind (Save again creates it afresh).
+      await dropEmpty();
     } finally {
       saving = false;
     }
@@ -175,6 +177,11 @@
   /** Closing mid-way: a new play with no pages yet is removed again. */
   async function closed() {
     drafts.cancelAll();
+    await dropEmpty();
+  }
+
+  /** Remove a play this sheet just created if none of its pages made it. */
+  async function dropEmpty() {
     const id = createdId;
     if (id && !app.snap?.rows.plays[id]?.media?.length) {
       createdId = null;

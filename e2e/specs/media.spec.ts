@@ -135,7 +135,10 @@ test.describe('picture plays', () => {
     await expect(viewer.getByRole('button', { name: 'Reset zoom' })).toBeDisabled();
     await viewer.getByRole('button', { name: 'Zoom in' }).click();
     await expect(viewer.getByRole('button', { name: 'Zoom out' })).toBeEnabled();
+    // Zoomed in, arrows move around the picture; PageUp/PageDown still turn pages.
     await p.keyboard.press('ArrowLeft');
+    await expect(viewer.getByText('Page 2 of 2')).toBeVisible();
+    await p.keyboard.press('PageUp');
     await expect(viewer.getByText('Page 1 of 2 · Exit call')).toBeVisible();
     await p.keyboard.press('Escape');
     await expect(viewer).toBeHidden();

@@ -59,9 +59,9 @@ export function uploadImage(
   });
 }
 
-/** Order, captions and removal in one call: images not listed are deleted. */
-export const setImages = (owner: MediaOwner, ownerId: string, pages: MediaSet['pages']) =>
-  api<{ list: MediaRef[] }>(ownerPath(owner, ownerId), { method: 'PUT', body: { pages } });
+/** Order, removals and captions in one call (images not mentioned are kept, after `order`). */
+export const setImages = (owner: MediaOwner, ownerId: string, ops: MediaSet) =>
+  api<{ list: MediaRef[] }>(ownerPath(owner, ownerId), { method: 'PUT', body: ops });
 
 /** Put the owner's new image list into the local snapshot straight away (sync confirms later). */
 export async function applyList(owner: MediaOwner, ownerId: string, list: MediaRef[]) {
