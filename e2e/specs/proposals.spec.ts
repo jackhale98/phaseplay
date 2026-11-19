@@ -197,15 +197,17 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(dialog).toBeHidden();
       await expect(cardIn(page, /Curry night\?/)).toContainText('Tentative');
 
-      // Player answers from Home; the card folds, then leaves the "Can you make it?" spot.
+      // Player answers from Home. With nothing confirmed coming up, Home leads with the
+      // tentative items; the card folds to one line and stays there.
       const p = pip.page;
       await openTeam(p, team.teamId, '/home');
-      await expect(p.getByRole('heading', { name: 'Can you make it?' })).toBeVisible();
+      const lead = p.getByRole('heading', { name: /Coming up · not confirmed yet/ });
+      await expect(lead).toBeVisible();
       const card = cardIn(p, /Curry night\?/);
       await axe(p);
       await card.getByRole('button', { name: "I'm in" }).click();
       await expect(card).toContainText("You're in");
-      await expect(p.getByRole('heading', { name: 'Can you make it?' })).toHaveCount(0);
+      await expect(lead).toBeVisible();
       await openTeam(p, team.teamId, '/schedule');
       await expect(cardIn(p, /Curry night\?/)).toContainText("You're in");
 
@@ -253,4 +255,42 @@ test('dropping a proposal can be undone for a few seconds', async ({ page, team 
   await page.waitForTimeout(5500);
   await page.reload();
   await expect(cardIn(page, /Bowling\?/)).toBeVisible();
+});
+
+test('offseason Home: a social leads when nothing else is on', async ({ page, team }) => {
+  await team.post('/teams/:teamId/events', {
+    id: uuid(),
+    type: 'social',
+    title: 'Summer barbecue',
+    startsAt: Date.now() + 12 * DAY,
+  });
+  await openTeam(page, team.teamId, '/home');
+  await expect(
+    page.getByRole('region', { name: 'Next up' }).getByText('Summer barbecue'),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nothing scheduled yet' })).toHaveCount(0);
+});
+
+test('offseason Home: tentative games and socials lead when nothing is confirmed', async ({
+  page,
+  team,
+  axe,
+}) => {
+  await team.post('/teams/:teamId/events', {
+    id: uuid(),
+    type: 'social',
+    title: 'Pre-season tour',
+    startsAt: Date.now() + 30 * DAY,
+    status: 'proposed',
+    options: [{ id: uuid(), startsAt: Date.now() + 30 * DAY }],
+  });
+  await openTeam(page, team.teamId, '/home');
+  await expect(page.getByRole('heading', { name: /Coming up · not confirmed yet/ })).toBeVisible();
+  await expect(cardIn(page, /Pre-season tour\?/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nothing scheduled yet' })).toHaveCount(0);
+  // Still there once answered (folded to one line), not replaced by an empty state.
+  await page.getByRole('button', { name: "I'm in" }).first().click();
+  await expect(page.getByRole('heading', { name: /Coming up · not confirmed yet/ })).toBeVisible();
+  await expect(page.getByText(/You're in/).first()).toBeVisible();
+  await axe(page);
 });

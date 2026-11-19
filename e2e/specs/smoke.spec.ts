@@ -12,7 +12,7 @@ test('landing renders, is accessible and has no console errors', async ({ page, 
 test('signed-in owner lands on Home for a new team', async ({ page, team, axe }) => {
   await openTeam(page, team.teamId, '/home');
   await expect(page.getByRole('heading', { name: /Evening|Morning|Afternoon/ })).toBeVisible();
-  await expect(page.getByText('Add your first training')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nothing scheduled yet' })).toBeVisible();
   await axe(page);
 });
 

@@ -11,6 +11,7 @@
     sheetFor,
     memberName,
     needMyAnswer,
+    proposals,
     toReconfirm,
   } from '#lib/data/selectors';
   import ProposalCard from '#lib/features/schedule/ProposalCard.svelte';
@@ -119,6 +120,12 @@
       ? s.rows.events[heldAsk]
       : undefined) ?? (asks[0] as (typeof asks)[number] | undefined),
   );
+  /** Offseason: nothing confirmed coming up, but tentative games/socials are. Lead with those. */
+  const tentative = $derived(
+    proposals(s)
+      .filter((e) => !pendingDeletes.hidden(e.id))
+      .sort((a, b) => a.startsAt - b.startsAt),
+  );
   const askMore = $derived(asks.filter((e) => e.id !== askNow?.id).length);
   const stillIn = $derived(toReconfirm(s));
 
@@ -186,13 +193,24 @@
 
   {#if !s}
     <div class="sk" aria-busy="true"></div>
+  {:else if !hero && tentative.length}
+    <section aria-labelledby="tent-h">
+      <h2 id="tent-h" class="section-title">
+        Coming up · not confirmed yet
+        {#if tentative.length > 3}<a href="/schedule">All {tentative.length}</a>{/if}
+      </h2>
+      <div class="waits">
+        {#each tentative.slice(0, 3) as e (e.id)}
+          <div class="wait"><ProposalCard event={e} /></div>
+        {/each}
+      </div>
+    </section>
   {:else if !hero}
-    {@render wouldYouPlay()}
     <EmptyState
-      title={staff ? 'Add your first training' : 'Nothing scheduled yet'}
+      title="Nothing scheduled yet"
       body={staff
-        ? 'Set up a weekly training and your squad can start replying straight away.'
-        : "When your coach adds sessions and matches, they'll show up here."}
+        ? 'Add a practice, game or social, or propose one to see who can make it.'
+        : "When your coaches add practices, games and socials, they'll show up here."}
     >
       {#snippet icon()}<IconCalendarPlus />{/snippet}
       {#snippet action()}
