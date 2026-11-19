@@ -77,6 +77,8 @@
     }
     await confirmProposal(e, optionId, meetAt, startsAt);
     confirming = null;
+    // The page becomes the confirmed event: start from the top, not mid-list under the header.
+    window.scrollTo({ top: 0, behavior: 'instant' });
     toasts.success(
       `${dayMonth(o.option.startsAt, tz)} is on. ${plural(o.counts.in, 'person', 'people')} marked Yes.`,
     );

@@ -136,6 +136,8 @@
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, 3),
   );
+  /** Position groups only matter for games and practices. */
+  const byPosition = $derived(!!hero && (isGame(hero.type) || hero.type === 'training'));
   const avail = $derived(app.can('availability.view') && hero ? availability(s, hero) : null);
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
@@ -240,21 +242,29 @@
           <h2 id="glance-h" class="h">Who's in · {relDay(hero.startsAt, tz)}</h2>
           <a href="/events/{hero.id}">Board</a>
         </div>
-        <ul class="groups">
-          {#each avail.byGroup as g (g.group)}
-            <li>
-              <span class="gl">{GROUP_LABELS[g.group]}</span>
-              <span class="tnum"
-                ><strong>{g.yes}</strong>{#if g.maybe}<small> +{g.maybe}?</small>{/if}<small>
-                  / {g.total}</small
-                ></span
-              >
-            </li>
+        {#if !byPosition}
+          <!-- Socials and other events: positions mean nothing here, just the numbers. -->
+          <p class="tot tnum">
+            <strong>{avail.counts.yes}</strong> in · {avail.counts.maybe} maybe · {avail.counts.no}
+            out
+          </p>
+        {:else}
+          <ul class="groups">
+            {#each avail.byGroup as g (g.group)}
+              <li>
+                <span class="gl">{GROUP_LABELS[g.group]}</span>
+                <span class="tnum"
+                  ><strong>{g.yes}</strong>{#if g.maybe}<small> +{g.maybe}?</small>{/if}<small>
+                    / {g.total}</small
+                  ></span
+                >
+              </li>
+            {/each}
+          </ul>
+          {#each avail.warnings as w (w)}
+            <p class="warn"><IconWarn />{w}</p>
           {/each}
-        </ul>
-        {#each avail.warnings as w (w)}
-          <p class="warn"><IconWarn />{w}</p>
-        {/each}
+        {/if}
         {#if avail.none.length}
           <div class="row nr">
             <span class="grow muted">{avail.none.length} still to reply</span>
@@ -369,6 +379,14 @@
 </div>
 
 <style>
+  .tot {
+    margin: var(--s-2) 0 0;
+    color: var(--text-2);
+  }
+  .tot strong {
+    color: var(--text);
+    font-size: var(--t-20);
+  }
   .sk {
     height: 260px;
     border-radius: var(--r-lg);
