@@ -5,6 +5,7 @@
 import * as v from 'valibot';
 import { Id, OptionalText, text } from './common';
 import { isConfirmed, type EventStatus } from './proposals';
+import { eventEndsAt, eventSortKey, isTimeTbd } from './event-time';
 
 export const ITEM_KINDS = [
   'balls',
@@ -189,6 +190,7 @@ type KitItem = {
 type KitEvent = {
   id: string;
   startsAt: number;
+  timeTbd?: boolean | null;
   cancelledAt?: number | null;
   deletedAt?: number | null;
   status?: EventStatus | null;
@@ -220,6 +222,7 @@ export function atRiskKit(
   rsvps: Iterable<KitReply>,
   now: number,
   windowMs = KIT_FLAG_WINDOW_MS,
+  tz = 'UTC',
 ): KitRisk[] {
   const held = [...items].filter(
     (i) => !i.deletedAt && i.status === 'with_someone' && i.holderMemberId,
@@ -232,10 +235,11 @@ export function atRiskKit(
         !e.deletedAt &&
         !e.cancelledAt &&
         isConfirmed(e) &&
-        e.startsAt > now &&
+        // Not started yet; a "Time TBD" event is still to come until its day is over.
+        (isTimeTbd(e) ? eventEndsAt(e, tz) > now : e.startsAt > now) &&
         e.startsAt <= now + windowMs,
     )
-    .sort((a, b) => a.startsAt - b.startsAt);
+    .sort((a, b) => eventSortKey(a, tz) - eventSortKey(b, tz));
   const out: KitRisk[] = [];
   for (const e of soon)
     for (const i of held) {

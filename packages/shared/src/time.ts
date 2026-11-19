@@ -1,7 +1,10 @@
 /** Timezone helpers that work in browsers and Workers using only Intl. */
 
+const partsFmt = new Map<string, Intl.DateTimeFormat>();
 function partsIn(tz: string, at: number) {
-  const f = new Intl.DateTimeFormat('en-US', {
+  let f = partsFmt.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
     hourCycle: 'h23',
     year: 'numeric',
@@ -11,7 +14,9 @@ function partsIn(tz: string, at: number) {
     minute: '2-digit',
     second: '2-digit',
     weekday: 'short',
-  });
+    });
+    partsFmt.set(tz, f);
+  }
   const o: Record<string, string> = {};
   for (const p of f.formatToParts(new Date(at))) o[p.type] = p.value;
   return o;

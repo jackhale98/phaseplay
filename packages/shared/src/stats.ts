@@ -9,6 +9,7 @@ import * as v from 'valibot';
 import type { Member, PracticePlan, Season, TeamEvent } from './api';
 import { eventCategory, type RsvpStatus } from './events';
 import { isConfirmed } from './proposals';
+import { eventEndsAt } from './event-time';
 import {
   effectiveLog,
   matchConfig,
@@ -65,15 +66,17 @@ type EventLike = Pick<
   TeamEvent,
   'id' | 'type' | 'startsAt' | 'endsAt' | 'cancelledAt' | 'deletedAt'
 > &
-  Partial<Pick<TeamEvent, 'status'>>;
-export const eventEnd = (e: Pick<TeamEvent, 'startsAt' | 'endsAt'>) =>
-  e.endsAt ?? e.startsAt + 3 * 3600e3;
+  Partial<Pick<TeamEvent, 'status' | 'timeTbd'>>;
 
-/** Practices and games that actually happened in the window: over, confirmed, not cancelled or deleted. */
+/**
+ * Practices and games that actually happened in the window: over (`eventEndsAt`, so a "Time TBD"
+ * game counts once its day is done), confirmed, not cancelled or deleted.
+ */
 export function heldEvents<E extends EventLike>(
   events: E[],
   win: StatsWindow | null,
   now: number,
+  tz = 'UTC',
 ): E[] {
   return events
     .filter(
@@ -82,7 +85,7 @@ export function heldEvents<E extends EventLike>(
         !e.cancelledAt &&
         isConfirmed(e) &&
         eventCategory(e.type) !== 'events' &&
-        eventEnd(e) <= now &&
+        eventEndsAt(e, tz) <= now &&
         (!win || (e.startsAt >= win.from && e.startsAt < win.to)),
     )
     .sort((a, b) => a.startsAt - b.startsAt);

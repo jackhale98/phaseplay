@@ -105,6 +105,8 @@ export type TeamEvent = {
   recurrenceId: string | null;
   cancelledAt: number | null;
   settings: MatchSettings | null;
+  /** The date is set, the time isn't (`startsAt` = local noon; no meet or finish). See event-time.ts. */
+  timeTbd: boolean;
   /** `proposed` = not confirmed yet (dates in `options`); `dropped` = not going ahead (hidden). */
   status: EventStatus;
   /** Proposals: when answers are due. */
@@ -126,6 +128,8 @@ export type EventOption = {
   startsAt: number;
   meetAt: number | null;
   endsAt: number | null;
+  /** The date is set, the time isn't (`startsAt` = local noon). */
+  timeTbd: boolean;
   updatedAt: number;
   deletedAt: number | null;
 };

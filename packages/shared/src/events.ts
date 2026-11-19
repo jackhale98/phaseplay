@@ -2,6 +2,7 @@ import * as v from 'valibot';
 import { HHMM, Id, IsoDate, Millis, OptionalText, Url, text } from './common';
 import { FORMATS } from './rugby';
 import { canPropose, proposalFields } from './proposals';
+import { canTimeTbd } from './event-time';
 
 export const EVENT_TYPES = [
   'training',
@@ -96,7 +97,15 @@ const eventFields = {
   notes: OptionalText(2000),
   rsvpDeadline: v.optional(v.nullable(Millis), null),
   settings: v.optional(v.nullable(MatchSettings), null),
+  /**
+   * The date is set, the time isn't yet (not for practices). `startsAt` is then local noon of that
+   * date in team time (`tbdStartsAt`), and there is no meet or finish time.
+   */
+  timeTbd: v.optional(v.boolean(), false),
 };
+
+const TBD_TYPE = 'Practices need a time';
+const TBD_TIMES = 'No meet or finish time while the time is TBD';
 
 export const EventCreate = v.pipe(
   v.object({
@@ -113,15 +122,22 @@ export const EventCreate = v.pipe(
     'Only games and events can be proposed, with at least one date',
   ),
   v.check((e) => e.status === 'proposed' || !e.options, 'Only proposals have dates to pick from'),
+  v.check((e) => !e.timeTbd || canTimeTbd(e.type), TBD_TYPE),
+  v.check((e) => !e.timeTbd || (!e.meetAt && !e.endsAt), TBD_TIMES),
 );
 export type EventCreate = v.InferOutput<typeof EventCreate>;
 
-export const EventUpdate = v.object({
-  ...v.partial(v.object(eventFields)).entries,
-  cancelled: v.optional(v.boolean()),
-  /** Proposals only: the full list of dates (kept ids keep their answers), deadline and target. */
-  ...proposalFields,
-});
+export const EventUpdate = v.pipe(
+  v.object({
+    ...v.partial(v.object(eventFields)).entries,
+    cancelled: v.optional(v.boolean()),
+    /** Proposals only: the full list of dates (kept ids keep their answers), deadline and target. */
+    ...proposalFields,
+  }),
+  // The API checks the same against the stored row for fields the patch leaves out.
+  v.check((e) => !e.timeTbd || !e.type || canTimeTbd(e.type), TBD_TYPE),
+  v.check((e) => !e.timeTbd || (!e.meetAt && !e.endsAt), TBD_TIMES),
+);
 export type EventUpdate = v.InferOutput<typeof EventUpdate>;
 
 export const RecurrenceRule = v.object({

@@ -56,9 +56,15 @@ export const ProposalOption = v.pipe(
     startsAt: Millis,
     meetAt: v.optional(v.nullable(Millis), null),
     endsAt: v.optional(v.nullable(Millis), null),
+    /** The date is set, the time isn't: `startsAt` is local noon, no meet or finish time. */
+    timeTbd: v.optional(v.boolean(), false),
   }),
   v.check((o) => !o.endsAt || o.endsAt >= o.startsAt, 'Finish must be after the start'),
   v.check((o) => !o.meetAt || o.meetAt <= o.startsAt, 'Meet time must be before the start'),
+  v.check(
+    (o) => !o.timeTbd || (!o.meetAt && !o.endsAt),
+    'No meet or finish time while the time is TBD',
+  ),
 );
 export type ProposalOption = v.InferOutput<typeof ProposalOption>;
 
@@ -87,7 +93,10 @@ export const ProposalAnswerPut = v.object({
 });
 export type ProposalAnswerPut = v.InferOutput<typeof ProposalAnswerPut>;
 
-/** `proposals.confirm`: the chosen date, plus a kick-off or meet time if it didn't have one. */
+/**
+ * `proposals.confirm`: the chosen date, plus a kick-off or meet time if it didn't have one. A
+ * "Time TBD" date stays TBD unless `startsAt` sets its time (meet times need one).
+ */
 export const ProposalConfirm = v.object({
   optionId: Id,
   startsAt: v.optional(Millis),
