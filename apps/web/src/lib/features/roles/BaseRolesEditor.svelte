@@ -323,9 +323,10 @@
     cursor: default;
   }
   .preset input {
-    width: 20px;
-    height: 20px;
-    margin-top: 2px;
+    /* 24 px meets WCAG target size on its own, whatever sits nearby (e.g. a toast). */
+    width: 24px;
+    height: 24px;
+    margin: 0;
     flex: none;
     accent-color: var(--sel);
   }

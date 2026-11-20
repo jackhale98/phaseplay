@@ -152,6 +152,8 @@ test('Club with a committee: coaches run rugby, managers run the squad; reset re
   await expect(page.getByRole('radio', { name: /^Coach-led team/ })).toBeChecked();
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
+    // Scrolled, targets sit under the sticky header (axe overlap); scan from the top.
+    await page.evaluate(() => window.scrollTo(0, 0));
     await axe(page);
     if (SHOTS)
       await page.screenshot({
@@ -171,11 +173,12 @@ test('Club with a committee: coaches run rugby, managers run the squad; reset re
   expect(summary).toContain(
     'Coaches will no longer be able to: remove members, change their roles or make device links, create invites',
   );
-  expect(summary).toContain(
-    'Managers will now be able to: remove members or change their roles, create invites',
-  );
+  // Managers already invite under the defaults, so member management is the only gain.
+  expect(summary).toContain('Managers will now be able to: remove members or change their roles.');
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
+    // Scrolled, targets sit under the sticky header (axe overlap); scan from the top.
+    await page.evaluate(() => window.scrollTo(0, 0));
     await axe(page);
     if (SHOTS)
       await page.screenshot({
@@ -276,6 +279,8 @@ test('players can be allowed to record matches; a tweak shows Custom with Reset'
   await page.getByRole('switch', { name: 'Player: Record match events' }).check();
   await expect(page.getByRole('radio', { name: /^Custom/ })).toBeChecked();
   await expect(page.getByRole('button', { name: 'Reset to default' })).toBeVisible();
+  // Scrolled, targets sit under the sticky header (axe overlap); scan from the top.
+  await page.evaluate(() => window.scrollTo(0, 0));
   await axe(page);
   if (SHOTS)
     await page.screenshot({
