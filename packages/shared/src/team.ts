@@ -1,7 +1,14 @@
 import * as v from 'valibot';
 import { HexColor, Id, Timezone, text } from './common';
 import { FORMATS } from './rugby';
-import { GRANTABLE, ROLES } from './permissions';
+import {
+  CONFIGURABLE_FOR,
+  GRANTABLE,
+  ROLES,
+  normaliseRolePermissions,
+  type Action,
+  type RolePermissions,
+} from './permissions';
 import { RSVP_VISIBILITY } from './events';
 import { ProposalTargets } from './proposals';
 
@@ -133,3 +140,32 @@ export const playsForTeam = (m: { role: string; positions: readonly number[] }):
   m.role === 'player' || m.positions.length > 0;
 /** The same rule in SQL, for a `memberships` row aliased `m`. */
 export const PLAYS_FOR_TEAM_SQL = `(m.role = 'player' OR json_array_length(m.positions) > 0)`;
+
+const roleActions = (allowed: readonly Action[]) =>
+  v.pipe(
+    v.array(v.picklist(allowed as [Action, ...Action[]])),
+    v.maxLength(allowed.length),
+    v.check((a) => new Set(a).size === a.length, 'Permissions must be unique'),
+  );
+/**
+ * What coaches, managers and players can do in this team (`teams.role_permissions`). Each list is
+ * the role's full configurable set; anything outside `CONFIGURABLE_FOR` (admin-only actions, or a
+ * non-safe action for players) is rejected. The server then adds implied views (IMPLIES).
+ */
+export const RolePermissionsInput = v.object({
+  coach: roleActions(CONFIGURABLE_FOR.coach),
+  manager: roleActions(CONFIGURABLE_FOR.manager),
+  player: roleActions(CONFIGURABLE_FOR.player),
+});
+export type RolePermissionsInput = v.InferOutput<typeof RolePermissionsInput>;
+
+/** Reads a stored `teams.role_permissions` value: null (defaults) unless it is valid. */
+export function parseRolePermissions(raw: string | null | undefined): RolePermissions | null {
+  if (!raw) return null;
+  try {
+    const r = v.safeParse(RolePermissionsInput, JSON.parse(raw));
+    return r.success ? normaliseRolePermissions(r.output) : null;
+  } catch {
+    return null;
+  }
+}

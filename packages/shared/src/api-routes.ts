@@ -160,6 +160,19 @@ export const ROUTES = {
     auth: 'team',
     action: 'roles.manage',
   },
+  /** What coaches, managers and players can do in this team (everyone may read; sync carries it). */
+  'roles.base.get': {
+    method: 'GET',
+    path: '/api/v1/teams/:teamId/role-permissions',
+    auth: 'team',
+    action: 'team.view',
+  },
+  'roles.base.put': {
+    method: 'PUT',
+    path: '/api/v1/teams/:teamId/role-permissions',
+    auth: 'team',
+    action: 'roles.manage',
+  },
   'teams.leave': {
     method: 'POST',
     path: '/api/v1/teams/:teamId/leave',

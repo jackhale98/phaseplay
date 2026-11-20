@@ -1,5 +1,5 @@
 /** Wire types returned by the API (camelCase). Rows in D1 are snake_case; see apps/api/src/db. */
-import type { Role } from './permissions';
+import type { Role, RolePermissions } from './permissions';
 import type { Format } from './rugby';
 import type { TeamColors } from './team';
 import type { EventType, MatchSettings, RsvpStatus, RsvpVisibility } from './events';
@@ -35,6 +35,8 @@ export type Team = {
   proposalTargets: ProposalTargets;
   /** Built-in templates/presets hidden from this team's pickers (`drill:<id>`, `preset:<id>`). */
   hiddenTemplates: string[];
+  /** What coaches, managers and players can do here; null = the defaults (PLAN.md §2). */
+  rolePermissions: RolePermissions | null;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
