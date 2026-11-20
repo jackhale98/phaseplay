@@ -73,6 +73,7 @@ The brand kit lives in `brand/` (see `brand/README.md`); `scripts/brand/build.py
 13. **Settings:**
     - account: passkeys, recovery codes, sign out everywhere, export, delete
     - team: details, colours, invites, members, audit log
+    - roles: team roles, and *What each role can do*: a starting point (Coach-led team / Club with a committee / Custom with Reset to default), then switches grouped by area. Laptop: a table with Coach, Manager and Player columns (player cells outside the safe set show "—", read as "not available for players"). Phone: the same table showing one column, picked with a Segmented, so there is one set of inputs. Owner and Admin read "everything" (locked). Save opens one confirm listing what each role gains and loses; non-admins see it read-only. Role descriptions elsewhere (member page, invite sheet) say "Set by your club: …" once customised.
     - notifications (M7)
     - privacy
 

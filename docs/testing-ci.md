@@ -14,7 +14,7 @@
 
 ### Must-have suites
 
-- **Tenancy matrix.** Generated from `packages/shared/api-routes.ts`. For every route, it calls as anonymous, as a member of another team, as a removed member and as each role, and asserts the expected status. A route missing from the table fails the test.
+- **Tenancy matrix.** Generated from `packages/shared/api-routes.ts`. For every route, it calls as anonymous, as a member of another team, as a removed member and as each role, and asserts the expected status. A route missing from the table fails the test. `apps/api/test/role-permissions.test.ts` runs the role checks again under the "Club with a committee" preset and a custom configuration (expectations from `can({ role, overrides })`), and `packages/shared/test/permissions-snapshot.test.ts` pins the default matrix to a frozen copy so NULL settings never change behaviour.
 - **Query budget.** Seed realistic volume (40 teams × 40 members × 200 events × 50 plays). Assert at most 6 D1 queries per request, and keep `meta.rows_read` for the sync, schedule and playbook endpoints under thresholds kept in `e2e/budgets.json`.
 - **Auth.**
   - Chromium uses a CDP virtual authenticator for real WebAuthn register and sign-in.
