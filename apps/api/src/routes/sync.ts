@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import {
   can,
-  isStaff,
+  baseCan,
   typesInCategory,
   type AnswerCounts,
   type RsvpCounts,
@@ -127,6 +127,7 @@ export function syncRoutes(app: Hono<AppEnv>) {
     const drills = can(p, 'drills.view_private');
     const plans = can(p, 'practice.view_private');
     const kit = can(p, 'inventory.manage');
+    const notes = baseCan(me.role, 'availability.view', p.overrides);
     const row = await c.var.db
       .prepare(SYNC_SQL)
       .bind(
@@ -171,8 +172,9 @@ export function syncRoutes(app: Hono<AppEnv>) {
         .map((e) =>
           e.status === 'dropped' && !e.deletedAt ? { ...e, deletedAt: e.updatedAt } : e,
         ),
-      // RSVP notes stay with staff by main role; a team-role grant shows replies, never notes.
-      rsvps: list('rsvps').map((r) => rsvpFromRow(r, isStaff(me.role) || r.member_id === me.id)),
+      // RSVP notes stay with staff by main role (as the team configures it); a team-role grant
+      // shows replies, never notes.
+      rsvps: list('rsvps').map((r) => rsvpFromRow(r, notes || r.member_id === me.id)),
       rsvpCounts,
       options: list('options').map(optionFromRow),
       answers: list('answers').map(answerFromRow),

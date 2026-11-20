@@ -69,7 +69,7 @@ export function memberRoutes(app: Hono<AppEnv>) {
       input.roleIds = ids;
     }
     if (input.role !== undefined && input.role !== target.role) {
-      if (!canChangeRole(me.role, target.role, input.role as Role))
+      if (!canChangeRole(perms, target.role, input.role as Role))
         throw forbidden("You can't give that role");
     }
     if (input.displayName !== undefined && target.status !== 'pending')
@@ -137,7 +137,7 @@ export function memberRoutes(app: Hono<AppEnv>) {
     const me = c.var.member;
     const target = await loadMember(c.var.db, me.teamId, c.req.param('memberId')!);
     if (target.id === me.id) throw new HttpError(400, 'bad_request', 'Use "Leave team" instead');
-    if (!canRemove(me.role, target.role)) throw forbidden("You can't remove that member");
+    if (!canRemove(c.var.perms, target.role)) throw forbidden("You can't remove that member");
     const t = now();
     await c.var.db.batch([
       c.var.db
@@ -191,7 +191,7 @@ export function memberRoutes(app: Hono<AppEnv>) {
     if (input.memberId !== target.id) throw new HttpError(400, 'bad_request', 'Mismatched member');
     // A device link adds a passkey to the target's whole account (see canRelink). Nobody can
     // re-link an owner, or anyone who runs another team (they must use their recovery codes).
-    if (!canRelink(me.role, target.role))
+    if (!canRelink(c.var.perms, target.role))
       throw forbidden(
         "You can't make a device link for that member. They can use a recovery code.",
       );

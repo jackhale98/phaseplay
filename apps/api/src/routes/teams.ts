@@ -6,7 +6,14 @@ import {
   TransferOwnership,
   TeamRoleInput,
   HiddenTemplates,
+  RolePermissionsInput,
   can,
+  normaliseRolePermissions,
+  presetOf,
+  rolePermissionsOf,
+  sameRolePermissions,
+  DEFAULT_ROLE_PERMISSIONS,
+  type RolePermissions,
   OWNER_CLAIM_AFTER_MS,
   MAX_TEAM_ROLES,
   type AuditEntry,
@@ -46,7 +53,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]', 20, 10)`,
+          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]', 20, 10, NULL)`,
         )
         .bind(
           input.id,
@@ -435,6 +442,45 @@ export function teamRoutes(app: Hono<AppEnv>) {
       meta: { name: row.name },
     }).run();
     return c.json({ ok: true });
+  });
+
+  const rolePermissionsBody = (stored: RolePermissions | null) => ({
+    rolePermissions: stored,
+    effective: rolePermissionsOf(stored),
+    preset: presetOf(stored),
+  });
+
+  route(app, 'roles.base.get', (c) => c.json(rolePermissionsBody(c.var.perms.overrides ?? null)));
+
+  /**
+   * What coaches, managers and players can do (admins only). Normalised (manage implies view) and
+   * stored as NULL when it matches the defaults. Bumps role_permissions_at so every member's next
+   * request and sync use the new rules (requireMember reads them on every call).
+   */
+  route(app, 'roles.base.put', async (c) => {
+    const me = c.var.member;
+    const input = await body(c, RolePermissionsInput);
+    const next = normaliseRolePermissions(input);
+    const stored = sameRolePermissions(next, DEFAULT_ROLE_PERMISSIONS) ? null : next;
+    const before = rolePermissionsOf(c.var.perms.overrides ?? null);
+    if (sameRolePermissions(before, next)) return c.json(rolePermissionsBody(stored));
+    const t = now();
+    await c.var.db.batch([
+      c.var.db
+        .prepare(
+          'UPDATE teams SET role_permissions = ?, role_permissions_at = ?, updated_at = ? WHERE id = ?',
+        )
+        .bind(stored ? JSON.stringify(stored) : null, t, t, me.teamId),
+      auditStmt(c.var.db, {
+        teamId: me.teamId,
+        actorId: me.userId,
+        action: 'roles.base_changed',
+        targetType: 'team',
+        targetId: me.teamId,
+        meta: { before, after: next, preset: presetOf(stored) },
+      }),
+    ]);
+    return c.json(rolePermissionsBody(stored));
   });
 
   route(app, 'teams.leave', async (c) => {

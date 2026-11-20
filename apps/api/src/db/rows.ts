@@ -20,6 +20,7 @@ import type {
   InventoryEvent,
   MediaRef,
 } from '@phaseplay/shared';
+import { parseRolePermissions } from '@phaseplay/shared';
 import { bool, nullableBool } from '../lib/db';
 import { parseJson } from '../lib/http';
 
@@ -30,7 +31,7 @@ const ns = (x: unknown) => (x ?? null) as string | null;
 const nn = (x: unknown) => (x ?? null) as number | null;
 
 export const TEAM_COLS =
-  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility, hidden_templates, proposal_target_15s, proposal_target_7s';
+  'id, name, short_name, colors, default_format, timezone, owner_id, created_at, updated_at, deleted_at, pending_owner_member_id, crest_version, pending_owner_at, rsvp_visibility, hidden_templates, proposal_target_15s, proposal_target_7s, role_permissions';
 export const teamFromRow = (r: Row): Team => ({
   id: s(r.id),
   name: s(r.name),
@@ -51,6 +52,7 @@ export const teamFromRow = (r: Row): Team => ({
     '15s': Number(r.proposal_target_15s ?? 20),
     '7s': Number(r.proposal_target_7s ?? 10),
   },
+  rolePermissions: parseRolePermissions(r.role_permissions as string | null),
 });
 
 export const MEMBER_COLS =

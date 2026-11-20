@@ -159,13 +159,21 @@ export const RolePermissionsInput = v.object({
 });
 export type RolePermissionsInput = v.InferOutput<typeof RolePermissionsInput>;
 
-/** Reads a stored `teams.role_permissions` value: null (defaults) unless it is valid. */
-export function parseRolePermissions(raw: string | null | undefined): RolePermissions | null {
+/**
+ * Reads a stored `teams.role_permissions` value. NULL means the defaults; so does anything
+ * malformed (reported through `onInvalid`), so a bad value never locks anyone out or 500s.
+ */
+export function parseRolePermissions(
+  raw: string | null | undefined,
+  onInvalid?: (raw: string) => void,
+): RolePermissions | null {
   if (!raw) return null;
   try {
     const r = v.safeParse(RolePermissionsInput, JSON.parse(raw));
-    return r.success ? normaliseRolePermissions(r.output) : null;
+    if (r.success) return normaliseRolePermissions(r.output);
   } catch {
-    return null;
+    // fall through
   }
+  onInvalid?.(raw);
+  return null;
 }

@@ -35,8 +35,11 @@ export type Team = {
   proposalTargets: ProposalTargets;
   /** Built-in templates/presets hidden from this team's pickers (`drill:<id>`, `preset:<id>`). */
   hiddenTemplates: string[];
-  /** What coaches, managers and players can do here; null = the defaults (PLAN.md §2). */
-  rolePermissions: RolePermissions | null;
+  /**
+   * What coaches, managers and players can do here; null = the defaults (PLAN.md §2). Optional:
+   * snapshots cached by older builds don't have it, which also means the defaults.
+   */
+  rolePermissions?: RolePermissions | null;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
