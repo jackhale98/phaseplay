@@ -35,6 +35,7 @@
     'member.removed': (e) => `removed ${e.meta?.name ?? 'a member'}`,
     'member.role_changed': (e) =>
       `changed ${e.meta?.name}'s role from ${e.meta?.from} to ${e.meta?.to}`,
+    'roles.base_changed': () => 'changed what each role can do',
     'member.relink_issued': (e) => `made a device link for ${e.meta?.name}`,
     'member.relinked': () => 'added a passkey with a device link',
     'invite.created': (e) => `created a ${e.meta?.role} invite`,

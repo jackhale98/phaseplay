@@ -1,5 +1,13 @@
 <script lang="ts">
-  import { invitableRoles, uuidv7, type Invite, type Role, ROLE_LABELS } from '@phaseplay/shared';
+  import {
+    invitableRoles,
+    isCustomised,
+    roleSummary,
+    uuidv7,
+    type Invite,
+    type Role,
+    ROLE_LABELS,
+  } from '@phaseplay/shared';
   import { api, ApiError } from '#lib/api';
   import { app } from '#lib/data/app.svelte';
   import { teamPath } from '#lib/data/actions';
@@ -103,6 +111,12 @@
           options={roles.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
         />
       </div>
+      {#if isCustomised(role, app.team?.rolePermissions)}
+        <p class="subtle role-note" aria-live="polite">
+          {roleSummary(role, app.team?.rolePermissions)}
+          <a href="/settings/roles">What each role can do</a>
+        </p>
+      {/if}
       <div class="opt">
         <span class="lbl">Expires after</span>
         <Segmented
@@ -173,6 +187,10 @@
 </Sheet>
 
 <style>
+  .role-note {
+    margin: calc(-1 * var(--s-2)) 0 0;
+    font-size: var(--t-14);
+  }
   .made {
     display: grid;
     justify-items: center;

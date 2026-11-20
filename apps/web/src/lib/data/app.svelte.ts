@@ -214,7 +214,10 @@ class AppState {
   get teamRoles(): TeamRole[] {
     return Object.values(this.snap?.rows.roles ?? {}).sort((a, b) => a.name.localeCompare(b.name));
   }
-  /** Base role plus the grants from my team roles; the API checks the same thing. */
+  /**
+   * Base role (as this team configures it) plus the grants from my team roles; the API checks the
+   * same thing. A change to the team's role settings arrives with the next sync.
+   */
   get perms(): Perms | null {
     const s = this.snap;
     if (!s) return null;
@@ -222,6 +225,7 @@ class AppState {
     return {
       role: s.me.role,
       grants: (s.me.roleIds ?? []).flatMap((id) => roles[id]?.permissions ?? []),
+      overrides: s.team.rolePermissions ?? null,
     };
   }
   can(action: Action): boolean {

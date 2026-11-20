@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import {
     GRANT_INFO,
-    ROLE_DESCRIPTIONS,
     ROLE_LABELS,
     ROLES,
     can,
@@ -11,6 +10,7 @@
     canRelink,
     canRemove,
     liveNominee,
+    roleSummary,
     uuidv7,
     type GrantableAction,
     type Role,
@@ -45,7 +45,8 @@
   const extras = $derived.by(() => {
     if (!m) return [];
     const grants = [...new Set(mine.flatMap((r) => r.permissions))] as GrantableAction[];
-    return grants.filter((g) => GRANT_INFO[g] && !can(m.role, g)).map((g) => GRANT_INFO[g].label);
+    const base = { role: m.role, overrides: s?.team.rolePermissions ?? null };
+    return grants.filter((g) => GRANT_INFO[g] && !can(base, g)).map((g) => GRANT_INFO[g].label);
   });
   const pendingOwner = $derived(
     !!s && !!m && liveNominee(s.team, Object.values(s.rows.members))?.id === m.id,
@@ -148,7 +149,7 @@
     }
   }
   const roleChoices = $derived(
-    me && m ? ROLES.filter((r) => r === m.role || canChangeRole(me.role, m.role, r)) : [],
+    me && m ? ROLES.filter((r) => r === m.role || canChangeRole(app.perms!, m.role, r)) : [],
   );
 </script>
 
@@ -242,7 +243,7 @@
             >
           {/each}
         </div>
-        <p class="subtle hint">{ROLE_DESCRIPTIONS[m.role]}</p>
+        <p class="subtle hint">{roleSummary(m.role, s?.team.rolePermissions)}</p>
       </section>
     {/if}
 
@@ -280,7 +281,7 @@
       </section>
     {/if}
 
-    {#if me && !self && canRelink(me.role, m.role) && m.status === 'active' && m.userId}
+    {#if me && !self && canRelink(app.perms!, m.role) && m.status === 'active' && m.userId}
       <section class="card pad">
         <h2 class="h">Lost their phone?</h2>
         <p class="muted">
@@ -303,7 +304,7 @@
     {/if}
 
     <div class="danger">
-      {#if me && !self && canRemove(me.role, m.role)}
+      {#if me && !self && canRemove(app.perms!, m.role)}
         <Button variant="ghost" onclick={() => (confirmRemove = true)}
           >{#snippet icon()}<IconTrash />{/snippet}Remove from team</Button
         >

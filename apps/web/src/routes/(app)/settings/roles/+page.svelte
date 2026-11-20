@@ -2,9 +2,9 @@
   import {
     GRANT_INFO,
     GRANTABLE,
-    ROLE_DESCRIPTIONS,
     ROLE_LABELS,
     ROLES,
+    roleSummary,
     uuidv7,
     type GrantableAction,
     type TeamRole,
@@ -16,6 +16,7 @@
   import Sheet from '#lib/components/Sheet.svelte';
   import Field from '#lib/components/Field.svelte';
   import RoleTag from '#lib/features/roles/RoleTag.svelte';
+  import BaseRolesEditor from '#lib/features/roles/BaseRolesEditor.svelte';
   import { toasts } from '#lib/stores/toast.svelte';
   import { IconBack, IconPlus, IconTrash } from '#lib/icons';
 
@@ -195,7 +196,7 @@
       {#each ROLES as r (r)}
         <div>
           <dt>{ROLE_LABELS[r]}</dt>
-          <dd class="muted">{ROLE_DESCRIPTIONS[r]}</dd>
+          <dd class="muted">{roleSummary(r, app.team?.rolePermissions)}</dd>
         </div>
       {/each}
     </dl>
@@ -204,6 +205,8 @@
       <a href="/settings/team">team settings</a>.
     </p>
   </section>
+
+  <BaseRolesEditor />
 </div>
 
 <Sheet bind:open title={editing ? `Edit ${name || 'role'}` : 'New team role'} size="md">
