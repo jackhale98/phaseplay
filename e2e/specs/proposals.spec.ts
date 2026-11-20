@@ -294,3 +294,53 @@ test('offseason Home: tentative games and socials lead when nothing is confirmed
   await expect(page.getByText(/You're in/).first()).toBeVisible();
   await axe(page);
 });
+
+test('coaches see who answered what for each date; players see counts only', async ({
+  page,
+  team,
+  axe,
+}) => {
+  const pat = await team.join('player', 'Pat Prop', [1]);
+  const tess = await team.join('player', 'Tess Hooker', [2]);
+  const nia = await team.join('player', 'Nia Wing', [11]);
+  const d1 = Date.now() + 14 * DAY;
+  const d2 = d1 + 7 * DAY;
+  const id = (
+    await team.post('/teams/:teamId/events', {
+      id: uuid(),
+      type: 'match',
+      format: '15s',
+      title: 'Friendly',
+      opponent: 'Harlequins',
+      startsAt: d1,
+      status: 'proposed',
+      options: [
+        { id: uuid(), startsAt: d1 },
+        { id: uuid(), startsAt: d2 },
+      ],
+    })
+  ).id as string;
+  const [o1, o2] = (await optionIds(team, id)) as [string, string];
+  await answerAs(pat, team.teamId, id, [
+    { optionId: o1, answer: 'in' },
+    { optionId: o2, answer: 'cant' },
+  ]);
+  await answerAs(tess, team.teamId, id, [{ optionId: o2, answer: 'in' }]);
+
+  await openTeam(page, team.teamId, `/events/${id}`);
+  const table = page.getByRole('table', { name: /Each person's answer/ });
+  await expect(table).toBeVisible();
+  const row = (name: string) => table.getByRole('row', { name: new RegExp(name) });
+  await expect(row('Pat Prop')).toContainText('LHP');
+  await expect(row('Pat Prop').getByRole('cell').nth(0)).toHaveText(/In/);
+  await expect(row('Pat Prop').getByRole('cell').nth(1)).toHaveText(/Can't/);
+  await expect(row('Tess Hooker').getByRole('cell').nth(0)).toHaveText(/No answer/);
+  await expect(row('Tess Hooker').getByRole('cell').nth(1)).toHaveText(/In/);
+  await expect(page.getByText(/haven’t answered:.*Nia Wing/)).toBeVisible();
+  await axe(page);
+
+  // A player (team shows counts only by default) sees no names.
+  await openTeam(nia.page, team.teamId, `/events/${id}`);
+  await expect(nia.page.getByRole('heading', { name: /Harlequins/ }).first()).toBeVisible();
+  await expect(nia.page.getByRole('table', { name: /Each person's answer/ })).toHaveCount(0);
+});

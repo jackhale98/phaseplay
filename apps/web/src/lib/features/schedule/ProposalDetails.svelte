@@ -10,6 +10,8 @@
     eventTimeLabel,
     isGame,
     isTimeTbd,
+    positionsFor,
+    type Member,
     type TeamEvent,
   } from '@phaseplay/shared';
   import { app } from '#lib/data/app.svelte';
@@ -46,6 +48,22 @@
   const notes = $derived(notesBody(e.notes));
   const map = $derived(mapLink(e));
   const dates = $derived(v.options.map((o) => dayMonth(o.option.startsAt, tz)));
+
+  /** Everyone's answer per date, for coaches (and players when the team shows names). */
+  type Row = { m: Member; by: Record<string, 'in' | 'cant'> };
+  const answered = $derived.by((): Row[] => {
+    const rows: Record<string, Row> = {};
+    for (const o of v.options)
+      for (const [list, a] of [
+        [o.inPeople, 'in'],
+        [o.cantPeople, 'cant'],
+      ] as const)
+        for (const m of list) (rows[m.id] ??= { m, by: {} }).by[o.option.id] = a;
+    return Object.values(rows).sort((a, b) => a.m.displayName.localeCompare(b.m.displayName));
+  });
+  const positions = $derived(positionsFor(e.format ?? '15s'));
+  const pos = (m: Member) =>
+    game && m.positions[0] ? positions.find((p) => p.n === m.positions[0])?.short : undefined;
 
   /**
    * The date being confirmed (one step, inline), a meet time if the date has none, and for a
@@ -173,18 +191,6 @@
             {/if}
           </p>
         {/if}
-        {#if v.names && (o.inPeople.length || o.cantPeople.length)}
-          <details class="who">
-            <summary>Who's in</summary>
-            <p>
-              <strong>In:</strong>
-              {o.inPeople.map((m) => m.displayName).join(', ') || 'Nobody yet'}
-            </p>
-            {#if o.cantPeople.length}
-              <p><strong>Can't:</strong> {o.cantPeople.map((m) => m.displayName).join(', ')}</p>
-            {/if}
-          </details>
-        {/if}
         {#if manage}
           {#if confirming === o.option.id}
             <div class="confirm" role="group" aria-labelledby="cf-{o.option.id}">
@@ -233,12 +239,60 @@
       </li>
     {/each}
   </ul>
-  {#if v.names && v.unanswered.length}
+  {#if !v.names && v.unanswered.length}
     <p class="subtle">
       {plural(v.unanswered.length, 'person hasn’t', 'people haven’t')} answered yet.
     </p>
   {/if}
 </section>
+
+{#if v.names}
+  <section class="card pad" aria-labelledby="who-h">
+    <h2 id="who-h" class="h">Who answered what</h2>
+    {#if answered.length}
+      <div class="tablewrap">
+        <table class="answers">
+          <caption class="sr-only">Each person's answer for each date</caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              {#each v.options as o, i (o.option.id)}
+                <th scope="col" class="tnum">{dates[i]}</th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each answered as r (r.m.id)}
+              <tr>
+                <th scope="row">
+                  {r.m.displayName}{#if pos(r.m)}<small class="pos"> {pos(r.m)}</small>{/if}
+                </th>
+                {#each v.options as o (o.option.id)}
+                  {@const a = r.by[o.option.id]}
+                  <td class="ans {a ?? 'none'}">
+                    {#if a === 'in'}<span aria-hidden="true">✓</span> In{:else if a === 'cant'}<span
+                        aria-hidden="true">✕</span
+                      > Can't{:else}<span class="sr-only">No answer</span><span aria-hidden="true"
+                        >–</span
+                      >{/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <p class="muted">Nobody has answered yet.</p>
+    {/if}
+    {#if v.unanswered.length}
+      <p class="none-yet">
+        <strong>{plural(v.unanswered.length, 'person hasn’t', 'people haven’t')} answered:</strong>
+        {v.unanswered.map((m) => m.displayName).join(', ')}
+      </p>
+    {/if}
+  </section>
+{/if}
 
 {#if notes}
   <section class="card pad" aria-labelledby="pn-h">
@@ -266,6 +320,47 @@
 {/if}
 
 <style>
+  .tablewrap {
+    overflow-x: auto;
+    margin-top: var(--s-3);
+  }
+  .answers {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-14);
+  }
+  .answers th,
+  .answers td {
+    padding: var(--s-2) var(--s-2);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .answers thead th {
+    color: var(--text-2);
+    font-weight: 650;
+  }
+  .answers tbody th {
+    font-weight: 600;
+  }
+  .answers .pos {
+    color: var(--text-3);
+    font-weight: 600;
+  }
+  .ans.in {
+    color: var(--ok-text, var(--ok));
+    font-weight: 650;
+  }
+  .ans.cant {
+    color: var(--text-2);
+  }
+  .ans.none {
+    color: var(--text-3);
+  }
+  .none-yet {
+    margin: var(--s-3) 0 0;
+    font-size: var(--t-14);
+  }
   .hero {
     padding: var(--s-5);
     border: 1.5px dashed var(--tent-line);
