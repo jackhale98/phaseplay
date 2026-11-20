@@ -40,6 +40,8 @@ export type Team = {
    * snapshots cached by older builds don't have it, which also means the defaults.
    */
   rolePermissions?: RolePermissions | null;
+  /** Send as If-Match when saving role settings (1 = never changed). Optional, like the above. */
+  rolePermissionsVersion?: number;
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;

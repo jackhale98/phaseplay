@@ -11,6 +11,7 @@
     CONFIGURABLE_ROLES,
     PERMISSION_AREAS,
     PERMISSION_INFO,
+    permissionPhrase,
     ROLE_LABELS,
     ROLE_PRESETS,
     ROLE_PRESET_IDS,
@@ -87,17 +88,23 @@
     announce = '';
   }
 
-  const list = (xs: Action[]) => xs.map((a) => PERMISSION_INFO[a].phrase).join(', ');
+  const list = (r: ConfigurableRole, xs: Action[]) =>
+    xs.map((a) => permissionPhrase(r, a)).join(', ');
   const changes = $derived(
     CONFIGURABLE_ROLES.flatMap((r) => {
       const lost = saved[r].filter((a) => !draft[r].includes(a));
       const gained = draft[r].filter((a) => !saved[r].includes(a));
       return [
         ...(lost.length
-          ? [{ key: `${r}-lost`, text: `${PLURAL[r]} will no longer be able to: ${list(lost)}.` }]
+          ? [
+              {
+                key: `${r}-lost`,
+                text: `${PLURAL[r]} will no longer be able to: ${list(r, lost)}.`,
+              },
+            ]
           : []),
         ...(gained.length
-          ? [{ key: `${r}-gained`, text: `${PLURAL[r]} will now be able to: ${list(gained)}.` }]
+          ? [{ key: `${r}-gained`, text: `${PLURAL[r]} will now be able to: ${list(r, gained)}.` }]
           : []),
       ];
     }),
@@ -106,12 +113,28 @@
   async function save() {
     busy = true;
     try {
-      await api(teamPath('/role-permissions'), { method: 'PUT', body: $state.snapshot(draft) });
+      await api(teamPath('/role-permissions'), {
+        method: 'PUT',
+        body: $state.snapshot(draft),
+        // Old cached team data has no version: then save without the check.
+        ifMatch: app.team?.rolePermissionsVersion ?? null,
+      });
       await app.sync();
       confirm = false;
       touched = false;
       toasts.success('Role settings saved');
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone else saved first: show theirs and let this admin decide again.
+        await app.sync();
+        confirm = false;
+        touched = false;
+        announce = '';
+        toasts.error(
+          'Someone else changed these settings. Showing the latest; check and save again.',
+        );
+        return;
+      }
       toasts.error(err instanceof ApiError ? err.message : 'Could not save the role settings');
     } finally {
       busy = false;
@@ -182,7 +205,7 @@
   <p class="locked card">
     <IconLock />
     <span
-      ><strong>Owner and Admin: everything.</strong>
+      ><strong>Owner: everything. Admin: everything except deleting the team.</strong>
       <span class="subtle">Always, and it can't be changed here.</span></span
     >
   </p>

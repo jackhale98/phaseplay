@@ -28,6 +28,8 @@ export type Vars = {
   perms: Perms;
   /** Latest change to any of the member's team roles (a change can widen what they may see). */
   rolesUpdatedAt: number;
+  /** When the team's base-role settings last changed (0 = never); the If-Match for them. */
+  rolePermissionsAt: number;
   requestId: string;
 };
 

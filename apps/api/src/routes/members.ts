@@ -12,6 +12,8 @@ import {
   invitableRoles,
   can,
   canRelink,
+  canRevokeInvite,
+  ROLES,
   randomToken,
   sha256Base64Url,
   type InvitePreview,
@@ -195,9 +197,16 @@ export function memberRoutes(app: Hono<AppEnv>) {
       throw forbidden(
         "You can't make a device link for that member. They can use a recovery code.",
       );
+    // Anyone who can manage members elsewhere: owners, admins and coaches (whatever their team's
+    // settings, to stay conservative), and managers whose team gives managers members.manage.
     const elsewhere = await c.var.db
       .prepare(
-        `SELECT 1 FROM memberships WHERE user_id = ? AND team_id != ? AND status = 'active' AND role IN ('owner', 'admin', 'coach') LIMIT 1`,
+        `SELECT 1 FROM memberships m JOIN teams t ON t.id = m.team_id
+         WHERE m.user_id = ? AND m.team_id != ? AND m.status = 'active'
+           AND (m.role IN ('owner', 'admin', 'coach') OR (m.role = 'manager' AND EXISTS (
+             SELECT 1 FROM json_each(CASE WHEN json_valid(t.role_permissions) THEN t.role_permissions ELSE '{}' END, '$.manager')
+             WHERE value = 'members.manage')))
+         LIMIT 1`,
       )
       .bind(target.userId, me.teamId)
       .first();
@@ -289,13 +298,23 @@ export function memberRoutes(app: Hono<AppEnv>) {
 
   route(app, 'invites.revoke', async (c) => {
     const me = c.var.member;
+    // Every role under the default settings; once customised, only roles you could hand out.
+    const allowed = ROLES.filter((r) => canRevokeInvite(c.var.perms, r));
     const r = await c.var.db
       .prepare(
-        'UPDATE invites SET revoked_at = ? WHERE id = ? AND team_id = ? AND revoked_at IS NULL',
+        `UPDATE invites SET revoked_at = ? WHERE id = ? AND team_id = ? AND revoked_at IS NULL
+           AND role IN (SELECT value FROM json_each(?))`,
       )
-      .bind(now(), c.req.param('inviteId'), me.teamId)
+      .bind(now(), c.req.param('inviteId'), me.teamId, JSON.stringify(allowed))
       .run();
-    if (!r.meta.changes) throw notFound('Invite not found');
+    if (!r.meta.changes) {
+      const live = await c.var.db
+        .prepare('SELECT 1 FROM invites WHERE id = ? AND team_id = ? AND revoked_at IS NULL')
+        .bind(c.req.param('inviteId'), me.teamId)
+        .first();
+      if (live) throw forbidden("You can't revoke an invite for that role");
+      throw notFound('Invite not found');
+    }
     await auditStmt(c.var.db, {
       teamId: me.teamId,
       actorId: me.userId,

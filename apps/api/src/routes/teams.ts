@@ -9,6 +9,7 @@ import {
   RolePermissionsInput,
   can,
   normaliseRolePermissions,
+  parseRolePermissions,
   presetOf,
   rolePermissionsOf,
   sameRolePermissions,
@@ -22,7 +23,7 @@ import {
 } from '@phaseplay/shared';
 import type { AppEnv } from '../env';
 import { route } from '../lib/router';
-import { HttpError, body, forbidden, notFound, now, parseJson } from '../lib/http';
+import { HttpError, body, forbidden, ifMatch, notFound, now, parseJson } from '../lib/http';
 import {
   TEAM_COLS,
   teamFromRow,
@@ -53,7 +54,7 @@ export function teamRoutes(app: Hono<AppEnv>) {
     await c.var.db.batch([
       c.var.db
         .prepare(
-          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]', 20, 10, NULL)`,
+          `INSERT INTO teams (${TEAM_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'counts', '[]', 20, 10, NULL, NULL)`,
         )
         .bind(
           input.id,
@@ -444,43 +445,68 @@ export function teamRoutes(app: Hono<AppEnv>) {
     return c.json({ ok: true });
   });
 
-  const rolePermissionsBody = (stored: RolePermissions | null) => ({
+  /** Never-changed settings have version 1 (a real change time is always larger). */
+  const rolePermissionsBody = (stored: RolePermissions | null, at: number) => ({
     rolePermissions: stored,
     effective: rolePermissionsOf(stored),
     preset: presetOf(stored),
+    version: at || 1,
   });
 
-  route(app, 'roles.base.get', (c) => c.json(rolePermissionsBody(c.var.perms.overrides ?? null)));
+  route(app, 'roles.base.get', (c) =>
+    c.json(rolePermissionsBody(c.var.perms.overrides ?? null, c.var.rolePermissionsAt)),
+  );
 
   /**
    * What coaches, managers and players can do (admins only). Normalised (manage implies view) and
    * stored as NULL when it matches the defaults. Bumps role_permissions_at so every member's next
-   * request and sync use the new rules (requireMember reads them on every call).
+   * request and sync use the new rules (requireMember reads them on every call). An optional
+   * If-Match (the `version` the editor loaded) turns a lost update into a 409 with the latest.
    */
   route(app, 'roles.base.put', async (c) => {
     const me = c.var.member;
     const input = await body(c, RolePermissionsInput);
+    const base = ifMatch(c);
+    const current = c.var.rolePermissionsAt || 1;
+    const conflict = (stored: RolePermissions | null, at: number) =>
+      new HttpError(409, 'conflict', 'Someone else changed these settings. Reload to see them.', {
+        latest: rolePermissionsBody(stored, at),
+      });
+    if (base !== null && base !== current)
+      throw conflict(c.var.perms.overrides ?? null, c.var.rolePermissionsAt);
     const next = normaliseRolePermissions(input);
     const stored = sameRolePermissions(next, DEFAULT_ROLE_PERMISSIONS) ? null : next;
     const before = rolePermissionsOf(c.var.perms.overrides ?? null);
-    if (sameRolePermissions(before, next)) return c.json(rolePermissionsBody(stored));
-    const t = now();
-    await c.var.db.batch([
-      c.var.db
-        .prepare(
-          'UPDATE teams SET role_permissions = ?, role_permissions_at = ?, updated_at = ? WHERE id = ?',
-        )
-        .bind(stored ? JSON.stringify(stored) : null, t, t, me.teamId),
-      auditStmt(c.var.db, {
-        teamId: me.teamId,
-        actorId: me.userId,
-        action: 'roles.base_changed',
-        targetType: 'team',
-        targetId: me.teamId,
-        meta: { before, after: next, preset: presetOf(stored) },
-      }),
-    ]);
-    return c.json(rolePermissionsBody(stored));
+    if (sameRolePermissions(before, next))
+      return c.json(rolePermissionsBody(stored, c.var.rolePermissionsAt));
+    const t = Math.max(now(), current + 1);
+    const updated = await c.var.db
+      .prepare(
+        `UPDATE teams SET role_permissions = ?, role_permissions_at = ?, updated_at = ?
+         WHERE id = ? AND coalesce(role_permissions_at, 1) = ? RETURNING id`,
+      )
+      .bind(stored ? JSON.stringify(stored) : null, t, t, me.teamId, current)
+      .first();
+    if (!updated) {
+      // Changed between our read and this write.
+      const row = await c.var.db
+        .prepare('SELECT role_permissions, role_permissions_at FROM teams WHERE id = ?')
+        .bind(me.teamId)
+        .first<{ role_permissions: string | null; role_permissions_at: number | null }>();
+      throw conflict(
+        parseRolePermissions(row?.role_permissions),
+        Number(row?.role_permissions_at ?? 0),
+      );
+    }
+    await auditStmt(c.var.db, {
+      teamId: me.teamId,
+      actorId: me.userId,
+      action: 'roles.base_changed',
+      targetType: 'team',
+      targetId: me.teamId,
+      meta: { before, after: next, preset: presetOf(stored) },
+    }).run();
+    return c.json(rolePermissionsBody(stored, t));
   });
 
   route(app, 'teams.leave', async (c) => {

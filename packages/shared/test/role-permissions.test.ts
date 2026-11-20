@@ -22,6 +22,9 @@ import {
   presetOf,
   roleSummary,
   setRoleAction,
+  canRevokeInvite,
+  parseRolePermissions,
+  permissionPhrase,
   type RolePermissions,
 } from '../src';
 
@@ -168,5 +171,63 @@ describe('configurable base roles', () => {
     expect(roleSummary('coach', club)).toMatch(/^Set by your club: schedule, availability/);
     expect(roleSummary('coach', club)).not.toMatch(/squad/);
     expect(roleSummary('manager', club)).toMatch(/squad & invites/);
+  });
+});
+
+describe('stored settings', () => {
+  it('drops unknown actions but keeps the rest (forward-compatible)', () => {
+    let bad = '';
+    const p = parseRolePermissions(
+      JSON.stringify({
+        coach: ['events.manage', 'old.action', 'roles.manage', 7],
+        manager: [],
+        player: ['match.record', 'sheets.view_draft'],
+        extra: true,
+      }),
+      (raw) => (bad = raw),
+    );
+    expect(bad).toBe('');
+    expect(p).toEqual({ coach: ['events.manage'], manager: [], player: ['match.record'] });
+    // An unknown action never restores removed powers.
+    expect(can({ role: 'coach', overrides: p }, 'members.manage')).toBe(false);
+  });
+
+  it('falls back to the defaults only for unparseable JSON or the wrong shape', () => {
+    for (const raw of [
+      '{not json',
+      'null',
+      '[]',
+      '"coach"',
+      '{"coach":"events.manage","manager":[],"player":[]}',
+      '{"coach":[],"manager":[]}',
+    ]) {
+      let bad = '';
+      expect(
+        parseRolePermissions(raw, (r) => (bad = r)),
+        raw,
+      ).toBeNull();
+      expect(bad).toBe(raw);
+    }
+    expect(parseRolePermissions(null)).toBeNull();
+    expect(parseRolePermissions('')).toBeNull();
+  });
+
+  it('revoking invites: unchanged under the defaults, limited once customised', () => {
+    // Defaults: anyone with members.manage revokes any invite, as before.
+    expect(canRevokeInvite({ role: 'coach' }, 'admin')).toBe(true);
+    expect(canRevokeInvite({ role: 'manager' }, 'player')).toBe(false);
+    const manager = { role: 'manager' as const, overrides: club };
+    expect(canRevokeInvite(manager, 'player')).toBe(true);
+    expect(canRevokeInvite(manager, 'manager')).toBe(true);
+    expect(canRevokeInvite(manager, 'coach')).toBe(false);
+    expect(canRevokeInvite(manager, 'admin')).toBe(false);
+    expect(canRevokeInvite({ role: 'admin', overrides: club }, 'admin')).toBe(true);
+    expect(canRevokeInvite({ role: 'coach', overrides: club }, 'player')).toBe(false);
+  });
+
+  it('says what members.manage means for each role', () => {
+    expect(permissionPhrase('coach', 'members.manage')).toMatch(/device links/);
+    expect(permissionPhrase('manager', 'members.manage')).not.toMatch(/device links/);
+    expect(PERMISSION_INFO['members.manage'].hint).toMatch(/device links/);
   });
 });

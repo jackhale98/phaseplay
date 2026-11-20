@@ -92,7 +92,11 @@ export function memberChoices(
     (m) => m.id !== opts.exclude && (!opts.needsAccount || m.userId !== null),
   );
   const going = people.filter((m) => opts.suggest?.includes(m.id));
-  const first = going.length ? going : people.filter((m) => can(m.role, 'inventory.manage'));
+  const first = going.length
+    ? going
+    : people.filter((m) =>
+        can({ role: m.role, overrides: s?.team.rolePermissions ?? null }, 'inventory.manage'),
+      );
   return {
     people,
     first,

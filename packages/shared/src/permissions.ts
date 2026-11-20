@@ -353,7 +353,7 @@ export const PERMISSION_INFO: Record<Action, PermissionInfo> = {
   'members.manage': info(
     'Squad & invites',
     'Manage members',
-    'Remove members, change coach, manager and player roles, edit shirts, revoke invites.',
+    'Remove members, change coach, manager and player roles, edit shirts, revoke invites. Coaches with it can also make device links.',
     'remove members or change their roles',
   ),
   'invites.create': grant('invites.create', 'Squad & invites', 'create invites'),
@@ -387,6 +387,14 @@ export const PERMISSION_INFO: Record<Action, PermissionInfo> = {
     'Add kit, assign it, mark it lost and sort out handovers.',
   ),
 };
+
+/** The phrase for "Coaches will no longer be able to: …", as it applies to that role. */
+export function permissionPhrase(role: ConfigurableRole, action: Action): string {
+  // Device re-links follow members.manage but stay with coaches and above (canRelink).
+  if (action === 'members.manage' && role === 'coach')
+    return 'remove members, change their roles or make device links';
+  return PERMISSION_INFO[action].phrase;
+}
 
 /** One line describing a base role under the team's configuration. */
 export function roleSummary(role: Role, overrides: RolePermissions | null | undefined): string {
@@ -438,6 +446,17 @@ export function invitableRoles(role: Role): Role[] {
 }
 
 /**
+ * May `actor` revoke an invite (or device link) for `inviteRole`? Needs `members.manage`. Under
+ * the default settings that is all, as before. Once a team customises roles, non-admins may only
+ * revoke invites for roles they could hand out themselves.
+ */
+export function canRevokeInvite(actor: Perms, inviteRole: Role): boolean {
+  if (!can(actor, 'members.manage')) return false;
+  if (can(actor, 'roles.manage') || !actor.overrides) return true;
+  return invitableRoles(actor.role).includes(inviteRole);
+}
+
+/**
  * Can `actor` change `target`'s base role to `next`? The owner role only moves through the
  * handover flow. Admin is given and taken only by owners and admins.
  */
@@ -485,9 +504,9 @@ export function isCoach(role: Role | null | undefined): boolean {
   return role === 'owner' || role === 'admin' || role === 'coach';
 }
 
-/** An owner who hasn't been seen for this long can be replaced by an admin. */
 /** Most team roles a team can have. */
 export const MAX_TEAM_ROLES = 30;
+/** An owner who hasn't been seen for this long can be replaced by an admin. */
 export const OWNER_CLAIM_AFTER_MS = 30 * 86400e3;
 
 /**

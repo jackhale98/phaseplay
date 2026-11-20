@@ -169,9 +169,11 @@ test('Club with a committee: coaches run rugby, managers run the squad; reset re
   ).toBeChecked();
   const summary = await save(page);
   expect(summary).toContain(
-    'Coaches will no longer be able to: remove members or change their roles, create invites',
+    'Coaches will no longer be able to: remove members, change their roles or make device links, create invites',
   );
-  expect(summary).toContain('Managers will now be able to: remove members or change their roles');
+  expect(summary).toContain(
+    'Managers will now be able to: remove members or change their roles, create invites',
+  );
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await axe(page);

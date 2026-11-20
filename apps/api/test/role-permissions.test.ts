@@ -126,6 +126,7 @@ describe('role permissions', () => {
       rolePermissions: null,
       effective: DEFAULT_ROLE_PERMISSIONS,
       preset: 'default',
+      version: 1,
     });
     expect((await sync(a.teamId, a.player.cookie)).body.team.rolePermissions).toBeNull();
   });
@@ -291,7 +292,7 @@ describe('role permissions', () => {
 
   it('a malformed stored value falls back to the defaults', async () => {
     const a = await fixtureTeam();
-    for (const junk of ['{not json', '{"coach":["roles.manage"],"manager":[],"player":[]}', '[]']) {
+    for (const junk of ['{not json', '{"coach":"events.manage","manager":[],"player":[]}', '[]']) {
       await env.DB.prepare('UPDATE teams SET role_permissions = ? WHERE id = ?')
         .bind(junk, a.teamId)
         .run();
@@ -305,6 +306,101 @@ describe('role permissions', () => {
         (await call('GET', `/api/v1/teams/${a.teamId}/audit`, { cookie: a.manager.cookie })).status,
       ).toBe(403);
     }
+  });
+
+  it('an unknown stored action is dropped; the rest of the settings still apply', async () => {
+    const a = await fixtureTeam();
+    await env.DB.prepare('UPDATE teams SET role_permissions = ? WHERE id = ?')
+      .bind(
+        JSON.stringify({ coach: ['events.manage', 'renamed.action'], manager: [], player: [] }),
+        a.teamId,
+      )
+      .run();
+    const s = await sync(a.teamId, a.coach.cookie);
+    expect(s.body.team.rolePermissions).toEqual({
+      coach: ['events.manage'],
+      manager: [],
+      player: [],
+    });
+    // Removed powers stay removed.
+    expect(
+      (await call('GET', `/api/v1/teams/${a.teamId}/invites`, { cookie: a.coach.cookie })).status,
+    ).toBe(403);
+  });
+
+  it('a stale editor gets 409 with the latest; no If-Match still saves', async () => {
+    const a = await fixtureTeam();
+    const url = `/api/v1/teams/${a.teamId}/role-permissions`;
+    const loaded = (await call('GET', url, { cookie: a.admin.cookie })).body.version;
+    expect(loaded).toBe(1);
+    const first = await call('PUT', url, { cookie: a.owner.cookie, body: CLUB, ifMatch: loaded });
+    expect(first.status).toBe(200);
+    expect(first.body.version).toBeGreaterThan(1);
+    const stale = await call('PUT', url, { cookie: a.admin.cookie, body: CUSTOM, ifMatch: loaded });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.latest).toMatchObject({ preset: 'club', version: first.body.version });
+    const sync0 = await sync(a.teamId, a.admin.cookie);
+    expect(sync0.body.team.rolePermissionsVersion).toBe(first.body.version);
+    // Older builds send no If-Match.
+    expect((await put(a, a.admin.cookie, CUSTOM)).status).toBe(200);
+  });
+
+  it('device links: never for someone who can manage members in another team', async () => {
+    const a = await fixtureTeam('Team A');
+    const b = await fixtureTeam('Team B');
+    // Team B's manager also plays for Team A.
+    const inv = await call('POST', `/api/v1/teams/${a.teamId}/invites`, {
+      cookie: a.owner.cookie,
+      body: { id: uuidv7(), role: 'player' },
+    });
+    const acc = await call('POST', '/api/v1/invites/accept', {
+      cookie: b.manager.cookie,
+      body: { token: inv.body.token },
+    });
+    expect(acc.status).toBe(200);
+    const relink = () =>
+      call('POST', `/api/v1/teams/${a.teamId}/members/${acc.body.memberId}/relink`, {
+        cookie: a.coach.cookie,
+        body: { id: uuidv7(), memberId: acc.body.memberId },
+      });
+    // Default settings in Team B: managers there can't manage members, so this works as before.
+    expect((await relink()).status).toBe(201);
+    // Club preset in Team B: its managers manage members, so no device link from Team A.
+    await configure(b, CLUB);
+    const r = await relink();
+    expect(r.status).toBe(403);
+    expect(r.queries).toBeLessThanOrEqual(6);
+    // Malformed settings in Team B read as the defaults, without a 500.
+    await env.DB.prepare('UPDATE teams SET role_permissions = ? WHERE id = ?')
+      .bind('{not json', b.teamId)
+      .run();
+    expect((await relink()).status).toBe(201);
+  });
+
+  it('revoking invites: as before under the defaults, own roles only once customised', async () => {
+    const a = await fixtureTeam();
+    const base = `/api/v1/teams/${a.teamId}`;
+    const invite = async (role: string) =>
+      (
+        await call('POST', `${base}/invites`, {
+          cookie: a.owner.cookie,
+          body: { id: uuidv7(), role },
+        })
+      ).body.id as string;
+    const revoke = (cookie: string, id: string) =>
+      call('DELETE', `${base}/invites/${id}`, { cookie });
+    // Defaults: a coach may revoke an admin invite (unchanged).
+    expect((await revoke(a.coach.cookie, await invite('admin'))).status).toBe(200);
+    await configure(a, CLUB);
+    const adminInv = await invite('admin');
+    const coachInv = await invite('coach');
+    const playerInv = await invite('player');
+    expect((await revoke(a.manager.cookie, adminInv)).status).toBe(403);
+    expect((await revoke(a.manager.cookie, coachInv)).status).toBe(403);
+    expect((await revoke(a.manager.cookie, playerInv)).status).toBe(200);
+    expect((await revoke(a.manager.cookie, playerInv)).status).toBe(404);
+    expect((await revoke(a.coach.cookie, coachInv)).status).toBe(403); // no members.manage
+    expect((await revoke(a.admin.cookie, adminInv)).status).toBe(200);
   });
 
   it('invite → join gives exactly the invite role, whatever the configuration', async () => {

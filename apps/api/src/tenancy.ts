@@ -42,6 +42,7 @@ export async function requireMember(c: Context<AppEnv>, teamId: string, action: 
   if (!can(perms, action)) throw forbidden();
   c.set('member', member);
   c.set('perms', perms);
+  c.set('rolePermissionsAt', Number(row.role_permissions_at ?? 0));
   // Editing a held team role or the team's base-role settings changes what this member may see.
   c.set(
     'rolesUpdatedAt',

@@ -3,6 +3,7 @@ import { HexColor, Id, Timezone, text } from './common';
 import { FORMATS } from './rugby';
 import {
   CONFIGURABLE_FOR,
+  CONFIGURABLE_ROLES,
   GRANTABLE,
   ROLES,
   normaliseRolePermissions,
@@ -160,20 +161,36 @@ export const RolePermissionsInput = v.object({
 export type RolePermissionsInput = v.InferOutput<typeof RolePermissionsInput>;
 
 /**
- * Reads a stored `teams.role_permissions` value. NULL means the defaults; so does anything
- * malformed (reported through `onInvalid`), so a bad value never locks anyone out or 500s.
+ * Reads a stored `teams.role_permissions` value. NULL means the defaults. Unknown or
+ * non-configurable actions (say, one renamed or removed in a later release) are dropped, never
+ * granted, and the rest of the team's settings still apply. Only unparseable JSON or the wrong
+ * shape (not `{coach, manager, player}` lists) falls back to the defaults, reported through
+ * `onInvalid`, so a bad value never locks anyone out or 500s.
  */
 export function parseRolePermissions(
   raw: string | null | undefined,
   onInvalid?: (raw: string) => void,
 ): RolePermissions | null {
   if (!raw) return null;
+  let o: unknown;
   try {
-    const r = v.safeParse(RolePermissionsInput, JSON.parse(raw));
-    if (r.success) return normaliseRolePermissions(r.output);
+    o = JSON.parse(raw);
   } catch {
-    // fall through
+    o = null;
   }
-  onInvalid?.(raw);
-  return null;
+  const lists =
+    o && typeof o === 'object' && !Array.isArray(o)
+      ? CONFIGURABLE_ROLES.map((r) => (o as Record<string, unknown>)[r])
+      : [];
+  if (lists.length !== CONFIGURABLE_ROLES.length || !lists.every(Array.isArray)) {
+    onInvalid?.(raw);
+    return null;
+  }
+  const strings = (x: unknown) =>
+    (x as unknown[]).filter((a): a is string => typeof a === 'string');
+  return normaliseRolePermissions({
+    coach: strings(lists[0]),
+    manager: strings(lists[1]),
+    player: strings(lists[2]),
+  });
 }

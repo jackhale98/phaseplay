@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    canRevokeInvite,
     invitableRoles,
     isCustomised,
     roleSummary,
@@ -68,7 +69,7 @@
   const active = $derived(
     invites.filter((i) => !i.revokedAt && i.expiresAt > Date.now() && i.uses < i.maxUses),
   );
-  const canRevoke = $derived(app.can('members.manage'));
+  const canRevoke = (r: Role) => !!app.perms && canRevokeInvite(app.perms, r);
 </script>
 
 <Sheet
@@ -177,7 +178,7 @@
               ></Button
             >
           {/if}
-          {#if canRevoke}<Button size="sm" variant="ghost" onclick={() => revoke(i.id)}
+          {#if canRevoke(i.role)}<Button size="sm" variant="ghost" onclick={() => revoke(i.id)}
               >{#snippet icon()}<IconTrash />{/snippet}Revoke</Button
             >{/if}
         </li>
