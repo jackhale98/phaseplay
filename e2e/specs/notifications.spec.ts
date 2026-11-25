@@ -43,6 +43,12 @@ const stubPush = () => {
 
 test('notification settings: topics persist, and the page is accessible', async ({ team, axe }) => {
   const page = team.owner.page;
+  // Playwright's desktop WebKit exposes PushManager but never answers it (no push service), which
+  // no real browser does. Make "not subscribed" answer at once so the page settles.
+  await page.addInitScript(() => {
+    if ('PushManager' in window && !navigator.userAgent.includes('Chrome'))
+      PushManager.prototype.getSubscription = () => Promise.resolve(null);
+  });
   await openTeam(page, team.teamId, '/more');
   await page.getByRole('link', { name: 'Notifications' }).click();
   await expect(page.getByRole('heading', { name: 'Notifications', level: 1 })).toBeVisible();

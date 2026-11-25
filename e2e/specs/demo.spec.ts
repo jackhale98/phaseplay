@@ -1,4 +1,7 @@
+// The first visit's service-worker takeover reloads the page once; it could swallow a click here.
 import { test, expect } from '../fixtures';
+
+test.use({ serviceWorkers: 'block' });
 
 test('anyone can explore the demo team from the landing page without an account', async ({
   page,

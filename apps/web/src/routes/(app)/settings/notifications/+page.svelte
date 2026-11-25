@@ -45,14 +45,18 @@
 
   async function refresh() {
     support = pushSupport();
-    const sub = support === 'ready' ? await currentSubscription().catch(() => null) : null;
-    thisId = sub ? await sha256Base64Url(sub.endpoint) : null;
+    // The device list doesn't wait on this device's subscription check (it can be slow).
+    const here = (async () => {
+      const sub = support === 'ready' ? await currentSubscription().catch(() => null) : null;
+      thisId = sub ? await sha256Base64Url(sub.endpoint) : null;
+    })();
     try {
       devices = (await loadDevices()).devices;
     } catch (e) {
       devices = devices ?? [];
       err(e, "Couldn't load your devices");
     }
+    await here;
   }
   onMount(() => {
     dismissPrompt();

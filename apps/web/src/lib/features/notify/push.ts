@@ -49,7 +49,12 @@ async function registration(timeoutMs = 8000): Promise<ServiceWorkerRegistration
 export async function currentSubscription(): Promise<PushSubscription | null> {
   if (!('PushManager' in window)) return null;
   const reg = await registration(3000);
-  return (await reg?.pushManager.getSubscription()) ?? null;
+  if (!reg) return null;
+  // Some browsers never answer when push isn't really available: don't wait forever.
+  return Promise.race([
+    reg.pushManager.getSubscription(),
+    new Promise<null>((r) => setTimeout(() => r(null), 3000)),
+  ]);
 }
 
 function keyBytes(b64url: string) {
